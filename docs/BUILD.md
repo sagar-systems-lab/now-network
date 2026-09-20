@@ -3,8 +3,10 @@
 ## Android
 
 ```bash
-./gradlew :app:testDebugUnitTest :app:assembleDebug :app:assembleRelease
+./gradlew :app:testDebugUnitTest :app:assembleDebugAndroidTest :app:assembleDebug :app:assembleRelease
 ```
+
+The Phase 0 instrumented harness is compiled into the debug Android test APK during CI. Device/emulator execution is a later qualification concern; Phase 0 proves that the instrumented test surface is wired and buildable.
 
 ## API
 
