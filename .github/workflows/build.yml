@@ -39,7 +39,8 @@ jobs:
           test -s gradle/verification-metadata.xml
           chmod +x ./gradlew
           ./gradlew --no-daemon :app:testDebugUnitTest :app:assembleDebugAndroidTest :app:assembleDebug :app:assembleRelease
-          git diff --exit-code -- gradle/verification-metadata.xml
+          test -s apps/android/schemas/com.sagarsystemslab.nownetwork.data.local.NowDatabase/1.json
+          git diff --exit-code -- gradle/verification-metadata.xml apps/android/schemas
 
   api:
     runs-on: ubuntu-latest
