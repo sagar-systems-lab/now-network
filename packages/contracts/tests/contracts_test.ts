@@ -1,11 +1,11 @@
 import {
   ERROR_CATEGORIES,
   FRESHNESS_STATUSES,
+  PAYMENT_STATUSES,
   REFRESH_OVERLAYS,
-  SETTLEMENT_OUTCOMES,
   STATE_KINDS,
   VERIFICATION_CLASSES,
-  VERIFICATION_OUTCOMES,
+  VERIFICATION_RESULTS,
 } from "../src/index.ts";
 
 const schemaUrl = new URL("../schema/core-v1.schema.json", import.meta.url);
@@ -37,14 +37,14 @@ Deno.test("contract constants match the JSON schema", async () => {
     "VerificationClass",
   );
   assertSameValues(
-    VERIFICATION_OUTCOMES,
-    schema.$defs.VerificationOutcome.enum,
-    "VerificationOutcome",
+    VERIFICATION_RESULTS,
+    schema.$defs.VerificationResult.enum,
+    "VerificationResult",
   );
   assertSameValues(
-    SETTLEMENT_OUTCOMES,
-    schema.$defs.SettlementOutcome.enum,
-    "SettlementOutcome",
+    PAYMENT_STATUSES,
+    schema.$defs.PaymentStatus.enum,
+    "PaymentStatus",
   );
   assertSameValues(ERROR_CATEGORIES, schema.$defs.ErrorCategory.enum, "ErrorCategory");
 });
@@ -55,8 +55,8 @@ Deno.test("contract registries contain no duplicate values", () => {
     FRESHNESS_STATUSES,
     REFRESH_OVERLAYS,
     VERIFICATION_CLASSES,
-    VERIFICATION_OUTCOMES,
-    SETTLEMENT_OUTCOMES,
+    VERIFICATION_RESULTS,
+    PAYMENT_STATUSES,
     ERROR_CATEGORIES,
   ];
 

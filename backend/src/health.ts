@@ -4,7 +4,6 @@ export function healthPayload(): Record<string, string | number> {
   return {
     service: "now-api",
     status: "ok",
-    phase: "phase_0_foundation",
     schema_version: HEALTH_SCHEMA_VERSION,
   };
 }

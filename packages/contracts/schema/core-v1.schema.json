@@ -35,7 +35,7 @@
         "STRICT"
       ]
     },
-    "VerificationOutcome": {
+    "VerificationResult": {
       "type": "string",
       "enum": [
         "VERIFIED",
@@ -45,7 +45,7 @@
         "EXPIRED"
       ]
     },
-    "SettlementOutcome": {
+    "PaymentStatus": {
       "type": "string",
       "enum": [
         "NOT_STARTED",

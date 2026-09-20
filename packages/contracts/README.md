@@ -9,8 +9,8 @@ Current contract groups:
 
 - state kind
 - freshness status and overlays
-- verification class and outcome
-- settlement outcome
+- verification class and result
+- payment status
 - error categories
-- verification reason codes
+- reason codes
 - API error codes

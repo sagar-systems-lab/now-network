@@ -4,7 +4,8 @@ Deno.test("health payload is stable and explicit", () => {
   const payload = healthPayload();
 
   if (payload.status !== "ok") throw new Error("expected status=ok");
-  if (payload.phase !== "phase_0_foundation") throw new Error("unexpected phase");
+  if (payload.service !== "now-api") throw new Error("unexpected service");
+  if (payload.schema_version !== 1) throw new Error("unexpected schema version");
 });
 
 Deno.test("GET /health returns 200 and no-store", async () => {

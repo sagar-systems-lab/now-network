@@ -10,16 +10,16 @@ export type RefreshOverlay = (typeof REFRESH_OVERLAYS)[number];
 export const VERIFICATION_CLASSES = ["FAST", "CORROBORATED", "STRICT"] as const;
 export type VerificationClass = (typeof VERIFICATION_CLASSES)[number];
 
-export const VERIFICATION_OUTCOMES = [
+export const VERIFICATION_RESULTS = [
   "VERIFIED",
   "REJECTED",
   "CONFLICT",
   "REQUIRES_ADDITIONAL_VERIFICATION",
   "EXPIRED",
 ] as const;
-export type VerificationOutcome = (typeof VERIFICATION_OUTCOMES)[number];
+export type VerificationResult = (typeof VERIFICATION_RESULTS)[number];
 
-export const SETTLEMENT_OUTCOMES = [
+export const PAYMENT_STATUSES = [
   "NOT_STARTED",
   "PENDING",
   "VERIFYING",
@@ -28,7 +28,7 @@ export const SETTLEMENT_OUTCOMES = [
   "REFUNDED",
   "FAILED",
 ] as const;
-export type SettlementOutcome = (typeof SETTLEMENT_OUTCOMES)[number];
+export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 
 export const ERROR_CATEGORIES = [
   "VALIDATION",

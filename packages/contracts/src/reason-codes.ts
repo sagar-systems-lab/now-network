@@ -48,3 +48,5 @@ export const API_ERROR_CODES = [
 ] as const;
 
 export type ApiErrorCode = (typeof API_ERROR_CODES)[number];
+
+export type ReasonCode = VerificationReasonCode | ApiErrorCode;

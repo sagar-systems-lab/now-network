@@ -13,8 +13,8 @@
     }
   },
   "tasks": {
-    "check": "deno check src/server.ts ../supabase/functions/now-api/index.ts ../packages/contracts/src/index.ts ../packages/domain/src/index.ts",
-    "test": "deno test --allow-read tests ../packages/contracts/tests ../packages/domain/tests",
+    "check": "deno check src/server.ts ../supabase/functions/now-api/index.ts ../packages/contracts/src/index.ts ../packages/domain/src/index.ts ../tests/integration/runtime_contract_test.ts",
+    "test": "deno test --allow-read tests ../packages/contracts/tests ../packages/domain/tests ../tests/integration",
     "serve": "deno run --allow-net --allow-env src/server.ts"
   }
 }

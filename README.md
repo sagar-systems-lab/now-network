@@ -22,7 +22,7 @@ A user can fund a refresh, a nearby contributor can submit request-bound mobile 
 
 ## Documentation
 
-- `docs/ARCHITECTURE.md` — component and dependency boundaries
+- `docs/ARCHITECTURE_INDEX.md` — component and dependency boundaries
 - `docs/BUILD.md` — build and test commands
 - `docs/ENVIRONMENTS.md` — environment configuration
 
