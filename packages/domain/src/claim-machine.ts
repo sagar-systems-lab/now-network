@@ -105,7 +105,10 @@ function guardClaimTransition(
 
   switch (event) {
     case "WALLET_REJECTED":
-      guard(\n        facts.transactionSubmitted !== true,\n        "wallet rejection is valid only before submission",\n      );
+      guard(
+        facts.transactionSubmitted !== true,
+        "wallet rejection is valid only before submission",
+      );
       break;
     case "TRANSACTION_SUBMITTED":
       guard(facts.transactionSubmitted === true, "submission must be persisted");
