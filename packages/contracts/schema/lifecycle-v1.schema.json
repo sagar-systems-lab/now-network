@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:now:contracts:lifecycle:v1",
+  "title": "NOW Network lifecycle contract vocabulary",
+  "type": "object",
+  "$defs": {
+    "StateType": {
+      "type": "string",
+      "enum": [
+        "BINARY",
+        "NUMERIC",
+        "VISUAL"
+      ]
+    },
+    "RefreshStatus": {
+      "type": "string",
+      "enum": [
+        "DRAFT",
+        "AWAITING_FUNDING",
+        "FUNDED",
+        "AVAILABLE",
+        "CLAIMED",
+        "CAPTURE_IN_PROGRESS",
+        "EVIDENCE_SUBMITTED",
+        "VERIFYING",
+        "ADDITIONAL_VERIFICATION",
+        "CONFLICT",
+        "VERIFIED",
+        "SETTLEMENT_PENDING",
+        "SETTLEMENT_VERIFYING",
+        "COMPLETED",
+        "CANCELLED",
+        "EXPIRED",
+        "FAILED"
+      ]
+    },
+    "EvidenceStatus": {
+      "type": "string",
+      "enum": [
+        "NONE",
+        "CAPTURING",
+        "CAPTURED_LOCAL",
+        "HASHING",
+        "UPLOAD_READY",
+        "UPLOADING",
+        "UPLOADED",
+        "COMMITTING",
+        "COMMITTED",
+        "VERIFYING",
+        "VERIFIED",
+        "REJECTED",
+        "CONFLICT",
+        "EXPIRED",
+        "FAILED"
+      ]
+    },
+    "VerificationStatus": {
+      "type": "string",
+      "enum": [
+        "NOT_STARTED",
+        "QUEUED",
+        "RUNNING",
+        "WAITING_FOR_MORE_EVIDENCE",
+        "VERIFIED",
+        "REJECTED",
+        "CONFLICT",
+        "EXPIRED",
+        "INTERNAL_ERROR"
+      ]
+    },
+    "SettlementStatus": {
+      "type": "string",
+      "enum": [
+        "NOT_STARTED",
+        "ELIGIBLE",
+        "BUILDING",
+        "SUBMITTING",
+        "SUBMITTED",
+        "VERIFYING",
+        "CONFIRMED",
+        "FINALIZING",
+        "FINALIZED",
+        "NOT_SETTLED",
+        "FAILED"
+      ]
+    },
+    "RefundStatus": {
+      "type": "string",
+      "enum": [
+        "NOT_ELIGIBLE",
+        "ELIGIBLE",
+        "PREPARING",
+        "WALLET_PENDING",
+        "SUBMITTED",
+        "VERIFYING",
+        "CONFIRMED",
+        "FINALIZED",
+        "NOT_REFUNDED",
+        "FAILED"
+      ]
+    },
+    "ReceiptStatus": {
+      "type": "string",
+      "enum": [
+        "NONE",
+        "DRAFT",
+        "CONFIRMED",
+        "FINALIZING",
+        "FINAL",
+        "ANNOTATED"
+      ]
+    },
+    "BackendOutboxStatus": {
+      "type": "string",
+      "enum": [
+        "PENDING",
+        "PUBLISHING",
+        "PUBLISHED",
+        "RETRY_WAIT",
+        "DEAD_LETTER"
+      ]
+    },
+    "EventVisibility": {
+      "type": "string",
+      "enum": [
+        "PUBLIC_ENTITY",
+        "PUBLIC_AREA",
+        "ACTOR_PRIVATE"
+      ]
+    }
+  }
+}

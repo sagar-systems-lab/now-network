@@ -62,6 +62,151 @@ jobs:
           deno task check
           deno task test
 
+  database:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgis/postgis@sha256:1e85984a7261b01b38a8e7d4166abcdb35370e6b7667a6d6fd9caa057f64eab6
+        env:
+          POSTGRES_DB: now_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d now_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Apply migrations
+        shell: bash
+        env:
+          DB_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          set -Eeuo pipefail
+
+          test "$(docker exec "$DB_CONTAINER" postgres --version)" = "postgres (PostgreSQL) 17.11"
+
+          docker exec -i "$DB_CONTAINER" psql -X -U postgres -d now_test -v ON_ERROR_STOP=1 <<'SQL'
+          drop extension if exists postgis cascade;
+          create schema if not exists extensions;
+          create extension postgis with schema extensions;
+          SQL
+
+          while IFS= read -r migration; do
+            echo "Applying $migration"
+            docker exec -i "$DB_CONTAINER" psql -X -U postgres -d now_test -v ON_ERROR_STOP=1 < "$migration"
+          done < <(find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort)
+
+      - name: Verify database security baseline
+        shell: bash
+        env:
+          DB_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          set -Eeuo pipefail
+
+          docker exec -i "$DB_CONTAINER" psql -X -U postgres -d now_test -v ON_ERROR_STOP=1 <<'SQL'
+          do $$
+          declare
+            missing_relations text;
+          begin
+            with expected(schema_name, table_name) as (
+              values
+                ('app', 'actors'),
+                ('app', 'actor_auth_principals'),
+                ('app', 'wallet_bindings'),
+                ('app', 'locations'),
+                ('app', 'state_definitions'),
+                ('app', 'live_states'),
+                ('app', 'state_history'),
+                ('app', 'refresh_requests'),
+                ('app', 'refresh_contributions'),
+                ('app', 'refresh_acceptances'),
+                ('app', 'evidence_challenges'),
+                ('app', 'evidence_packets'),
+                ('app', 'evidence_location_samples'),
+                ('app', 'verification_results'),
+                ('app', 'settlement_operations'),
+                ('app', 'refund_operations'),
+                ('app', 'receipts'),
+                ('app', 'receipt_annotations'),
+                ('app', 'idempotency_records'),
+                ('app', 'domain_events'),
+                ('app', 'security_events'),
+                ('app', 'outbox_events'),
+                ('public', 'realtime_events_v1')
+            ),
+            rls_state as (
+              select
+                expected.schema_name,
+                expected.table_name,
+                c.relrowsecurity
+              from expected
+              left join pg_namespace n
+                on n.nspname = expected.schema_name
+              left join pg_class c
+                on c.relnamespace = n.oid
+               and c.relname = expected.table_name
+               and c.relkind in ('r', 'p')
+            )
+            select string_agg(
+              schema_name || '.' || table_name,
+              ', ' order by schema_name, table_name
+            )
+            into missing_relations
+            from rls_state
+            where coalesce(relrowsecurity, false) = false;
+
+            if missing_relations is not null then
+              raise exception 'RLS disabled or relation missing: %', missing_relations;
+            end if;
+          end
+          $$;
+          SQL
+
+          docker exec -i "$DB_CONTAINER" psql -X -U postgres -d now_test -v ON_ERROR_STOP=1 <<'SQL'
+          create role now_anon nologin;
+          grant usage on schema app to now_anon;
+          grant select, insert on app.actors to now_anon;
+          grant select on public.realtime_events_v1 to now_anon;
+
+          insert into app.actors(actor_id, status)
+          values ('00000000-0000-0000-0000-000000000001', 'ACTIVE');
+
+          insert into public.realtime_events_v1(
+            realtime_event_id,
+            event_type,
+            entity_type,
+            entity_id,
+            audience_type,
+            payload
+          ) values (
+            '00000000-0000-0000-0000-000000000002',
+            'STATE_UPDATED',
+            'STATE',
+            '00000000-0000-0000-0000-000000000003',
+            'PUBLIC_ENTITY',
+            '{}'::jsonb
+          );
+          SQL
+
+          actor_rows="$(docker exec "$DB_CONTAINER" psql -XAtq -U postgres -d now_test             -c "set role now_anon; select count(*) from app.actors;")"
+          test "$actor_rows" = "0"
+
+          realtime_rows="$(docker exec "$DB_CONTAINER" psql -XAtq -U postgres -d now_test             -c "set role now_anon; select count(*) from public.realtime_events_v1;")"
+          test "$realtime_rows" = "0"
+
+          if docker exec "$DB_CONTAINER" psql -XAtq -U postgres -d now_test -v ON_ERROR_STOP=1             -c "set role now_anon; insert into app.actors(actor_id, status) values ('00000000-0000-0000-0000-000000000004', 'ACTIVE');"
+          then
+            echo "RLS write isolation failed"
+            exit 1
+          fi
+
   program:
     runs-on: ubuntu-latest
     timeout-minutes: 45

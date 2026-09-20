@@ -1,0 +1,183 @@
+import {
+  BACKEND_OUTBOX_STATUSES,
+  EVENT_VISIBILITIES,
+  EVIDENCE_STATUSES,
+  RECEIPT_STATUSES,
+  REFRESH_STATUSES,
+  REFUND_STATUSES,
+  SETTLEMENT_STATUSES,
+  STATE_TYPES,
+  VERIFICATION_STATUSES,
+} from "../../packages/contracts/src/lifecycle.ts";
+
+const migrationsDir = new URL("../../supabase/migrations/", import.meta.url);
+
+const expectedMigrations = [
+  "20260920_001_identity.sql",
+  "20260920_002_state_catalog.sql",
+  "20260920_003_state_projection.sql",
+  "20260920_004_refresh_requests.sql",
+  "20260920_005_refresh_contributions.sql",
+  "20260920_006_refresh_acceptances.sql",
+  "20260920_007_evidence_challenges.sql",
+  "20260920_008_evidence.sql",
+  "20260920_009_verification.sql",
+  "20260920_010_settlement.sql",
+  "20260920_011_receipts.sql",
+  "20260920_012_idempotency.sql",
+  "20260920_013_audit.sql",
+  "20260920_014_security.sql",
+  "20260920_015_outbox.sql",
+] as const;
+
+async function readMigration(name: string): Promise<string> {
+  return await Deno.readTextFile(new URL(name, migrationsDir));
+}
+
+async function allSql(): Promise<string> {
+  return (await Promise.all(expectedMigrations.map(readMigration))).join("\n");
+}
+
+function assertIncludes(haystack: string, needle: string): void {
+  if (!haystack.toLowerCase().includes(needle.toLowerCase())) {
+    throw new Error(`missing schema invariant: ${needle}`);
+  }
+}
+
+function parseEnum(sql: string, typeName: string): string[] {
+  const pattern = new RegExp(
+    `create\\s+type\\s+app\\.${typeName}\\s+as\\s+enum\\s*\\(([^;]+?)\\)`,
+    "is",
+  );
+  const match = sql.match(pattern);
+  if (!match) throw new Error(`missing enum app.${typeName}`);
+  return [...match[1].matchAll(/'([^']+)'/g)].map((item) => item[1]);
+}
+
+function assertArrayEquals(
+  actual: readonly string[],
+  expected: readonly string[],
+  name: string,
+): void {
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+    throw new Error(`${name} drift: ${JSON.stringify(actual)} != ${JSON.stringify(expected)}`);
+  }
+}
+
+Deno.test("database migration sequence is explicit and complete", async () => {
+  const names = [];
+  for await (const entry of Deno.readDir(migrationsDir)) {
+    if (entry.isFile && entry.name.endsWith(".sql")) names.push(entry.name);
+  }
+  names.sort();
+  assertArrayEquals(names, expectedMigrations, "migration order");
+});
+
+Deno.test("database lifecycle enums match shared contracts", async () => {
+  const sql = await allSql();
+  assertArrayEquals(parseEnum(sql, "state_type"), STATE_TYPES, "state_type");
+  assertArrayEquals(parseEnum(sql, "refresh_status"), REFRESH_STATUSES, "refresh_status");
+  assertArrayEquals(parseEnum(sql, "evidence_status"), EVIDENCE_STATUSES, "evidence_status");
+  assertArrayEquals(
+    parseEnum(sql, "verification_status"),
+    VERIFICATION_STATUSES,
+    "verification_status",
+  );
+  assertArrayEquals(parseEnum(sql, "settlement_status"), SETTLEMENT_STATUSES, "settlement_status");
+  assertArrayEquals(parseEnum(sql, "refund_status"), REFUND_STATUSES, "refund_status");
+  assertArrayEquals(parseEnum(sql, "receipt_status"), RECEIPT_STATUSES, "receipt_status");
+  assertArrayEquals(parseEnum(sql, "event_visibility"), EVENT_VISIBILITIES, "event_visibility");
+
+  for (const status of BACKEND_OUTBOX_STATUSES) {
+    assertIncludes(sql, `'${status}'`);
+  }
+});
+
+Deno.test("authoritative tables enable row-level security immediately", async () => {
+  const sql = await allSql();
+  const tables = [
+    "app.actors",
+    "app.actor_auth_principals",
+    "app.wallet_bindings",
+    "app.locations",
+    "app.state_definitions",
+    "app.live_states",
+    "app.state_history",
+    "app.refresh_requests",
+    "app.refresh_contributions",
+    "app.refresh_acceptances",
+    "app.evidence_challenges",
+    "app.evidence_packets",
+    "app.evidence_location_samples",
+    "app.verification_results",
+    "app.settlement_operations",
+    "app.refund_operations",
+    "app.receipts",
+    "app.receipt_annotations",
+    "app.idempotency_records",
+    "app.domain_events",
+    "app.security_events",
+    "app.outbox_events",
+    "public.realtime_events_v1",
+  ];
+
+  for (const table of tables) {
+    assertIncludes(sql, `alter table ${table} enable row level security`);
+  }
+});
+
+Deno.test("database constraints encode critical correctness boundaries", async () => {
+  const sql = await allSql();
+  for (
+    const invariant of [
+      "unique (cluster, wallet_address)",
+      "unique (canonical_key, version)",
+      "unique (refresh_id, actor_id)",
+      "challenge_id uuid not null unique",
+      "unique (refresh_id, evidence_set_revision, policy_version)",
+      "operation_id uuid not null unique",
+      "unique (refresh_id, operation_id)",
+      "refresh_id uuid not null unique",
+      "check (revision > 0)",
+      "evidence_deadline < refresh_expires_at",
+    ]
+  ) {
+    assertIncludes(sql, invariant);
+  }
+});
+
+Deno.test("database indexes cover geospatial and recovery paths", async () => {
+  const sql = await allSql();
+  for (
+    const indexName of [
+      "locations_center_gist",
+      "locations_boundary_gist",
+      "refresh_requests_active_idx",
+      "evidence_challenges_one_issued_per_acceptance",
+      "evidence_packets_media_sha256_idx",
+      "settlement_operations_active_idx",
+      "domain_events_entity_sequence_idx",
+      "domain_events_entity_time_idx",
+      "outbox_events_pending_idx",
+    ]
+  ) {
+    assertIncludes(sql, indexName);
+  }
+});
+
+Deno.test("migrations remain forward-only and fail closed", async () => {
+  const sql = (await allSql()).toLowerCase();
+  for (
+    const forbidden of [
+      "drop table",
+      "drop schema",
+      "truncate ",
+      "disable row level security",
+      "fallbacktodestructivemigration",
+    ]
+  ) {
+    if (sql.includes(forbidden)) {
+      throw new Error(`forbidden migration operation: ${forbidden}`);
+    }
+  }
+});

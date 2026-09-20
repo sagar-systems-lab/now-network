@@ -10,7 +10,7 @@ Run unit tests and compile the debug, instrumented-test and release APKs:
 
 CI compiles the instrumented-test APK. Emulator or physical-device execution can be run separately when device-level behavior needs to be exercised.
 
-## API
+## API and shared domain
 
 ```bash
 cd backend
@@ -19,6 +19,9 @@ deno lint
 deno task check
 deno task test
 ```
+
+The Deno suite includes shared-contract parity, deterministic domain tests, cross-module integration,
+and database migration contract checks.
 
 Run the local server:
 
@@ -32,6 +35,13 @@ Health endpoint:
 ```text
 GET /health
 ```
+
+## Database migrations
+
+Versioned SQL lives in `supabase/migrations`. The migration contract suite checks ordering, lifecycle
+enum parity, critical constraints, index coverage, row-level security, and forward-only migration
+rules. Full database migration and authorization qualification is run against an isolated Supabase
+local stack before the data model is considered release-qualified.
 
 ## Solana program
 
