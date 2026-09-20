@@ -1,0 +1,12 @@
+{
+  "template_key": "visual.current_condition.v1",
+  "state_type": "VISUAL",
+  "fresh_ttl_seconds": 3600,
+  "aging_ratio": 0.7,
+  "verification_class": "FAST",
+  "required_witnesses": 1,
+  "capture": {
+    "media_required": true,
+    "location_required": true
+  }
+}

@@ -56,8 +56,8 @@ jobs:
       - name: Checks
         shell: bash
         run: |
-          deno fmt --check backend packages/contracts packages/domain supabase/functions/now-api tests
-          deno lint backend packages/contracts packages/domain supabase/functions/now-api tests
+          deno fmt --check backend packages/contracts packages/domain packages/policy supabase/functions/now-api tests
+          deno lint backend packages/contracts packages/domain packages/policy supabase/functions/now-api tests
           cd backend
           deno task check
           deno task test
