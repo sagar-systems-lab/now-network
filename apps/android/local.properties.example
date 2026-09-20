@@ -1,0 +1,5 @@
+# Local Android SDK path only.
+# Copy this file to local.properties and change the path for your machine.
+# Do not place signing credentials, API secrets, wallet material, or service keys here.
+
+sdk.dir=/path/to/Android/Sdk

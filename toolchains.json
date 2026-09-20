@@ -1,0 +1,24 @@
+{
+  "android": {
+    "jdk": "17.0.20.1+1",
+    "gradle": "9.6.0",
+    "agp": "9.4.0",
+    "kotlin": "2.2.10",
+    "compileSdk": 36,
+    "targetSdk": 36,
+    "minSdk": 26,
+    "buildTools": "36.0.0"
+  },
+  "backend": {
+    "deno": "2.9.7",
+    "node": "24.21.0",
+    "npm": "11.19.0",
+    "supabaseCli": "2.117.0",
+    "postgres": "17.11"
+  },
+  "solana": {
+    "rust": "1.98.1",
+    "anchor": "1.2.0",
+    "solana": "4.1.2"
+  }
+}
