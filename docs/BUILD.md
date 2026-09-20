@@ -1,12 +1,14 @@
-# Build
+# Build and test
 
 ## Android
+
+Run unit tests and compile the debug, instrumented-test and release APKs:
 
 ```bash
 ./gradlew :app:testDebugUnitTest :app:assembleDebugAndroidTest :app:assembleDebug :app:assembleRelease
 ```
 
-The Phase 0 instrumented harness is compiled into the debug Android test APK during CI. Device/emulator execution is a later qualification concern; Phase 0 proves that the instrumented test surface is wired and buildable.
+CI compiles the instrumented-test APK. Emulator or physical-device execution can be run separately when device-level behavior needs to be exercised.
 
 ## API
 
@@ -34,11 +36,11 @@ GET /health
 ## Solana program
 
 ```bash
-cargo test --workspace
+cargo test --workspace --locked
 anchor build
 ```
 
-Release builds use the versions recorded in `toolchains.json`.
+Tool versions are recorded in `toolchains.json`.
 
 ## Secret scan
 
@@ -46,5 +48,4 @@ Release builds use the versions recorded in `toolchains.json`.
 ./scripts/security/scan-secrets.sh
 ```
 
-The scan checks tracked sensitive file names plus the current tree and full Git history with a pinned
-Gitleaks binary.
+The scanner checks tracked sensitive file names, the current tree and Git history with a pinned Gitleaks binary.

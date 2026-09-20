@@ -1,9 +1,11 @@
 package com.sagarsystemslab.nownetwork
 
-import junit.framework.TestCase
+import org.junit.Assert.assertEquals
+import org.junit.Test
 
-class Phase0InstrumentedHarnessTest : TestCase() {
-    fun testFrozenCoreContractIsReachableFromInstrumentedSourceSet() {
+class CoreLoopContractTest {
+    @Test
+    fun coreLoopMatchesContract() {
         assertEquals(
             "ASK / REFRESH → PROVE → KNOW → PAY",
             NowContract.CORE_LOOP,

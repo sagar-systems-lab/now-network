@@ -1,11 +1,9 @@
 package com.sagarsystemslab.nownetwork
 
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import junit.framework.TestCase
 
-class Phase0ContractTest {
-    @Test
-    fun coreLoopMatchesFrozenProductContract() {
+class CoreLoopInstrumentedTest : TestCase() {
+    fun testCoreLoopContractIsAvailable() {
         assertEquals(
             "ASK / REFRESH → PROVE → KNOW → PAY",
             NowContract.CORE_LOOP,

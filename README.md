@@ -20,4 +20,10 @@ A user can fund a refresh, a nearby contributor can submit request-bound mobile 
 - `tests` — integration and end-to-end tests
 - `scripts` — build and release utilities
 
+## Documentation
+
+- `docs/ARCHITECTURE.md` — component and dependency boundaries
+- `docs/BUILD.md` — build and test commands
+- `docs/ENVIRONMENTS.md` — environment configuration
+
 The project is under active development.
