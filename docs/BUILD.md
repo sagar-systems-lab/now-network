@@ -20,7 +20,7 @@ deno task check
 deno task test
 ```
 
-The Deno suite includes shared-contract parity, deterministic domain tests, cross-module integration,
+The Deno suite includes shared-contract parity, deterministic domain and policy tests, cross-module integration,
 and database migration contract checks.
 
 Run the local server:
