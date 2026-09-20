@@ -184,7 +184,7 @@ Deno.test("verification retry preserves evidence and policy identity", () => {
 });
 
 Deno.test("verification outcomes are terminal for the current result", () => {
-  let state = transitionVerification("RUNNING", "PASS", { result: "VERIFIED" });
+  const state = transitionVerification("RUNNING", "PASS", { result: "VERIFIED" });
   assertEquals(state, "VERIFIED");
   assertThrows(
     () => transitionVerification(state, "START"),
