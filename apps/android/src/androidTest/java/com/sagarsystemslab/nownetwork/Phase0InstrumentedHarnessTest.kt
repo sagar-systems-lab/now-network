@@ -1,13 +1,12 @@
 package com.sagarsystemslab.nownetwork
 
-import android.test.InstrumentationTestCase
+import junit.framework.TestCase
 
-@Suppress("DEPRECATION")
-class Phase0InstrumentedHarnessTest : InstrumentationTestCase() {
-    fun testTargetPackageIdentity() {
+class Phase0InstrumentedHarnessTest : TestCase() {
+    fun testFrozenCoreContractIsReachableFromInstrumentedSourceSet() {
         assertEquals(
-            "com.sagarsystemslab.nownetwork",
-            instrumentation.targetContext.packageName,
+            "ASK / REFRESH → PROVE → KNOW → PAY",
+            NowContract.CORE_LOOP,
         )
     }
 }
