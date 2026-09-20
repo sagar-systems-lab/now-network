@@ -37,3 +37,12 @@ anchor build
 ```
 
 Release builds use the versions recorded in `toolchains.json`.
+
+## Secret scan
+
+```bash
+./scripts/security/scan-secrets.sh
+```
+
+The scan checks tracked sensitive file names plus the current tree and full Git history with a pinned
+Gitleaks binary.
