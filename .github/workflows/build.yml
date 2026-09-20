@@ -38,7 +38,7 @@ jobs:
         run: |
           test -s gradle/verification-metadata.xml
           chmod +x ./gradlew
-          ./gradlew --no-daemon :app:testDebugUnitTest :app:assembleDebug :app:assembleRelease
+          ./gradlew --no-daemon :app:testDebugUnitTest :app:assembleDebugAndroidTest :app:assembleDebug :app:assembleRelease
           git diff --exit-code -- gradle/verification-metadata.xml
 
   api:
