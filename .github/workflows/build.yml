@@ -54,10 +54,11 @@ jobs:
           deno-version: "2.9.7"
 
       - name: Checks
-        working-directory: backend
+        shell: bash
         run: |
-          deno fmt --check
-          deno lint
+          deno fmt --check backend packages/contracts packages/domain supabase/functions/now-api
+          deno lint backend packages/contracts packages/domain supabase/functions/now-api
+          cd backend
           deno task check
           deno task test
 

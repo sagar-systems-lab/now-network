@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:now:contracts:core:v1",
+  "title": "NOW Network core contract vocabulary",
+  "type": "object",
+  "$defs": {
+    "StateKind": {
+      "type": "string",
+      "enum": [
+        "binary",
+        "numeric",
+        "visual"
+      ]
+    },
+    "FreshnessStatus": {
+      "type": "string",
+      "enum": [
+        "LIVE",
+        "AGING",
+        "STALE"
+      ]
+    },
+    "RefreshOverlay": {
+      "type": "string",
+      "enum": [
+        "REFRESHING",
+        "CONFLICT"
+      ]
+    },
+    "VerificationClass": {
+      "type": "string",
+      "enum": [
+        "FAST",
+        "CORROBORATED",
+        "STRICT"
+      ]
+    },
+    "VerificationOutcome": {
+      "type": "string",
+      "enum": [
+        "VERIFIED",
+        "REJECTED",
+        "CONFLICT",
+        "REQUIRES_ADDITIONAL_VERIFICATION",
+        "EXPIRED"
+      ]
+    },
+    "SettlementOutcome": {
+      "type": "string",
+      "enum": [
+        "NOT_STARTED",
+        "PENDING",
+        "VERIFYING",
+        "PAID",
+        "NOT_SETTLED",
+        "REFUNDED",
+        "FAILED"
+      ]
+    },
+    "ErrorCategory": {
+      "type": "string",
+      "enum": [
+        "VALIDATION",
+        "AUTH",
+        "BUSINESS",
+        "CONFLICT",
+        "NETWORK",
+        "DEPENDENCY",
+        "STORAGE",
+        "RPC",
+        "DATABASE",
+        "INTERNAL",
+        "SECURITY"
+      ]
+    }
+  }
+}

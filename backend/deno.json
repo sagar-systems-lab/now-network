@@ -7,12 +7,14 @@
   },
   "lint": {
     "rules": {
-      "tags": ["recommended"]
+      "tags": [
+        "recommended"
+      ]
     }
   },
   "tasks": {
-    "check": "deno check src/server.ts ../supabase/functions/now-api/index.ts",
-    "test": "deno test tests",
+    "check": "deno check src/server.ts ../supabase/functions/now-api/index.ts ../packages/contracts/src/index.ts ../packages/domain/src/index.ts",
+    "test": "deno test --allow-read tests ../packages/contracts/tests ../packages/domain/tests",
     "serve": "deno run --allow-net --allow-env src/server.ts"
   }
 }
