@@ -1,0 +1,18 @@
+{
+  "fmt": {
+    "lineWidth": 100,
+    "indentWidth": 2,
+    "semiColons": true,
+    "singleQuote": false
+  },
+  "lint": {
+    "rules": {
+      "tags": ["recommended"]
+    }
+  },
+  "tasks": {
+    "check": "deno check src/server.ts ../supabase/functions/now-api/index.ts",
+    "test": "deno test tests",
+    "serve": "deno run --allow-net --allow-env src/server.ts"
+  }
+}

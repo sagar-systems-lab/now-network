@@ -1,0 +1,62 @@
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.iml
+
+# Local environment / secrets
+.env
+.env.*
+!.env.example
+local.properties
+*.jks
+*.keystore
+*.p12
+*.pem
+*.key
+*.secret
+secrets/
+credentials/
+
+# Android / Gradle
+.gradle/
+**/build/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Node / JS / Deno
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-store/
+.deno/
+
+# Rust / Solana / Anchor
+target/
+.anchor/
+test-ledger/
+*.so
+
+# Supabase local runtime
+supabase/.branches/
+supabase/.temp/
+
+# Test / coverage / reports
+coverage/
+reports/
+test-results/
+*.log
+
+# Runtime artifacts
+artifacts/
+tmp/
+.cache/
+
+# Python helper cache
+__pycache__/
+*.py[cod]
+.venv/
+venv/

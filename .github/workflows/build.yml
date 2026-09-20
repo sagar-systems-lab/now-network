@@ -1,0 +1,113 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: JDK 17
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Android SDK
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+
+      - name: SDK packages
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Gradle checks
+        shell: bash
+        run: |
+          chmod +x ./gradlew
+          ./gradlew --no-daemon :app:testDebugUnitTest :app:assembleDebug :app:assembleRelease
+
+  api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Deno
+        uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with:
+          deno-version: "2.9.7"
+
+      - name: Checks
+        working-directory: backend
+        run: |
+          deno fmt --check
+          deno lint
+          deno task check
+          deno task test
+
+  program:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Rust
+        shell: bash
+        run: |
+          rustup toolchain install 1.98.1 --profile minimal
+          rustup default 1.98.1
+          rustc --version
+          cargo --version
+
+      - name: Install Agave
+        shell: bash
+        run: |
+          mkdir -p "$HOME/agave"
+          curl --fail --silent --show-error --location             --output "$RUNNER_TEMP/solana-release.tar.bz2"             "https://github.com/anza-xyz/agave/releases/download/v4.1.2/solana-release-x86_64-unknown-linux-gnu.tar.bz2"
+          echo "5991d027a686eb419a709a479178b33eb83501e8a2bfbf599a81a286bfcbf770  $RUNNER_TEMP/solana-release.tar.bz2" | sha256sum -c -
+          tar -xjf "$RUNNER_TEMP/solana-release.tar.bz2" -C "$HOME/agave"
+          echo "$HOME/agave/solana-release/bin" >> "$GITHUB_PATH"
+
+      - name: Install Anchor
+        shell: bash
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          curl --fail --silent --show-error --location             --output "$RUNNER_TEMP/anchor"             "https://github.com/otter-sec/anchor/releases/download/v1.2.0/anchor-1.2.0-x86_64-unknown-linux-gnu"
+          echo "0c9c41a3292c281cc6eadb78d6e1c8224d8324a34b0736a89d640fd314db05b7  $RUNNER_TEMP/anchor" | sha256sum -c -
+          install -m 0755 "$RUNNER_TEMP/anchor" "$HOME/.local/bin/anchor"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Versions
+        shell: bash
+        run: |
+          solana --version
+          anchor --version
+
+      - name: Rust tests
+        run: cargo test --workspace
+
+      - name: Anchor build
+        run: anchor build
+
+      - name: Save generated lockfile
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cargo-lock
+          path: Cargo.lock
+          if-no-files-found: ignore
