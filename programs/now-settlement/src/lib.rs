@@ -1,12 +1,20 @@
 use anchor_lang::prelude::*;
 
 pub mod constants;
+pub mod error;
 pub mod identity;
+pub mod instructions;
 pub mod state;
+pub mod token;
+pub mod validation;
 
 pub use constants::*;
+pub use error::*;
 pub use identity::*;
+pub use instructions::*;
 pub use state::*;
+pub use token::*;
+pub use validation::*;
 
 declare_id!("6HnAnrNjHWzyJ6RSDZtQ9mPWGwYehSmw1H8T2RKBwWwA");
 
@@ -14,13 +22,46 @@ declare_id!("6HnAnrNjHWzyJ6RSDZtQ9mPWGwYehSmw1H8T2RKBwWwA");
 pub mod now_settlement {
     use super::*;
 
-    pub fn initialize(_ctx: Context<Initialize>) -> Result<()> {
-        Ok(())
+    pub fn initialize_protocol(
+        ctx: Context<InitializeProtocol>,
+        current_verifier_authority: Pubkey,
+    ) -> Result<()> {
+        instructions::config::handler(ctx, current_verifier_authority)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn create_refresh(
+        ctx: Context<CreateRefresh>,
+        refresh_id: [u8; 32],
+        state_id_digest: [u8; 32],
+        intent_core_hash: [u8; 32],
+        refresh_expires_at: i64,
+        verification_class: VerificationClass,
+        required_witnesses: u8,
+        max_witnesses: u8,
+        payout_rule: PayoutRule,
+    ) -> Result<()> {
+        instructions::refresh::handler(
+            ctx,
+            refresh_id,
+            state_id_digest,
+            intent_core_hash,
+            refresh_expires_at,
+            verification_class,
+            required_witnesses,
+            max_witnesses,
+            payout_rule,
+        )
+    }
+
+    pub fn contribute(
+        ctx: Context<Contribute>,
+        refresh_id: [u8; 32],
+        amount_atomic: u64,
+    ) -> Result<()> {
+        instructions::funding::handler(ctx, refresh_id, amount_atomic)
     }
 }
-
-#[derive(Accounts)]
-pub struct Initialize {}
 
 #[cfg(test)]
 mod tests {
