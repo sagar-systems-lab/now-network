@@ -117,6 +117,16 @@ fn validate_settlement_state(
     Ok(())
 }
 
+fn validate_verification_result_digest(
+    verification_result_digest: &[u8; 32],
+) -> Result<()> {
+    if verification_result_digest == &[0; 32] {
+        return err!(ProtocolError::InvalidVerificationDigest);
+    }
+
+    Ok(())
+}
+
 #[derive(Accounts)]
 #[instruction(refresh_id: [u8; 32])]
 pub struct SettleRefresh<'info> {
@@ -180,6 +190,7 @@ pub fn handler<'info>(
         now,
         &settlement_operation_hash,
     )?;
+    validate_verification_result_digest(&verification_result_digest)?;
 
     let plan = settlement_plan(&ctx.accounts.refresh)?;
     if ctx.remaining_accounts.len() != plan.recipient_count {
@@ -369,6 +380,12 @@ mod tests {
         let mut refunding = refresh(PayoutRule::SingleWinnerAll, 1, 1, 100);
         refunding.status = RefreshStatus::Refunding;
         assert!(validate_settlement_state(&refunding, &verifier, 1_000, &operation_hash).is_err());
+    }
+
+    #[test]
+    fn verification_result_digest_must_be_nonzero() {
+        assert!(validate_verification_result_digest(&[0; 32]).is_err());
+        assert!(validate_verification_result_digest(&[0x55; 32]).is_ok());
     }
 
     #[test]

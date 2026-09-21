@@ -20,6 +20,7 @@ export interface PaymentTransitionFacts {
   chainConfirmed?: boolean;
   settlementDefinitivelyAbsent?: boolean;
   retryAuthorized?: boolean;
+  sameOperationIdentity?: boolean;
   refundConfirmed?: boolean;
 }
 
@@ -85,6 +86,10 @@ function guardPaymentTransition(
       guard(
         facts.settlementDefinitivelyAbsent === true,
         "retry requires proof that the prior attempt cannot land",
+      );
+      guard(
+        facts.sameOperationIdentity === true,
+        "retry must reuse the original logical operation identity",
       );
       break;
     case "REFUND_CONFIRMED":
