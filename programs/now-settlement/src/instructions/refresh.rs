@@ -119,6 +119,7 @@ pub fn handler(
     refresh.locked_reward_amount = 0;
     refresh.funding_locked = false;
     refresh.claimants = [Pubkey::default(); MAX_WITNESSES_V1];
+    refresh.claimed_at = [0; MAX_WITNESSES_V1];
     refresh.claim_deadlines = [0; MAX_WITNESSES_V1];
     refresh.claim_statuses = [ClaimStatus::Empty; MAX_WITNESSES_V1];
     refresh.settled_amount = 0;

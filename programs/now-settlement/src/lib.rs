@@ -2,6 +2,7 @@ use anchor_lang::prelude::*;
 
 pub mod constants;
 pub mod error;
+pub mod events;
 pub mod identity;
 pub mod instructions;
 pub mod state;
@@ -10,6 +11,7 @@ pub mod validation;
 
 pub use constants::*;
 pub use error::*;
+pub use events::*;
 pub use identity::*;
 pub use instructions::*;
 pub use state::*;
@@ -61,6 +63,14 @@ pub mod now_settlement {
     ) -> Result<()> {
         instructions::funding::handler(ctx, refresh_id, amount_atomic)
     }
+
+    pub fn claim_witness(
+        ctx: Context<ClaimWitness>,
+        refresh_id: [u8; 32],
+        claim_duration_seconds: u32,
+    ) -> Result<()> {
+        instructions::claim::handler(ctx, refresh_id, claim_duration_seconds)
+    }
 }
 
 #[cfg(test)]
@@ -75,7 +85,7 @@ mod tests {
     #[test]
     fn account_sizes_are_fixed() {
         assert_eq!(ProtocolConfig::SPACE, 142);
-        assert_eq!(RefreshEscrow::SPACE, 476);
+        assert_eq!(RefreshEscrow::SPACE, 500);
         assert_eq!(Contribution::SPACE, 107);
     }
 }

@@ -30,6 +30,7 @@ pub struct RefreshEscrow {
     pub funding_locked: bool,
 
     pub claimants: [Pubkey; MAX_WITNESSES_V1],
+    pub claimed_at: [i64; MAX_WITNESSES_V1],
     pub claim_deadlines: [i64; MAX_WITNESSES_V1],
     pub claim_statuses: [ClaimStatus; MAX_WITNESSES_V1],
 
@@ -62,6 +63,7 @@ impl RefreshEscrow {
         8 + // locked_reward_amount
         1 + // funding_locked
         (32 * MAX_WITNESSES_V1) + // claimants
+        (8 * MAX_WITNESSES_V1) + // claimed_at
         (8 * MAX_WITNESSES_V1) + // claim_deadlines
         MAX_WITNESSES_V1 + // claim_statuses
         8 + // settled_amount
