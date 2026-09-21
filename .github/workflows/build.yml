@@ -85,6 +85,11 @@ jobs:
 
           echo "no" | avdmanager create avd             --force             --name "$AVD_NAME"             --package "system-images;android-35;aosp_atd;x86_64"
 
+          AVD_CONFIG="$HOME/.android/avd/$AVD_NAME.avd/config.ini"
+          test -f "$AVD_CONFIG"
+          sed -i '/^disk.dataPartition.size=/d' "$AVD_CONFIG"
+          echo "disk.dataPartition.size=4096M" >> "$AVD_CONFIG"
+
           sudo chmod 666 /dev/kvm || true
 
           EMULATOR_BIN="$ANDROID_SDK_ROOT/emulator/emulator"
