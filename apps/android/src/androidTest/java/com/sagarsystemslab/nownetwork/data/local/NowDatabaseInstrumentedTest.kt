@@ -44,7 +44,7 @@ class NowDatabaseInstrumentedTest {
 
         assertEquals(CacheApplyResult.INSERTED, store.applyStateDelta(revisionOne))
         assertEquals(CacheApplyResult.SNAPSHOT_REQUIRED, store.applyStateDelta(revisionThree))
-        assertEquals(1, database.cachedStateDao().get("parking-a")?.revision)
+        assertEquals(1L, database.cachedStateDao().get("parking-a")?.revision)
 
         val metadataAfterGap = database.syncMetadataDao().get("state:parking-a")
         assertNotNull(metadataAfterGap)
