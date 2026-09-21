@@ -45,7 +45,7 @@ jobs:
 
   android-instrumented:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -59,35 +59,51 @@ jobs:
       - name: Android SDK
         uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
 
-      - name: Emulator
+      - name: Instrumented persistence tests
         shell: bash
         run: |
           set -Eeuo pipefail
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "platforms;android-36" "build-tools;36.0.0" "emulator" "system-images;android-36;google_apis;x86_64"
 
-          echo "no" | avdmanager create avd             --force             --name now-ci             --package "system-images;android-36;google_apis;x86_64"
+          export ANDROID_SERIAL=emulator-5554
+          AVD_NAME=now-ci
+          EMULATOR_LOG="$RUNNER_TEMP/now-emulator.log"
+
+          cleanup() {
+            adb -s "$ANDROID_SERIAL" emu kill >/dev/null 2>&1 || true
+          }
+          diagnostics() {
+            echo "----- emulator log -----"
+            tail -n 250 "$EMULATOR_LOG" 2>/dev/null || true
+            echo "----- adb devices -----"
+            adb devices -l || true
+          }
+          trap cleanup EXIT
+          trap diagnostics ERR
+
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager             "platform-tools"             "emulator"             "system-images;android-35;aosp_atd;x86_64"
+
+          echo "no" | avdmanager create avd             --force             --name "$AVD_NAME"             --package "system-images;android-35;aosp_atd;x86_64"
 
           sudo chmod 666 /dev/kvm || true
-          nohup emulator             -avd now-ci             -no-window             -no-audio             -no-boot-anim             -no-snapshot             -gpu swiftshader_indirect             > "$RUNNER_TEMP/now-emulator.log" 2>&1 &
 
-          adb wait-for-device
-          timeout 300 bash -c '
-            until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" = "1" ]; do
+          nohup emulator             -avd "$AVD_NAME"             -port 5554             -no-window             -no-audio             -no-boot-anim             -no-snapshot             -gpu swiftshader_indirect             -cores 2             -memory 2048             > "$EMULATOR_LOG" 2>&1 &
+
+          timeout 90 adb -s "$ANDROID_SERIAL" wait-for-device
+          timeout 240 bash -c '
+            until [ "$(adb -s "$ANDROID_SERIAL" shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" = "1" ]; do
               sleep 2
             done
           '
-          adb shell settings put global window_animation_scale 0
-          adb shell settings put global transition_animation_scale 0
-          adb shell settings put global animator_duration_scale 0
-          adb shell input keyevent 82 || true
 
-      - name: Instrumented tests
-        shell: bash
-        run: |
-          set -Eeuo pipefail
+          adb -s "$ANDROID_SERIAL" shell settings put global window_animation_scale 0
+          adb -s "$ANDROID_SERIAL" shell settings put global transition_animation_scale 0
+          adb -s "$ANDROID_SERIAL" shell settings put global animator_duration_scale 0
+          adb -s "$ANDROID_SERIAL" shell input keyevent 82 || true
+
           chmod +x ./gradlew
           ./gradlew --no-daemon :app:connectedDebugAndroidTest
+
 
   api:
     runs-on: ubuntu-latest
