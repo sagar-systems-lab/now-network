@@ -1,0 +1,581 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "d06b3293aa33aa446aef91f00b45bc46",
+    "entities": [
+      {
+        "tableName": "cached_states",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`state_id` TEXT NOT NULL, `revision` INTEGER NOT NULL, `payload_json` TEXT NOT NULL, `observed_at_ms` INTEGER NOT NULL, `aging_at_ms` INTEGER NOT NULL, `fresh_until_ms` INTEGER NOT NULL, `cached_at_ms` INTEGER NOT NULL, PRIMARY KEY(`state_id`))",
+        "fields": [
+          {
+            "fieldPath": "stateId",
+            "columnName": "state_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "revision",
+            "columnName": "revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "payloadJson",
+            "columnName": "payload_json",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "observedAtMs",
+            "columnName": "observed_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "agingAtMs",
+            "columnName": "aging_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "freshUntilMs",
+            "columnName": "fresh_until_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cachedAtMs",
+            "columnName": "cached_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "state_id"
+          ]
+        }
+      },
+      {
+        "tableName": "cached_opportunities",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`refresh_id` TEXT NOT NULL, `state_id` TEXT NOT NULL, `revision` INTEGER NOT NULL, `status` TEXT NOT NULL, `reward_amount_atomic` TEXT NOT NULL, `reward_mint` TEXT NOT NULL, `claim_deadline_ms` INTEGER, `evidence_deadline_ms` INTEGER, `refresh_expires_at_ms` INTEGER NOT NULL, `cached_at_ms` INTEGER NOT NULL, PRIMARY KEY(`refresh_id`))",
+        "fields": [
+          {
+            "fieldPath": "refreshId",
+            "columnName": "refresh_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "stateId",
+            "columnName": "state_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "revision",
+            "columnName": "revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rewardAmountAtomic",
+            "columnName": "reward_amount_atomic",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rewardMint",
+            "columnName": "reward_mint",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "claimDeadlineMs",
+            "columnName": "claim_deadline_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "evidenceDeadlineMs",
+            "columnName": "evidence_deadline_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "refreshExpiresAtMs",
+            "columnName": "refresh_expires_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cachedAtMs",
+            "columnName": "cached_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "refresh_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_cached_opportunities_state_id",
+            "unique": false,
+            "columnNames": [
+              "state_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_cached_opportunities_state_id` ON `${TABLE_NAME}` (`state_id`)"
+          },
+          {
+            "name": "index_cached_opportunities_status_refresh_expires_at_ms",
+            "unique": false,
+            "columnNames": [
+              "status",
+              "refresh_expires_at_ms"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_cached_opportunities_status_refresh_expires_at_ms` ON `${TABLE_NAME}` (`status`, `refresh_expires_at_ms`)"
+          }
+        ]
+      },
+      {
+        "tableName": "active_operations",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`operation_id` TEXT NOT NULL, `type` TEXT NOT NULL, `entity_id` TEXT NOT NULL, `local_state` TEXT NOT NULL, `remote_state` TEXT, `chain_signature` TEXT, `last_valid_block_height` INTEGER, `idempotency_key` TEXT NOT NULL, `created_at_ms` INTEGER NOT NULL, `updated_at_ms` INTEGER NOT NULL, PRIMARY KEY(`operation_id`))",
+        "fields": [
+          {
+            "fieldPath": "operationId",
+            "columnName": "operation_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "entityId",
+            "columnName": "entity_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "localState",
+            "columnName": "local_state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "remoteState",
+            "columnName": "remote_state",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "chainSignature",
+            "columnName": "chain_signature",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "lastValidBlockHeight",
+            "columnName": "last_valid_block_height",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "idempotencyKey",
+            "columnName": "idempotency_key",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtMs",
+            "columnName": "created_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtMs",
+            "columnName": "updated_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "operation_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_active_operations_entity_id",
+            "unique": false,
+            "columnNames": [
+              "entity_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_active_operations_entity_id` ON `${TABLE_NAME}` (`entity_id`)"
+          },
+          {
+            "name": "index_active_operations_idempotency_key",
+            "unique": true,
+            "columnNames": [
+              "idempotency_key"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_active_operations_idempotency_key` ON `${TABLE_NAME}` (`idempotency_key`)"
+          },
+          {
+            "name": "index_active_operations_updated_at_ms",
+            "unique": false,
+            "columnNames": [
+              "updated_at_ms"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_active_operations_updated_at_ms` ON `${TABLE_NAME}` (`updated_at_ms`)"
+          }
+        ]
+      },
+      {
+        "tableName": "pending_evidence",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`evidence_id` TEXT NOT NULL, `acceptance_id` TEXT NOT NULL, `challenge_id` TEXT NOT NULL, `local_file_path` TEXT NOT NULL, `sha256_hex` TEXT, `media_size_bytes` INTEGER, `captured_at_ms` INTEGER NOT NULL, `capture_elapsed_realtime_ms` INTEGER NOT NULL, `upload_state` TEXT NOT NULL, `last_error` TEXT, `created_at_ms` INTEGER NOT NULL, `updated_at_ms` INTEGER NOT NULL, PRIMARY KEY(`evidence_id`))",
+        "fields": [
+          {
+            "fieldPath": "evidenceId",
+            "columnName": "evidence_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "acceptanceId",
+            "columnName": "acceptance_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "challengeId",
+            "columnName": "challenge_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "localFilePath",
+            "columnName": "local_file_path",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sha256Hex",
+            "columnName": "sha256_hex",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "mediaSizeBytes",
+            "columnName": "media_size_bytes",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "capturedAtMs",
+            "columnName": "captured_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "captureElapsedRealtimeMs",
+            "columnName": "capture_elapsed_realtime_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "uploadState",
+            "columnName": "upload_state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastError",
+            "columnName": "last_error",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "createdAtMs",
+            "columnName": "created_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtMs",
+            "columnName": "updated_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "evidence_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_pending_evidence_acceptance_id",
+            "unique": false,
+            "columnNames": [
+              "acceptance_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_pending_evidence_acceptance_id` ON `${TABLE_NAME}` (`acceptance_id`)"
+          },
+          {
+            "name": "index_pending_evidence_challenge_id",
+            "unique": true,
+            "columnNames": [
+              "challenge_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_pending_evidence_challenge_id` ON `${TABLE_NAME}` (`challenge_id`)"
+          },
+          {
+            "name": "index_pending_evidence_upload_state_updated_at_ms",
+            "unique": false,
+            "columnNames": [
+              "upload_state",
+              "updated_at_ms"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_pending_evidence_upload_state_updated_at_ms` ON `${TABLE_NAME}` (`upload_state`, `updated_at_ms`)"
+          }
+        ]
+      },
+      {
+        "tableName": "outbox",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`operation_id` TEXT NOT NULL, `idempotency_key` TEXT NOT NULL, `operation_type` TEXT NOT NULL, `entity_id` TEXT NOT NULL, `payload_digest` TEXT NOT NULL, `payload_reference` TEXT, `dependency_operation_id` TEXT, `created_at_ms` INTEGER NOT NULL, `attempt_count` INTEGER NOT NULL, `next_attempt_at_ms` INTEGER, `status` TEXT NOT NULL, `last_error` TEXT, `requires_connectivity` INTEGER NOT NULL, `requires_user_presence` INTEGER NOT NULL, PRIMARY KEY(`operation_id`))",
+        "fields": [
+          {
+            "fieldPath": "operationId",
+            "columnName": "operation_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "idempotencyKey",
+            "columnName": "idempotency_key",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "operationType",
+            "columnName": "operation_type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "entityId",
+            "columnName": "entity_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "payloadDigest",
+            "columnName": "payload_digest",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "payloadReference",
+            "columnName": "payload_reference",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "dependencyOperationId",
+            "columnName": "dependency_operation_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "createdAtMs",
+            "columnName": "created_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "attemptCount",
+            "columnName": "attempt_count",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "nextAttemptAtMs",
+            "columnName": "next_attempt_at_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastError",
+            "columnName": "last_error",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "requiresConnectivity",
+            "columnName": "requires_connectivity",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "requiresUserPresence",
+            "columnName": "requires_user_presence",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "operation_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_outbox_idempotency_key",
+            "unique": true,
+            "columnNames": [
+              "idempotency_key"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_outbox_idempotency_key` ON `${TABLE_NAME}` (`idempotency_key`)"
+          },
+          {
+            "name": "index_outbox_entity_id_status",
+            "unique": false,
+            "columnNames": [
+              "entity_id",
+              "status"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_outbox_entity_id_status` ON `${TABLE_NAME}` (`entity_id`, `status`)"
+          },
+          {
+            "name": "index_outbox_status_next_attempt_at_ms",
+            "unique": false,
+            "columnNames": [
+              "status",
+              "next_attempt_at_ms"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_outbox_status_next_attempt_at_ms` ON `${TABLE_NAME}` (`status`, `next_attempt_at_ms`)"
+          },
+          {
+            "name": "index_outbox_dependency_operation_id",
+            "unique": false,
+            "columnNames": [
+              "dependency_operation_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_outbox_dependency_operation_id` ON `${TABLE_NAME}` (`dependency_operation_id`)"
+          }
+        ]
+      },
+      {
+        "tableName": "wallet_session_metadata",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`profile_key` TEXT NOT NULL, `wallet_address` TEXT, `solana_cluster` TEXT NOT NULL, `auth_subject_id` TEXT, `session_state` TEXT NOT NULL, `updated_at_ms` INTEGER NOT NULL, PRIMARY KEY(`profile_key`))",
+        "fields": [
+          {
+            "fieldPath": "profileKey",
+            "columnName": "profile_key",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "walletAddress",
+            "columnName": "wallet_address",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "solanaCluster",
+            "columnName": "solana_cluster",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "authSubjectId",
+            "columnName": "auth_subject_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sessionState",
+            "columnName": "session_state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtMs",
+            "columnName": "updated_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "profile_key"
+          ]
+        }
+      },
+      {
+        "tableName": "sync_metadata",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`stream_key` TEXT NOT NULL, `latest_revision` INTEGER NOT NULL, `snapshot_required` INTEGER NOT NULL, `updated_at_ms` INTEGER NOT NULL, PRIMARY KEY(`stream_key`))",
+        "fields": [
+          {
+            "fieldPath": "streamKey",
+            "columnName": "stream_key",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "latestRevision",
+            "columnName": "latest_revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "snapshotRequired",
+            "columnName": "snapshot_required",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtMs",
+            "columnName": "updated_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "stream_key"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'd06b3293aa33aa446aef91f00b45bc46')"
+    ]
+  }
+}

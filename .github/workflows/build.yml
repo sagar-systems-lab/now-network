@@ -39,7 +39,83 @@ jobs:
           test -s gradle/verification-metadata.xml
           chmod +x ./gradlew
           ./gradlew --no-daemon :app:testDebugUnitTest :app:assembleDebugAndroidTest :app:assembleDebug :app:assembleRelease
-          git diff --exit-code -- gradle/verification-metadata.xml
+          test -s apps/android/schemas/com.sagarsystemslab.nownetwork.data.local.NowDatabase/1.json
+          git diff --exit-code -- gradle/verification-metadata.xml apps/android/schemas
+
+
+  android-instrumented:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: JDK 17
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Android SDK
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+
+      - name: Instrumented persistence tests
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          export ANDROID_SERIAL=emulator-5554
+          AVD_NAME=now-ci
+          EMULATOR_LOG="$RUNNER_TEMP/now-emulator.log"
+
+          cleanup() {
+            adb -s "$ANDROID_SERIAL" emu kill >/dev/null 2>&1 || true
+          }
+          diagnostics() {
+            echo "----- emulator log -----"
+            tail -n 250 "$EMULATOR_LOG" 2>/dev/null || true
+            echo "----- adb devices -----"
+            adb devices -l || true
+          }
+          trap cleanup EXIT
+          trap diagnostics ERR
+
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager             "platform-tools"             "emulator"             "system-images;android-35;aosp_atd;x86_64"
+
+          echo "no" | avdmanager create avd             --force             --name "$AVD_NAME"             --package "system-images;android-35;aosp_atd;x86_64"
+
+          AVD_CONFIG="$HOME/.android/avd/$AVD_NAME.avd/config.ini"
+          test -f "$AVD_CONFIG"
+          sed -i '/^disk.dataPartition.size=/d' "$AVD_CONFIG"
+          echo "disk.dataPartition.size=4096M" >> "$AVD_CONFIG"
+
+          sudo chmod 666 /dev/kvm || true
+
+          EMULATOR_BIN="$ANDROID_SDK_ROOT/emulator/emulator"
+          test -x "$EMULATOR_BIN"
+
+          nohup "$EMULATOR_BIN"             -avd "$AVD_NAME"             -port 5554             -no-window             -no-audio             -no-boot-anim             -no-snapshot             -gpu swiftshader_indirect             -cores 2             -memory 2048             > "$EMULATOR_LOG" 2>&1 &
+
+          timeout 90 adb -s "$ANDROID_SERIAL" wait-for-device
+          timeout 240 bash -c '
+            until [ "$(adb -s "$ANDROID_SERIAL" shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" = "1" ]; do
+              sleep 2
+            done
+          '
+
+          adb -s "$ANDROID_SERIAL" shell settings put global window_animation_scale 0
+          adb -s "$ANDROID_SERIAL" shell settings put global transition_animation_scale 0
+          adb -s "$ANDROID_SERIAL" shell settings put global animator_duration_scale 0
+          adb -s "$ANDROID_SERIAL" shell input keyevent 82 || true
+
+          chmod +x ./gradlew
+          if ! ./gradlew --no-daemon :app:connectedDebugAndroidTest; then
+            echo "----- instrumented test results -----"
+            find apps/android/build/outputs/androidTest-results -type f -name '*.xml' -print -exec cat {} \; 2>/dev/null || true
+            exit 1
+          fi
+
 
   api:
     runs-on: ubuntu-latest
