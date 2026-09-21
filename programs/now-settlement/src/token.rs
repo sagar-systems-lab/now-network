@@ -2,7 +2,7 @@ use anchor_lang::{
     prelude::*,
     solana_program::{
         instruction::Instruction,
-        program::invoke,
+        program::{invoke, invoke_signed},
     },
 };
 
@@ -143,6 +143,41 @@ pub fn transfer_checked<'info>(
             destination.clone(),
             authority.clone(),
         ],
+    )?;
+
+    Ok(())
+}
+
+pub fn transfer_checked_signed<'info>(
+    token_program: &AccountInfo<'info>,
+    source: &AccountInfo<'info>,
+    mint: &AccountInfo<'info>,
+    destination: &AccountInfo<'info>,
+    authority: &AccountInfo<'info>,
+    amount: u64,
+    decimals: u8,
+    signer_seeds: &[&[&[u8]]],
+) -> Result<()> {
+    validate_token_program(token_program)?;
+
+    let instruction = transfer_checked_instruction(
+        *source.key,
+        *mint.key,
+        *destination.key,
+        *authority.key,
+        amount,
+        decimals,
+    );
+
+    invoke_signed(
+        &instruction,
+        &[
+            source.clone(),
+            mint.clone(),
+            destination.clone(),
+            authority.clone(),
+        ],
+        signer_seeds,
     )?;
 
     Ok(())
