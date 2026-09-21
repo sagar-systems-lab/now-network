@@ -48,4 +48,22 @@ pub enum ProtocolError {
     InvalidRefreshIdentity,
     #[msg("Refresh vault must be empty before tracked funding begins")]
     VaultAlreadyFunded,
+    #[msg("Refresh state cannot accept a new witness claim")]
+    RefreshNotClaimable,
+    #[msg("Refresh has no funded reward to claim")]
+    RewardNotFunded,
+    #[msg("No witness slot is available")]
+    NoAvailableWitnessSlot,
+    #[msg("Claimant already occupies an active witness slot")]
+    AlreadyClaimed,
+    #[msg("Requester cannot claim its own refresh")]
+    SelfClaimProhibited,
+    #[msg("Claim duration is invalid")]
+    InvalidClaimDuration,
+    #[msg("Claim deadline exceeds refresh expiration")]
+    ClaimDeadlineAfterRefreshExpiry,
+    #[msg("Claimant reward account is not the canonical token account")]
+    InvalidClaimantRewardAccount,
+    #[msg("Refresh funding lock state is inconsistent")]
+    InvalidFundingLockState,
 }
