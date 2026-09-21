@@ -74,6 +74,8 @@ pub enum ProtocolError {
     SettlementNotEligible,
     #[msg("Settlement operation hash is invalid")]
     InvalidOperationHash,
+    #[msg("Verification result digest is invalid")]
+    InvalidVerificationDigest,
     #[msg("Settlement payout rule is invalid")]
     InvalidPayoutRule,
     #[msg("Settlement witness configuration is invalid")]

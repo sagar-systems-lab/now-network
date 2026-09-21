@@ -28,6 +28,7 @@ const expectedMigrations = [
   "20260920_013_audit.sql",
   "20260920_014_security.sql",
   "20260920_015_outbox.sql",
+  "20260920_016_financial_replay_guards.sql",
 ] as const;
 
 async function readMigration(name: string): Promise<string> {
@@ -137,6 +138,8 @@ Deno.test("database constraints encode critical correctness boundaries", async (
       "unique (refresh_id, evidence_set_revision, policy_version)",
       "operation_id uuid not null unique",
       "unique (refresh_id, operation_id)",
+      "settlement_operations_refresh_once_uk",
+      "refund_operations_contribution_once_uk",
       "refresh_id uuid not null unique",
       "check (revision > 0)",
       "evidence_deadline < refresh_expires_at",
@@ -156,6 +159,7 @@ Deno.test("database indexes cover geospatial and recovery paths", async () => {
       "evidence_challenges_one_issued_per_acceptance",
       "evidence_packets_media_sha256_idx",
       "settlement_operations_active_idx",
+      "settlement_operations_operation_hash_uk",
       "domain_events_entity_sequence_idx",
       "domain_events_entity_time_idx",
       "outbox_events_pending_idx",

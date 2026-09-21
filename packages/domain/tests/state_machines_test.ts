@@ -211,9 +211,20 @@ Deno.test("payment ambiguity reconciles before retry", () => {
   state = transitionPayment(state, "PROVEN_NOT_SETTLED", {
     settlementDefinitivelyAbsent: true,
   });
+  assertThrows(
+    () =>
+      transitionPayment(state, "RETRY_SETTLEMENT", {
+        retryAuthorized: true,
+        settlementDefinitivelyAbsent: true,
+        sameOperationIdentity: false,
+      }),
+    TransitionGuardError,
+  );
+
   state = transitionPayment(state, "RETRY_SETTLEMENT", {
     retryAuthorized: true,
     settlementDefinitivelyAbsent: true,
+    sameOperationIdentity: true,
   });
 
   assertEquals(state, "PENDING");
