@@ -1,5 +1,13 @@
 use anchor_lang::prelude::*;
 
+pub mod constants;
+pub mod identity;
+pub mod state;
+
+pub use constants::*;
+pub use identity::*;
+pub use state::*;
+
 declare_id!("6HnAnrNjHWzyJ6RSDZtQ9mPWGwYehSmw1H8T2RKBwWwA");
 
 #[program]
@@ -19,7 +27,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn phase0_program_id_is_not_default() {
+    fn program_id_is_not_default() {
         assert_ne!(ID, Pubkey::default());
+    }
+
+    #[test]
+    fn account_sizes_are_fixed() {
+        assert_eq!(ProtocolConfig::SPACE, 142);
+        assert_eq!(RefreshEscrow::SPACE, 444);
+        assert_eq!(Contribution::SPACE, 107);
     }
 }

@@ -19,3 +19,4 @@ idl-build = ["anchor-lang/idl-build"]
 
 [dependencies]
 anchor-lang = "1.2.0"
+solana-sha256-hasher = { version = "3.1.0", features = ["sha2"] }
