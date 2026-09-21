@@ -80,3 +80,29 @@ fn pda_derivations_match_repository_vector() {
         vector["contribution"]["bump"].as_u64().unwrap()
     );
 }
+
+
+#[test]
+fn hostile_seed_and_program_substitution_changes_protocol_addresses() {
+    let refresh_id = [0x88; 32];
+    let other_refresh_id = [0x89; 32];
+    let funder = Pubkey::new_from_array([0x99; 32]);
+    let other_funder = Pubkey::new_from_array([0x9a; 32]);
+    let other_program = Pubkey::new_from_array([0xaa; 32]);
+
+    let (refresh, _) = refresh_pda(&ID, &refresh_id);
+    let (other_refresh, _) = refresh_pda(&ID, &other_refresh_id);
+    let (foreign_program_refresh, _) = refresh_pda(&other_program, &refresh_id);
+
+    assert_ne!(refresh, other_refresh);
+    assert_ne!(refresh, foreign_program_refresh);
+
+    let (contribution, _) = contribution_pda(&ID, &refresh, &funder);
+    let (other_funder_contribution, _) =
+        contribution_pda(&ID, &refresh, &other_funder);
+    let (other_refresh_contribution, _) =
+        contribution_pda(&ID, &other_refresh, &funder);
+
+    assert_ne!(contribution, other_funder_contribution);
+    assert_ne!(contribution, other_refresh_contribution);
+}
