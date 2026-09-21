@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program::hash::hashv;
+use solana_sha256_hasher::hashv;
 
 use crate::constants::{CONFIG_SEED, CONTRIBUTION_SEED, REFRESH_SEED};
 use crate::state::{PayoutRule, StateKind, VerificationClass};
