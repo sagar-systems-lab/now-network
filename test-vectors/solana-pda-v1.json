@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "program_id": "6HnAnrNjHWzyJ6RSDZtQ9mPWGwYehSmw1H8T2RKBwWwA",
+  "program_id_hex": "4e96ccd3a8bf129f3141cab8b5711251d0e63c4e84a0cefd493b0e9181c52629",
+  "seeds": {
+    "config_utf8": "config",
+    "config_hex": "636f6e666967",
+    "refresh_utf8": "refresh",
+    "refresh_hex": "72656672657368",
+    "contribution_utf8": "contribution",
+    "contribution_hex": "636f6e747269627574696f6e"
+  },
+  "config": {
+    "pda": "2qFnUWVYoVzAtATTwWBubdFQUpG3pE5GecpHoHhHvc2H",
+    "pda_hex": "1b3848399417e0487d5a5825aa9ab6fd0f774ce9c55863a3754dcae494c3a97e",
+    "bump": 255
+  },
+  "refresh": {
+    "refresh_id_hex": "8888888888888888888888888888888888888888888888888888888888888888",
+    "pda": "3QS8vaXg78zQyqPEQYdpuLUks9U9nGQeaxRPSZ4tRvU1",
+    "pda_hex": "23b8278ee8de328ea303ba7ee86441e3ec3c493a6eb18542c478a8808eec55e2",
+    "bump": 255
+  },
+  "contribution": {
+    "funder_pubkey": "BLbDu5FZUdSfLrGejhuaWw5iMJBo3j3TVRyPv9rfJyMA",
+    "funder_pubkey_hex": "9999999999999999999999999999999999999999999999999999999999999999",
+    "pda": "B7jLwtx4zrXCgYXzsMBXrwDadgYRNXYPMsv19W1eiCVS",
+    "pda_hex": "964e3b86ad243b4c99a8def3139514d0e8edf9e76e4d8eb4a3b68e43e2897df5",
+    "bump": 255
+  }
+}
