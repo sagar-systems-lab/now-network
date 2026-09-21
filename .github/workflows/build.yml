@@ -136,8 +136,8 @@ jobs:
       - name: Checks
         shell: bash
         run: |
-          deno fmt --check backend packages/contracts packages/domain packages/policy supabase/functions/now-api tests
-          deno lint backend packages/contracts packages/domain packages/policy supabase/functions/now-api tests
+          deno fmt --check backend packages/contracts packages/domain packages/policy supabase/functions/now-api tests scripts/solana/local-validator-client.ts
+          deno lint backend packages/contracts packages/domain packages/policy supabase/functions/now-api tests scripts/solana/local-validator-client.ts
           cd backend
           deno task check
           deno task test
@@ -319,6 +319,11 @@ jobs:
           tar -xjf "$RUNNER_TEMP/solana-release.tar.bz2" -C "$HOME/agave"
           echo "$HOME/agave/solana-release/bin" >> "$GITHUB_PATH"
 
+      - name: Deno
+        uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with:
+          deno-version: "2.9.7"
+
       - name: Install Anchor
         shell: bash
         run: |
@@ -345,6 +350,13 @@ jobs:
         run: |
           anchor build
           git diff --exit-code -- Cargo.lock
+
+      - name: Local validator qualification
+        shell: bash
+        run: |
+          bash -n scripts/solana/qualify-local-validator.sh
+          deno check scripts/solana/local-validator-client.ts
+          scripts/solana/qualify-local-validator.sh
 
   security:
     runs-on: ubuntu-latest
