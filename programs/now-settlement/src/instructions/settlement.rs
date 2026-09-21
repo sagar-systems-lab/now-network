@@ -345,26 +345,30 @@ mod tests {
 
     #[test]
     fn settlement_state_rejects_duplicate_expired_and_fake_verifier() {
-        let mut refresh = refresh(PayoutRule::SingleWinnerAll, 1, 1, 100);
-        let verifier = refresh.verifier_authority;
+        let mut candidate = refresh(PayoutRule::SingleWinnerAll, 1, 1, 100);
+        let verifier = candidate.verifier_authority;
         let operation_hash = [0x44; 32];
 
-        assert!(validate_settlement_state(&refresh, &verifier, 1_000, &operation_hash).is_ok());
-        assert!(validate_settlement_state(&refresh, &verifier, 1_001, &operation_hash).is_err());
+        assert!(validate_settlement_state(&candidate, &verifier, 1_000, &operation_hash).is_ok());
+        assert!(validate_settlement_state(&candidate, &verifier, 1_001, &operation_hash).is_err());
         assert!(validate_settlement_state(
-            &refresh,
+            &candidate,
             &Pubkey::new_from_array([0x99; 32]),
             1_000,
             &operation_hash,
         )
         .is_err());
-        assert!(validate_settlement_state(&refresh, &verifier, 1_000, &[0; 32]).is_err());
+        assert!(validate_settlement_state(&candidate, &verifier, 1_000, &[0; 32]).is_err());
 
-        refresh.status = RefreshStatus::Settled;
-        refresh.settlement_operation_hash = operation_hash;
-        refresh.settled_amount = refresh.locked_reward_amount;
-        refresh.settled_at = 999;
-        assert!(validate_settlement_state(&refresh, &verifier, 1_000, &operation_hash).is_err());
+        candidate.status = RefreshStatus::Settled;
+        candidate.settlement_operation_hash = operation_hash;
+        candidate.settled_amount = candidate.locked_reward_amount;
+        candidate.settled_at = 999;
+        assert!(validate_settlement_state(&candidate, &verifier, 1_000, &operation_hash).is_err());
+
+        let mut refunding = refresh(PayoutRule::SingleWinnerAll, 1, 1, 100);
+        refunding.status = RefreshStatus::Refunding;
+        assert!(validate_settlement_state(&refunding, &verifier, 1_000, &operation_hash).is_err());
     }
 
     #[test]

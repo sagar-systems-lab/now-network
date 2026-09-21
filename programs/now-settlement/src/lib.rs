@@ -72,6 +72,20 @@ pub mod now_settlement {
         instructions::claim::handler(ctx, refresh_id, claim_duration_seconds)
     }
 
+    pub fn cancel_unclaimed_refresh(
+        ctx: Context<CancelUnclaimedRefresh>,
+        refresh_id: [u8; 32],
+    ) -> Result<()> {
+        instructions::refund::cancel_handler(ctx, refresh_id)
+    }
+
+    pub fn refund_contribution(
+        ctx: Context<RefundContribution>,
+        refresh_id: [u8; 32],
+    ) -> Result<()> {
+        instructions::refund::refund_handler(ctx, refresh_id)
+    }
+
     pub fn settle_refresh<'info>(
         ctx: Context<'info, SettleRefresh<'info>>,
         refresh_id: [u8; 32],

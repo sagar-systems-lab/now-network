@@ -84,6 +84,18 @@ pub enum ProtocolError {
     InvalidRecipient,
     #[msg("Settlement recipient account count is invalid")]
     InvalidRecipientCount,
-    #[msg("Refresh vault balance cannot cover the locked reward")]
+    #[msg("Refresh vault balance cannot cover the required transfer")]
     VaultBalanceInvariant,
+    #[msg("Only the refresh creator may cancel before execution lock")]
+    UnauthorizedCreator,
+    #[msg("Refresh can no longer be cancelled")]
+    RefreshNotCancellable,
+    #[msg("Contribution is not eligible for refund")]
+    RefundNotEligible,
+    #[msg("Contribution has no refundable balance")]
+    NothingToRefund,
+    #[msg("Refund accounting state is inconsistent")]
+    InvalidRefundAccounting,
+    #[msg("Refund destination is not the original funder's canonical token account")]
+    InvalidRefundDestination,
 }
