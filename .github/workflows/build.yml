@@ -110,7 +110,11 @@ jobs:
           adb -s "$ANDROID_SERIAL" shell input keyevent 82 || true
 
           chmod +x ./gradlew
-          ./gradlew --no-daemon :app:connectedDebugAndroidTest
+          if ! ./gradlew --no-daemon :app:connectedDebugAndroidTest; then
+            echo "----- instrumented test results -----"
+            find apps/android/build/outputs/androidTest-results -type f -name '*.xml' -print -exec cat {} \; 2>/dev/null || true
+            exit 1
+          fi
 
 
   api:
