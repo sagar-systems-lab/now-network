@@ -22,3 +22,17 @@ pub struct RefreshSettled {
     pub locked_reward_amount: u64,
     pub settled_at: i64,
 }
+
+#[event]
+pub struct ContributionRefunded {
+    pub refresh: Pubkey,
+    pub funder: Pubkey,
+    pub amount: u64,
+}
+
+#[event]
+pub struct RefreshCancelled {
+    pub refresh: Pubkey,
+    pub creator: Pubkey,
+    pub cancelled_at: i64,
+}
