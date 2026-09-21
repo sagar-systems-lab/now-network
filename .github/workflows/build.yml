@@ -358,6 +358,49 @@ jobs:
           deno check scripts/solana/local-validator-client.ts
           scripts/solana/qualify-local-validator.sh
 
+      - name: Devnet deployment preflight
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          bash -n scripts/solana/qualify-devnet.sh
+          NOW_DEVNET_MODE=static scripts/solana/qualify-devnet.sh
+
+          TMP_KEY_DIR="$(mktemp -d)"
+          trap 'rm -rf "$TMP_KEY_DIR" "$PWD/ci-ephemeral-keypair.json"' EXIT
+
+          solana-keygen new \
+            --no-bip39-passphrase \
+            --silent \
+            --force \
+            --outfile "$TMP_KEY_DIR/wrong-keypair.json"
+
+          if output="$(
+            NOW_DEVNET_MODE=identity \
+            NOW_DEVNET_PROGRAM_KEYPAIR="$TMP_KEY_DIR/wrong-keypair.json" \
+            scripts/solana/qualify-devnet.sh 2>&1
+          )"; then
+            echo "wrong program keypair unexpectedly passed"
+            exit 1
+          fi
+          grep -Fq "DEVNET_QUALIFICATION_FAIL=PROGRAM_IDENTITY_MISMATCH" <<<"$output"
+
+          solana-keygen new \
+            --no-bip39-passphrase \
+            --silent \
+            --force \
+            --outfile "$PWD/ci-ephemeral-keypair.json"
+
+          if output="$(
+            NOW_DEVNET_MODE=identity \
+            NOW_DEVNET_PROGRAM_KEYPAIR="$PWD/ci-ephemeral-keypair.json" \
+            scripts/solana/qualify-devnet.sh 2>&1
+          )"; then
+            echo "repository-local keypair unexpectedly passed"
+            exit 1
+          fi
+          grep -Fq "DEVNET_QUALIFICATION_FAIL=PROGRAM_KEYPAIR_INSIDE_REPOSITORY" <<<"$output"
+
   security:
     runs-on: ubuntu-latest
     timeout-minutes: 10
