@@ -71,6 +71,20 @@ pub mod now_settlement {
     ) -> Result<()> {
         instructions::claim::handler(ctx, refresh_id, claim_duration_seconds)
     }
+
+    pub fn settle_refresh<'info>(
+        ctx: Context<'info, SettleRefresh<'info>>,
+        refresh_id: [u8; 32],
+        settlement_operation_hash: [u8; 32],
+        verification_result_digest: [u8; 32],
+    ) -> Result<()> {
+        instructions::settlement::handler(
+            ctx,
+            refresh_id,
+            settlement_operation_hash,
+            verification_result_digest,
+        )
+    }
 }
 
 #[cfg(test)]

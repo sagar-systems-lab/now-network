@@ -66,4 +66,24 @@ pub enum ProtocolError {
     InvalidClaimantRewardAccount,
     #[msg("Refresh funding lock state is inconsistent")]
     InvalidFundingLockState,
+    #[msg("Only the pinned verifier may settle this refresh")]
+    UnauthorizedVerifier,
+    #[msg("Settlement has already completed")]
+    SettlementAlreadyCompleted,
+    #[msg("Refresh is not eligible for settlement")]
+    SettlementNotEligible,
+    #[msg("Settlement operation hash is invalid")]
+    InvalidOperationHash,
+    #[msg("Settlement payout rule is invalid")]
+    InvalidPayoutRule,
+    #[msg("Settlement witness configuration is invalid")]
+    InvalidWitnessConfiguration,
+    #[msg("Required witness slots are not populated")]
+    InsufficientSettlementWitnesses,
+    #[msg("Settlement recipient account is invalid")]
+    InvalidRecipient,
+    #[msg("Settlement recipient account count is invalid")]
+    InvalidRecipientCount,
+    #[msg("Refresh vault balance cannot cover the locked reward")]
+    VaultBalanceInvariant,
 }
