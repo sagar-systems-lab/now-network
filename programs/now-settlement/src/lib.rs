@@ -34,7 +34,7 @@ mod tests {
     #[test]
     fn account_sizes_are_fixed() {
         assert_eq!(ProtocolConfig::SPACE, 142);
-        assert_eq!(RefreshEscrow::SPACE, 444);
+        assert_eq!(RefreshEscrow::SPACE, 476);
         assert_eq!(Contribution::SPACE, 107);
     }
 }

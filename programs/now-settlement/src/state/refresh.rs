@@ -35,6 +35,7 @@ pub struct RefreshEscrow {
 
     pub settled_amount: u64,
     pub settled_at: i64,
+    pub verification_result_digest: [u8; 32],
     pub settlement_operation_hash: [u8; 32],
 
     pub bump: u8,
@@ -65,6 +66,7 @@ impl RefreshEscrow {
         MAX_WITNESSES_V1 + // claim_statuses
         8 + // settled_amount
         8 + // settled_at
+        32 + // verification_result_digest
         32 + // settlement_operation_hash
         1; // bump
 
