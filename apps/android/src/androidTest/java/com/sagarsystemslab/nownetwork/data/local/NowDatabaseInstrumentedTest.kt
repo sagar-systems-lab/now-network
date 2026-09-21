@@ -131,34 +131,36 @@ class NowDatabaseInstrumentedTest {
     }
 
     @Test
-    fun activeOperationSurvivesDatabaseReopen() = runBlocking {
-        val name = "now-recovery-" + UUID.randomUUID() + ".db"
-        context.deleteDatabase(name)
+    fun activeOperationSurvivesDatabaseReopen() {
+        runBlocking {
+            val name = "now-recovery-" + UUID.randomUUID() + ".db"
+            context.deleteDatabase(name)
 
-        val operation = ActiveOperationEntity(
-            operationId = "operation-recovery",
-            type = "SETTLEMENT",
-            entityId = "refresh-a",
-            localState = "VERIFYING",
-            remoteState = null,
-            chainSignature = "signature-a",
-            lastValidBlockHeight = 1234,
-            idempotencyKey = "settlement-refresh-a",
-            createdAtMs = 1_000,
-            updatedAtMs = 2_000,
-        )
+            val operation = ActiveOperationEntity(
+                operationId = "operation-recovery",
+                type = "SETTLEMENT",
+                entityId = "refresh-a",
+                localState = "VERIFYING",
+                remoteState = null,
+                chainSignature = "signature-a",
+                lastValidBlockHeight = 1234,
+                idempotencyKey = "settlement-refresh-a",
+                createdAtMs = 1_000,
+                updatedAtMs = 2_000,
+            )
 
-        val first = Room.databaseBuilder(context, NowDatabase::class.java, name).build()
-        first.activeOperationDao().upsert(operation)
-        first.close()
+            val first = Room.databaseBuilder(context, NowDatabase::class.java, name).build()
+            first.activeOperationDao().upsert(operation)
+            first.close()
 
-        val reopened = Room.databaseBuilder(context, NowDatabase::class.java, name).build()
-        val restored = LocalPersistenceStore(reopened).restoreActiveOperations()
+            val reopened = Room.databaseBuilder(context, NowDatabase::class.java, name).build()
+            val restored = LocalPersistenceStore(reopened).restoreActiveOperations()
 
-        assertEquals(listOf(operation), restored)
+            assertEquals(listOf(operation), restored)
 
-        reopened.close()
-        context.deleteDatabase(name)
+            reopened.close()
+            context.deleteDatabase(name)
+        }
     }
 
     @Test
