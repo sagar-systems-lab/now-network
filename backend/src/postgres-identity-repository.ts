@@ -162,6 +162,16 @@ export class PostgresIdentityRepository implements IdentityRepository {
 
   async issueWalletBindingChallenge(challenge: WalletBindingChallengeRecord): Promise<void> {
     await this.sql.begin(async (tx) => {
+      const principal = await tx`
+        select actor_id
+        from app.actor_auth_principals
+        where auth_user_id = ${challenge.authUserId}::uuid
+        for update
+      `;
+      if (!principal[0] || principal[0].actor_id !== challenge.actorId) {
+        throw new Error("wallet challenge principal mapping changed");
+      }
+
       await tx`
         update app.wallet_binding_challenges
         set status = 'REVOKED', revoked_at = now()
@@ -269,14 +279,27 @@ export class PostgresIdentityRepository implements IdentityRepository {
       }
 
       const principalRows = await tx`
-        select actor_id
-        from app.actor_auth_principals
-        where auth_user_id = ${authUserId}::uuid
-        for update
+        select p.actor_id, a.status as actor_status
+        from app.actor_auth_principals p
+        join app.actors a on a.actor_id = p.actor_id
+        where p.auth_user_id = ${authUserId}::uuid
+        for update of p, a
       `;
       if (!principalRows[0] || principalRows[0].actor_id !== challenge.actorId) {
         return { kind: "actor_mismatch" } as const;
       }
+      if (principalRows[0].actor_status === "DISABLED") {
+        return { kind: "actor_disabled" } as const;
+      }
+      if (principalRows[0].actor_status === "RESTRICTED") {
+        return { kind: "actor_restricted" } as const;
+      }
+
+      await tx`
+        select pg_advisory_xact_lock(
+          hashtextextended(${challenge.cluster + ":" + challenge.walletAddress}, 1)
+        )
+      `;
 
       const bindingRows = await tx`
         select
