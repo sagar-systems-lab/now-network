@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-readonly PROGRAM_ID="6HnAnrNjHWzyJ6RSDZtQ9mPWGwYehSmw1H8T2RKBwWwA"
+readonly PROGRAM_ID="7nqsPpBhpUwSahMrpuAPNMupx2vVEGqkU6XXcng7VaAm"
 readonly UPGRADEABLE_LOADER_ID="BPFLoaderUpgradeab1e11111111111111111111111"
 readonly DEFAULT_RPC_URL="https://api.devnet.solana.com"
 

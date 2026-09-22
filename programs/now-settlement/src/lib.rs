@@ -18,7 +18,7 @@ pub use state::*;
 pub use token::*;
 pub use validation::*;
 
-declare_id!("6HnAnrNjHWzyJ6RSDZtQ9mPWGwYehSmw1H8T2RKBwWwA");
+declare_id!("7nqsPpBhpUwSahMrpuAPNMupx2vVEGqkU6XXcng7VaAm");
 
 #[program]
 pub mod now_settlement {
