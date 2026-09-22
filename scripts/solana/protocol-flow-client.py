@@ -245,6 +245,21 @@ def submit(label, keypair, metas, instruction_data):
     return signature
 
 
+def submit_without_confirmation(label, keypair, metas, instruction_data):
+    transaction = signed_transaction(keypair, metas, instruction_data)
+    response = rpc_raw("sendTransaction", [
+        base64.b64encode(transaction).decode(),
+        {
+            "encoding": "base64",
+            "skipPreflight": False,
+            "preflightCommitment": "confirmed",
+        },
+    ])
+    if response.get("error") or not response.get("result"):
+        raise RuntimeError(f"{label} failed: {response.get('error')}")
+    print(f"FLOW_{label}_OUTCOME=AMBIGUOUS")
+
+
 def expect_failure(label, keypair, metas, instruction_data):
     transaction = signed_transaction(keypair, metas, instruction_data)
     response = rpc_raw("sendTransaction", [
@@ -351,6 +366,40 @@ def require_account(address, label):
     if info is None:
         raise RuntimeError(f"missing {label} account {address}")
     return info
+
+
+def reconcile_settlement(address, expected_operation_hash, expected_amount):
+    for _ in range(100):
+        info = account_info(address)
+        if info is not None:
+            state = decode_refresh(account_data(info))
+            if state["status"] == 2:
+                if state["settled_amount"] != expected_amount:
+                    raise RuntimeError("reconciled settlement amount mismatch")
+                if state["operation_hash"] != expected_operation_hash:
+                    raise RuntimeError("reconciled settlement operation hash mismatch")
+                print("FLOW_SETTLEMENT_RECONCILIATION=PASS")
+                return
+        time.sleep(0.25)
+    raise RuntimeError("settlement reconciliation timeout")
+
+
+def reconcile_refund(refresh_address, contribution_address, expected_amount):
+    for _ in range(100):
+        refresh_info = account_info(refresh_address)
+        contribution_info = account_info(contribution_address)
+        if refresh_info is not None and contribution_info is not None:
+            state = decode_refresh(account_data(refresh_info))
+            contribution = decode_contribution(account_data(contribution_info))
+            if state["status"] == 4 and contribution["refunded"] == expected_amount:
+                if contribution["contributed"] != expected_amount:
+                    raise RuntimeError("reconciled refund contribution mismatch")
+                if state["settled_amount"] != 0:
+                    raise RuntimeError("reconciled refund has settlement amount")
+                print("FLOW_REFUND_RECONCILIATION=PASS")
+                return
+        time.sleep(0.25)
+    raise RuntimeError("refund reconciliation timeout")
 
 
 def maybe_initialize(payer, addresses):
@@ -488,7 +537,32 @@ def exercise():
         operation_hash,
         result_digest,
     )
-    submit("SETTLE_REFRESH", payer, settle_metas, settle_payload)
+    unauthorized_settle_metas = [
+        meta(claimant["address"], True),
+        meta(addresses["config"]),
+        meta(settlement["refresh"], False, True),
+        meta(settlement["vault"], False, True),
+        meta(REWARD_MINT),
+        meta(TOKEN_PROGRAM_ID),
+        meta(addresses["claimantAta"], False, True),
+    ]
+    expect_failure(
+        "UNAUTHORIZED_SETTLEMENT",
+        claimant,
+        unauthorized_settle_metas,
+        settle_payload,
+    )
+    submit_without_confirmation(
+        "SETTLE_REFRESH",
+        payer,
+        settle_metas,
+        settle_payload,
+    )
+    reconcile_settlement(
+        settlement["refresh"],
+        operation_hash,
+        SETTLEMENT_AMOUNT,
+    )
 
     after_claimant = token_balance(addresses["claimantAta"])
     if after_claimant - before_claimant != SETTLEMENT_AMOUNT:
@@ -552,11 +626,16 @@ def exercise():
         meta(TOKEN_PROGRAM_ID),
     ]
     refund_payload = refund_data(REFUND_REFRESH_ID)
-    submit(
+    submit_without_confirmation(
         "REFUND_CONTRIBUTION",
         payer,
         refund_metas,
         refund_payload,
+    )
+    reconcile_refund(
+        refund["refresh"],
+        refund["contribution"],
+        REFUND_AMOUNT,
     )
     if token_balance(addresses["payerAta"]) != payer_before:
         raise RuntimeError("refund did not restore funder balance")
