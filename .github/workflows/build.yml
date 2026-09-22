@@ -191,6 +191,14 @@ jobs:
           set -Eeuo pipefail
           docker exec -i "$DB_CONTAINER" psql -X -U postgres -d now_test -v ON_ERROR_STOP=1 < tests/database/financial_replay_guards.sql
 
+      - name: Verify wallet binding guards
+        shell: bash
+        env:
+          DB_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          set -Eeuo pipefail
+          docker exec -i "$DB_CONTAINER" psql -X -U postgres -d now_test -v ON_ERROR_STOP=1 < tests/database/wallet_binding_guards.sql
+
       - name: Verify database security baseline
         shell: bash
         env:
@@ -208,6 +216,7 @@ jobs:
                 ('app', 'actors'),
                 ('app', 'actor_auth_principals'),
                 ('app', 'wallet_bindings'),
+                ('app', 'wallet_binding_challenges'),
                 ('app', 'locations'),
                 ('app', 'state_definitions'),
                 ('app', 'live_states'),
