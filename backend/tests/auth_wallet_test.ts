@@ -90,6 +90,9 @@ class MemoryIdentityRepository implements IdentityRepository {
     if (this.principals.get(authUserId) !== challenge.actorId) {
       return { kind: "actor_mismatch" };
     }
+    const currentActor = this.actors.get(challenge.actorId)!;
+    if (currentActor.status === "DISABLED") return { kind: "actor_disabled" };
+    if (currentActor.status === "RESTRICTED") return { kind: "actor_restricted" };
 
     const key = `${challenge.cluster}:${challenge.walletAddress}`;
     let binding = this.bindings.get(key);
