@@ -230,6 +230,31 @@ Deno.test("payment ambiguity reconciles before retry", () => {
   assertEquals(state, "PENDING");
 });
 
+Deno.test("payment ambiguity resolves only from a matching confirmed chain outcome", () => {
+  let state = transitionPayment("PENDING", "OUTCOME_AMBIGUOUS");
+  assertEquals(state, "VERIFYING");
+
+  assertThrows(
+    () =>
+      transitionPayment(state, "PAYMENT_CONFIRMED", {
+        chainConfirmed: true,
+        settlementDigestMatches: false,
+      }),
+    TransitionGuardError,
+  );
+
+  state = transitionPayment(state, "PAYMENT_CONFIRMED", {
+    chainConfirmed: true,
+    settlementDigestMatches: true,
+  });
+  assertEquals(state, "PAID");
+
+  assertThrows(
+    () => transitionPayment(state, "RETRY_SETTLEMENT"),
+    InvalidTransitionError,
+  );
+});
+
 Deno.test("payment only reaches PAID after matching confirmed settlement", () => {
   assertThrows(
     () =>
