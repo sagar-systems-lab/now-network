@@ -259,6 +259,10 @@ function consumeFault(result: Exclude<ChallengeConsumptionResult, { kind: "bound
       return new ApiFault(409, "WALLET_BINDING_CHALLENGE_REVOKED", "The wallet challenge was revoked.");
     case "actor_mismatch":
       return new ApiFault(403, "ACTOR_MISMATCH", "The wallet challenge belongs to another session.");
+    case "actor_disabled":
+      return new ApiFault(403, "ACTOR_DISABLED", "This actor is disabled.");
+    case "actor_restricted":
+      return new ApiFault(403, "ACTOR_RESTRICTED", "This actor cannot perform this operation.");
     case "binding_conflict":
       return new ApiFault(409, "WALLET_BINDING_CONFLICT", "The wallet is bound to incompatible actor state.");
   }
