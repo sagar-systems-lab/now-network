@@ -39,6 +39,8 @@ export type WalletConsumptionResult =
   | { kind: "consumed" }
   | { kind: "revoked" }
   | { kind: "actor_mismatch" }
+  | { kind: "actor_disabled" }
+  | { kind: "actor_restricted" }
   | { kind: "binding_conflict" };
 
 export interface IdentityRepository {
