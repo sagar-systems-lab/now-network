@@ -82,7 +82,8 @@ export async function canonicalWalletBindingMessage(input: {
 }): Promise<string> {
   return [
     "NOW Network",
-    "Purpose: wallet binding",
+    "Version: 1",
+    "Purpose: wallet_binding",
     `Challenge-ID: ${input.challengeId}`,
     `Nonce: ${input.nonce}`,
     `Actor-ID: ${input.actorId}`,
