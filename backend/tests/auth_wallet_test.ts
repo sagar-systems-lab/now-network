@@ -45,7 +45,11 @@ class MemoryIdentityRepository implements IdentityRepository {
   readonly challenges = new Map<string, WalletBindingChallengeRecord>();
   readonly protectedActors = new Set<string>();
 
-  resolveActor(authUserId: string): Promise<ActorRecord> {
+  resolveActor(
+    authUserId: string,
+    principalType: string,
+  ): Promise<ActorRecord> {
+    void principalType;
     const mapped = this.principals.get(authUserId);
     if (mapped) {
       return Promise.resolve(structuredClone(this.actors.get(mapped)!));
