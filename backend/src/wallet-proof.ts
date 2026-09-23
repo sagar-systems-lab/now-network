@@ -167,19 +167,35 @@ export class WalletBindingService {
     ensureActorCanMutate(actor);
     const challenge = await this.repository.getWalletBindingChallenge(challengeId);
     if (!challenge) {
-      throw new ApiFault(404, "WALLET_BINDING_CHALLENGE_INVALID", "The wallet challenge was not found.");
+      throw new ApiFault(
+        404,
+        "WALLET_BINDING_CHALLENGE_INVALID",
+        "The wallet challenge was not found.",
+      );
     }
     if (challenge.authUserId !== authUserId) {
       throw new ApiFault(403, "ACTOR_MISMATCH", "The wallet challenge belongs to another session.");
     }
     if (challenge.purpose !== "wallet_binding" || challenge.domain !== "NOW Network") {
-      throw new ApiFault(403, "WALLET_BINDING_CHALLENGE_INVALID", "The wallet challenge is invalid.");
+      throw new ApiFault(
+        403,
+        "WALLET_BINDING_CHALLENGE_INVALID",
+        "The wallet challenge is invalid.",
+      );
     }
     if (challenge.status === "CONSUMED") {
-      throw new ApiFault(409, "WALLET_BINDING_CHALLENGE_CONSUMED", "The wallet challenge was already used.");
+      throw new ApiFault(
+        409,
+        "WALLET_BINDING_CHALLENGE_CONSUMED",
+        "The wallet challenge was already used.",
+      );
     }
     if (challenge.status === "REVOKED") {
-      throw new ApiFault(409, "WALLET_BINDING_CHALLENGE_REVOKED", "The wallet challenge was revoked.");
+      throw new ApiFault(
+        409,
+        "WALLET_BINDING_CHALLENGE_REVOKED",
+        "The wallet challenge was revoked.",
+      );
     }
     if (challenge.status === "EXPIRED" || challenge.expiresAt.getTime() <= this.now().getTime()) {
       throw new ApiFault(410, "CHALLENGE_EXPIRED", "The wallet challenge expired.");
@@ -189,7 +205,11 @@ export class WalletBindingService {
     }
     const actualMessageHash = await sha256(challenge.message);
     if (!equalBytes(actualMessageHash, challenge.messageSha256)) {
-      throw new ApiFault(403, "WALLET_BINDING_CHALLENGE_INVALID", "The wallet challenge is invalid.");
+      throw new ApiFault(
+        403,
+        "WALLET_BINDING_CHALLENGE_INVALID",
+        "The wallet challenge is invalid.",
+      );
     }
 
     const publicKeyBytes = validateWalletAddress(challenge.walletAddress);
@@ -251,20 +271,40 @@ function ensureActorCanMutate(actor: ActorRecord): void {
 function consumeFault(result: Exclude<ChallengeConsumptionResult, { kind: "bound" }>): ApiFault {
   switch (result.kind) {
     case "not_found":
-      return new ApiFault(404, "WALLET_BINDING_CHALLENGE_INVALID", "The wallet challenge was not found.");
+      return new ApiFault(
+        404,
+        "WALLET_BINDING_CHALLENGE_INVALID",
+        "The wallet challenge was not found.",
+      );
     case "expired":
       return new ApiFault(410, "CHALLENGE_EXPIRED", "The wallet challenge expired.");
     case "consumed":
-      return new ApiFault(409, "WALLET_BINDING_CHALLENGE_CONSUMED", "The wallet challenge was already used.");
+      return new ApiFault(
+        409,
+        "WALLET_BINDING_CHALLENGE_CONSUMED",
+        "The wallet challenge was already used.",
+      );
     case "revoked":
-      return new ApiFault(409, "WALLET_BINDING_CHALLENGE_REVOKED", "The wallet challenge was revoked.");
+      return new ApiFault(
+        409,
+        "WALLET_BINDING_CHALLENGE_REVOKED",
+        "The wallet challenge was revoked.",
+      );
     case "actor_mismatch":
-      return new ApiFault(403, "ACTOR_MISMATCH", "The wallet challenge belongs to another session.");
+      return new ApiFault(
+        403,
+        "ACTOR_MISMATCH",
+        "The wallet challenge belongs to another session.",
+      );
     case "actor_disabled":
       return new ApiFault(403, "ACTOR_DISABLED", "This actor is disabled.");
     case "actor_restricted":
       return new ApiFault(403, "ACTOR_RESTRICTED", "This actor cannot perform this operation.");
     case "binding_conflict":
-      return new ApiFault(409, "WALLET_BINDING_CONFLICT", "The wallet is bound to incompatible actor state.");
+      return new ApiFault(
+        409,
+        "WALLET_BINDING_CONFLICT",
+        "The wallet is bound to incompatible actor state.",
+      );
   }
 }
