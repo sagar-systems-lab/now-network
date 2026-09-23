@@ -14,13 +14,19 @@ const AUTH_A = "00000000-0000-4000-8000-0000000000a1";
 const AUTH_B = "00000000-0000-4000-8000-0000000000b2";
 
 class TestAuthVerifier implements AuthVerifier {
-  async verify(request: Request): Promise<AuthPrincipal> {
+  verify(request: Request): Promise<AuthPrincipal> {
     const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
     if (token === "token-a") {
-      return { authUserId: AUTH_A, principalType: "SUPABASE_ANONYMOUS" };
+      return Promise.resolve({
+        authUserId: AUTH_A,
+        principalType: "SUPABASE_ANONYMOUS",
+      });
     }
     if (token === "token-b") {
-      return { authUserId: AUTH_B, principalType: "SUPABASE_ANONYMOUS" };
+      return Promise.resolve({
+        authUserId: AUTH_B,
+        principalType: "SUPABASE_ANONYMOUS",
+      });
     }
     throw new ApiFault(
       401,
@@ -39,60 +45,65 @@ class MemoryIdentityRepository implements IdentityRepository {
   readonly challenges = new Map<string, WalletBindingChallengeRecord>();
   readonly protectedActors = new Set<string>();
 
-  async resolveActor(authUserId: string): Promise<ActorRecord> {
+  resolveActor(authUserId: string): Promise<ActorRecord> {
     const mapped = this.principals.get(authUserId);
-    if (mapped) return structuredClone(this.actors.get(mapped)!);
+    if (mapped) {
+      return Promise.resolve(structuredClone(this.actors.get(mapped)!));
+    }
 
     const sequence = String(this.actorSequence++).padStart(12, "0");
     const actorId = `00000000-0000-4000-8000-${sequence}`;
     const actor: ActorRecord = { actorId, status: "ACTIVE", revision: 1 };
     this.actors.set(actorId, actor);
     this.principals.set(authUserId, actorId);
-    return structuredClone(actor);
+    return Promise.resolve(structuredClone(actor));
   }
 
-  async listWalletBindings(actorId: string): Promise<WalletBindingRecord[]> {
-    return [...this.bindings.values()]
-      .filter((binding) => binding.actorId === actorId)
-      .map((binding) => structuredClone(binding));
+  listWalletBindings(actorId: string): Promise<WalletBindingRecord[]> {
+    return Promise.resolve(
+      [...this.bindings.values()]
+        .filter((binding) => binding.actorId === actorId)
+        .map((binding) => structuredClone(binding)),
+    );
   }
 
-  async issueWalletBindingChallenge(challenge: WalletBindingChallengeRecord): Promise<void> {
+  issueWalletBindingChallenge(challenge: WalletBindingChallengeRecord): Promise<void> {
     for (const [id, current] of this.challenges) {
       if (current.authUserId === challenge.authUserId && current.status === "ISSUED") {
         this.challenges.set(id, { ...current, status: "REVOKED" });
       }
     }
     this.challenges.set(challenge.challengeId, structuredClone(challenge));
+    return Promise.resolve();
   }
 
-  async getWalletBindingChallenge(
+  getWalletBindingChallenge(
     challengeId: string,
   ): Promise<WalletBindingChallengeRecord | null> {
     const value = this.challenges.get(challengeId);
-    return value ? structuredClone(value) : null;
+    return Promise.resolve(value ? structuredClone(value) : null);
   }
 
-  async consumeWalletBindingChallenge(
+  consumeWalletBindingChallenge(
     challengeId: string,
     authUserId: string,
     now: Date,
   ): Promise<ChallengeConsumptionResult> {
     const challenge = this.challenges.get(challengeId);
-    if (!challenge) return { kind: "not_found" };
-    if (challenge.authUserId !== authUserId) return { kind: "actor_mismatch" };
-    if (challenge.status === "CONSUMED") return { kind: "consumed" };
-    if (challenge.status === "REVOKED") return { kind: "revoked" };
+    if (!challenge) return Promise.resolve({ kind: "not_found" });
+    if (challenge.authUserId !== authUserId) return Promise.resolve({ kind: "actor_mismatch" });
+    if (challenge.status === "CONSUMED") return Promise.resolve({ kind: "consumed" });
+    if (challenge.status === "REVOKED") return Promise.resolve({ kind: "revoked" });
     if (challenge.status === "EXPIRED" || challenge.expiresAt.getTime() <= now.getTime()) {
       this.challenges.set(challengeId, { ...challenge, status: "EXPIRED" });
-      return { kind: "expired" };
+      return Promise.resolve({ kind: "expired" });
     }
     if (this.principals.get(authUserId) !== challenge.actorId) {
-      return { kind: "actor_mismatch" };
+      return Promise.resolve({ kind: "actor_mismatch" });
     }
     const currentActor = this.actors.get(challenge.actorId)!;
-    if (currentActor.status === "DISABLED") return { kind: "actor_disabled" };
-    if (currentActor.status === "RESTRICTED") return { kind: "actor_restricted" };
+    if (currentActor.status === "DISABLED") return Promise.resolve({ kind: "actor_disabled" });
+    if (currentActor.status === "RESTRICTED") return Promise.resolve({ kind: "actor_restricted" });
 
     const key = `${challenge.cluster}:${challenge.walletAddress}`;
     let binding = this.bindings.get(key);
@@ -113,12 +124,12 @@ class MemoryIdentityRepository implements IdentityRepository {
     } else {
       const targetActor = this.actors.get(binding.actorId)!;
       if (binding.status !== "ACTIVE" || targetActor.status !== "ACTIVE") {
-        return { kind: "binding_conflict" };
+        return Promise.resolve({ kind: "binding_conflict" });
       }
       targetActorId = binding.actorId;
       if (targetActorId !== challenge.actorId) {
         if (this.protectedActors.has(challenge.actorId)) {
-          return { kind: "binding_conflict" };
+          return Promise.resolve({ kind: "binding_conflict" });
         }
         this.principals.set(authUserId, targetActorId);
         recovered = true;
@@ -132,12 +143,12 @@ class MemoryIdentityRepository implements IdentityRepository {
       status: "CONSUMED",
       consumedAt: now,
     });
-    return {
+    return Promise.resolve({
       kind: "bound",
       actor: structuredClone(this.actors.get(targetActorId)!),
       binding: structuredClone(binding),
       recovered,
-    };
+    });
   }
 
   disableActor(actorId: string): void {
