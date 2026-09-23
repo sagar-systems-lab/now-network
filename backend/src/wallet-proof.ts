@@ -41,9 +41,15 @@ function decodeBase64(input: string): Uint8Array {
   return Uint8Array.from(binary, (character) => character.charCodeAt(0));
 }
 
+function copyToArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  return copy.buffer;
+}
+
 async function sha256(input: string | Uint8Array): Promise<Uint8Array> {
   const bytes = typeof input === "string" ? encoder.encode(input) : input;
-  return new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+  return new Uint8Array(await crypto.subtle.digest("SHA-256", copyToArrayBuffer(bytes)));
 }
 
 async function sessionBinding(authUserId: string): Promise<string> {
@@ -222,7 +228,7 @@ export class WalletBindingService {
     try {
       key = await crypto.subtle.importKey(
         "raw",
-        publicKeyBytes,
+        copyToArrayBuffer(publicKeyBytes),
         { name: "Ed25519" },
         false,
         ["verify"],
@@ -234,8 +240,8 @@ export class WalletBindingService {
     const valid = await crypto.subtle.verify(
       "Ed25519",
       key,
-      signature,
-      encoder.encode(challenge.message),
+      copyToArrayBuffer(signature),
+      copyToArrayBuffer(encoder.encode(challenge.message)),
     );
     if (!valid) {
       throw new ApiFault(403, "WALLET_SIGNATURE_INVALID", "The wallet signature is invalid.");

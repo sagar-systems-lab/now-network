@@ -32,7 +32,7 @@ export type WalletBindingChallengeRecord = {
   consumedAt: Date | null;
 };
 
-export type WalletConsumptionResult =
+export type ChallengeConsumptionResult =
   | { kind: "bound"; actor: ActorRecord; binding: WalletBindingRecord; recovered: boolean }
   | { kind: "not_found" }
   | { kind: "expired" }
