@@ -213,7 +213,9 @@ export class PostgresIdentityRepository implements IdentityRepository {
     });
   }
 
-  async getWalletBindingChallenge(\n    challengeId: string,\n  ): Promise<WalletBindingChallengeRecord | null> {
+  async getWalletBindingChallenge(
+    challengeId: string,
+  ): Promise<WalletBindingChallengeRecord | null> {
     const rows = await this.sql`
       select
         challenge_id,

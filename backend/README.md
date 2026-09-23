@@ -32,5 +32,5 @@ POST /v1/wallet-bindings/challenge
 POST /v1/wallet-bindings/verify
 ```
 
-Authenticated endpoints require a Supabase access token in `Authorization: Bearer <token>`.
-Wallet binding uses a short-lived, one-time, domain-separated Ed25519 message challenge.
+Authenticated endpoints require a Supabase access token in `Authorization: Bearer <token>`. Wallet
+binding uses a short-lived, one-time, domain-separated Ed25519 message challenge.

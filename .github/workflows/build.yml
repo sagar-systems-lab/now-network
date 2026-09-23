@@ -91,9 +91,10 @@ jobs:
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager             "platform-tools"             "emulator"             "system-images;android-35;aosp_atd;x86_64"
 
-          echo "no" | avdmanager create avd             --force             --name "$AVD_NAME"             --package "system-images;android-35;aosp_atd;x86_64"
-
           AVD_CONFIG="$HOME/.android/avd/$AVD_NAME.avd/config.ini"
+          if [ ! -f "$AVD_CONFIG" ]; then
+            echo "no" | avdmanager create avd               --force               --name "$AVD_NAME"               --package "system-images;android-35;aosp_atd;x86_64"
+          fi
           test -f "$AVD_CONFIG"
           sed -i '/^disk.dataPartition.size=/d' "$AVD_CONFIG"
           echo "disk.dataPartition.size=4096M" >> "$AVD_CONFIG"
@@ -315,42 +316,36 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Rust
+      - name: Pinned native toolchain
         shell: bash
         run: |
+          set -Eeuo pipefail
+
+          test -f "$HOME/.cargo/env"
+          . "$HOME/.cargo/env"
+
+          AGAVE_BIN="$HOME/agave-4.1.2/solana-release/bin"
+          ANCHOR_BIN="$HOME/.local/bin"
+
+          test -x "$HOME/.cargo/bin/rustup"
+          test -x "$AGAVE_BIN/solana"
+          test -x "$ANCHOR_BIN/anchor"
+
+          export PATH="$HOME/.cargo/bin:$AGAVE_BIN:$ANCHOR_BIN:$PATH"
+          printf '%s\n' "$HOME/.cargo/bin" "$AGAVE_BIN" "$ANCHOR_BIN" >> "$GITHUB_PATH"
+
           rustup toolchain install 1.98.1 --profile minimal
           rustup default 1.98.1
-          rustc --version
-          cargo --version
 
-      - name: Install Agave
-        shell: bash
-        run: |
-          mkdir -p "$HOME/agave"
-          curl --fail --silent --show-error --location             --output "$RUNNER_TEMP/solana-release.tar.bz2"             "https://github.com/anza-xyz/agave/releases/download/v4.1.2/solana-release-x86_64-unknown-linux-gnu.tar.bz2"
-          echo "5991d027a686eb419a709a479178b33eb83501e8a2bfbf599a81a286bfcbf770  $RUNNER_TEMP/solana-release.tar.bz2" | sha256sum -c -
-          tar -xjf "$RUNNER_TEMP/solana-release.tar.bz2" -C "$HOME/agave"
-          echo "$HOME/agave/solana-release/bin" >> "$GITHUB_PATH"
+          rustc --version | grep -E '^rustc 1\.98\.1 '
+          cargo --version
+          solana --version | grep -F '4.1.2'
+          anchor --version | grep -F '1.2.0'
 
       - name: Deno
         uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
         with:
           deno-version: "2.9.7"
-
-      - name: Install Anchor
-        shell: bash
-        run: |
-          mkdir -p "$HOME/.local/bin"
-          curl --fail --silent --show-error --location             --output "$RUNNER_TEMP/anchor"             "https://github.com/otter-sec/anchor/releases/download/v1.2.0/anchor-1.2.0-x86_64-unknown-linux-gnu"
-          echo "0c9c41a3292c281cc6eadb78d6e1c8224d8324a34b0736a89d640fd314db05b7  $RUNNER_TEMP/anchor" | sha256sum -c -
-          install -m 0755 "$RUNNER_TEMP/anchor" "$HOME/.local/bin/anchor"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-
-      - name: Versions
-        shell: bash
-        run: |
-          solana --version
-          anchor --version
 
       - name: Rust tests
         shell: bash
