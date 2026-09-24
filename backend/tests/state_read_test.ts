@@ -201,12 +201,14 @@ Deno.test("nearby state read is public, bounded, and derives freshness", async (
 
 Deno.test("nearby state input rejects unbounded or malformed geography", async () => {
   const app = createTestApp(new MemoryStateRepository());
-  for (const path of [
-    "/v1/states/nearby?lat=91&lng=76.9&radius_m=1000",
-    "/v1/states/nearby?lat=29.4&lng=181&radius_m=1000",
-    "/v1/states/nearby?lat=29.4&lng=76.9&radius_m=50001",
-    "/v1/states/nearby?lat=29.4&lng=76.9&radius_m=1000&limit=51",
-  ]) {
+  for (
+    const path of [
+      "/v1/states/nearby?lat=91&lng=76.9&radius_m=1000",
+      "/v1/states/nearby?lat=29.4&lng=181&radius_m=1000",
+      "/v1/states/nearby?lat=29.4&lng=76.9&radius_m=50001",
+      "/v1/states/nearby?lat=29.4&lng=76.9&radius_m=1000&limit=51",
+    ]
+  ) {
     const response = await app(new Request(`http://localhost${path}`));
     if (response.status !== 400 || errorCode(await body(response)) !== "INVALID_REQUEST") {
       throw new Error(`invalid nearby query was accepted: ${path}`);
@@ -244,7 +246,9 @@ Deno.test("state detail returns a sanitized public projection", async () => {
   const envelope = await body(response);
   const serialized = JSON.stringify(envelope);
 
-  for (const forbidden of ["actor_id", "wallet_address", "media_object_key", "verification_trace"]) {
+  for (
+    const forbidden of ["actor_id", "wallet_address", "media_object_key", "verification_trace"]
+  ) {
     if (serialized.includes(forbidden)) {
       throw new Error(`public state detail leaked private field ${forbidden}`);
     }
