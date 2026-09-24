@@ -178,7 +178,7 @@ async function fixture(options?: {
   observer: SolanaRpcRefreshChainObserver;
   input: Parameters<SolanaRpcRefreshChainObserver["inspectFunding"]>[0];
 }> {
-  const addresses = deriveRefreshChainAddresses({
+  const addresses = await deriveRefreshChainAddresses({
     programId: NOW_SETTLEMENT_PROGRAM_ID,
     rewardMint: MINT,
     creatorWallet: CREATOR,
