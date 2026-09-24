@@ -157,10 +157,12 @@ class MemoryRefreshRepository implements RefreshRepository {
     if (!sameBytes(existing.hash, input.requestHash)) {
       return Promise.resolve({ kind: "idempotency_conflict" } as const);
     }
-    return Promise.resolve({
-      kind: "replayed",
-      refresh: structuredClone(this.records.get(existing.refreshId)!),
-    } as const);
+    return Promise.resolve(
+      {
+        kind: "replayed",
+        refresh: structuredClone(this.records.get(existing.refreshId)!),
+      } as const,
+    );
   }
 
   createOrReplay(
@@ -366,7 +368,10 @@ function faultCode(error: unknown): string {
   return error instanceof ApiFault ? error.code : "";
 }
 
-async function createDraft(service: RefreshCoordinator, key: string): Promise<Record<string, unknown>> {
+async function createDraft(
+  service: RefreshCoordinator,
+  key: string,
+): Promise<Record<string, unknown>> {
   return (await service.create({
     actor: actor(),
     stateId: STATE_ID,
