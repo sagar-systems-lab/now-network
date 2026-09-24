@@ -13,10 +13,7 @@ import {
   SYSTEM_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
 } from "./solana-refresh-addresses.ts";
-import {
-  NOW_SETTLEMENT_PROGRAM_ID,
-  type RefreshChainObserver,
-} from "./solana-refresh-observer.ts";
+import { NOW_SETTLEMENT_PROGRAM_ID, type RefreshChainObserver } from "./solana-refresh-observer.ts";
 import {
   bytesToHex,
   deriveAnswerSchemaDigestV1,
