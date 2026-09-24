@@ -80,3 +80,47 @@ export function requiredUuid(object: Record<string, unknown>, key: string): stri
   }
   return value;
 }
+
+export function requiredQueryNumber(
+  url: URL,
+  key: string,
+  min: number,
+  max: number,
+  integer = false,
+): number {
+  const raw = url.searchParams.get(key);
+  if (raw === null || raw.trim().length === 0) {
+    throw new ApiFault(400, "INVALID_REQUEST", `Invalid ${key}.`);
+  }
+
+  const value = Number(raw);
+  if (
+    !Number.isFinite(value) ||
+    value < min ||
+    value > max ||
+    (integer && !Number.isInteger(value))
+  ) {
+    throw new ApiFault(400, "INVALID_REQUEST", `Invalid ${key}.`);
+  }
+  return value;
+}
+
+export function optionalQueryInteger(
+  url: URL,
+  key: string,
+  fallback: number,
+  min: number,
+  max: number,
+): number {
+  const raw = url.searchParams.get(key);
+  if (raw === null) return fallback;
+  if (raw.trim().length === 0) {
+    throw new ApiFault(400, "INVALID_REQUEST", `Invalid ${key}.`);
+  }
+
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < min || value > max) {
+    throw new ApiFault(400, "INVALID_REQUEST", `Invalid ${key}.`);
+  }
+  return value;
+}

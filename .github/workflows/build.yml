@@ -188,6 +188,30 @@ jobs:
         run: |
           set -Eeuo pipefail
 
+          for attempt in $(seq 1 60); do
+            if docker logs "$DB_CONTAINER" 2>&1               | grep -Fq "PostgreSQL init process complete; ready for start up."; then
+              break
+            fi
+            if [ "$attempt" -eq 60 ]; then
+              echo "PostgreSQL container initialization did not complete"
+              docker logs "$DB_CONTAINER"
+              exit 1
+            fi
+            sleep 1
+          done
+
+          for attempt in $(seq 1 30); do
+            if docker exec "$DB_CONTAINER" pg_isready -U postgres -d now_test >/dev/null 2>&1; then
+              break
+            fi
+            if [ "$attempt" -eq 30 ]; then
+              echo "PostgreSQL final server did not become ready"
+              docker logs "$DB_CONTAINER"
+              exit 1
+            fi
+            sleep 1
+          done
+
           test "$(docker exec "$DB_CONTAINER" postgres --version)" = "postgres (PostgreSQL) 17.11"
 
           docker exec -i "$DB_CONTAINER" psql -X -U postgres -d now_test -v ON_ERROR_STOP=1 <<'SQL'
@@ -195,6 +219,16 @@ jobs:
           create schema if not exists extensions;
           create extension postgis with schema extensions;
           SQL
+
+          postgis_schema="$(
+            docker exec "$DB_CONTAINER" psql -XAtq -U postgres -d now_test -c "
+              select n.nspname
+              from pg_extension e
+              join pg_namespace n on n.oid = e.extnamespace
+              where e.extname = 'postgis';
+            "
+          )"
+          test "$postgis_schema" = "extensions"
 
           while IFS= read -r migration; do
             echo "Applying $migration"
@@ -216,6 +250,14 @@ jobs:
         run: |
           set -Eeuo pipefail
           docker exec -i "$DB_CONTAINER" psql -X -U postgres -d now_test -v ON_ERROR_STOP=1 < tests/database/wallet_binding_guards.sql
+
+      - name: Verify state read guards
+        shell: bash
+        env:
+          DB_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          set -Eeuo pipefail
+          docker exec -i "$DB_CONTAINER" psql -X -U postgres -d now_test -v ON_ERROR_STOP=1 < tests/database/state_read_guards.sql
 
       - name: Verify database security baseline
         shell: bash

@@ -2,24 +2,53 @@ import type { AuthVerifier } from "./auth.ts";
 import { ApiFault } from "./errors.ts";
 import {
   faultResponse,
+  optionalQueryInteger,
   readJsonObject,
   requestId,
+  requiredQueryNumber,
   requiredString,
   requiredUuid,
   successResponse,
+  UUID_PATTERN,
 } from "./http.ts";
 import type { IdentityRepository } from "./identity-repository.ts";
+import type { StateRepository } from "./state-repository.ts";
+import {
+  DEFAULT_HISTORY_LIMIT,
+  DEFAULT_NEARBY_LIMIT,
+  MAX_HISTORY_LIMIT,
+  MAX_NEARBY_LIMIT,
+  MAX_NEARBY_RADIUS_M,
+  StateReadService,
+} from "./state-read.ts";
 import { WalletBindingService } from "./wallet-proof.ts";
 import { handleRequest as handleHealthRequest } from "./health.ts";
 
 export type AppDependencies = {
   authVerifier: AuthVerifier;
   identityRepository: IdentityRepository;
+  stateRepository?: StateRepository;
   now?: () => Date;
 };
 
 export function createApp(dependencies: AppDependencies): (request: Request) => Promise<Response> {
   const walletBinding = new WalletBindingService(dependencies.identityRepository, dependencies.now);
+  const stateRead = dependencies.stateRepository
+    ? new StateReadService(dependencies.stateRepository, dependencies.now)
+    : null;
+
+  function requireStateRead(): StateReadService {
+    if (stateRead === null) {
+      throw new ApiFault(
+        503,
+        "STATE_READ_UNAVAILABLE",
+        "State reads are temporarily unavailable.",
+        true,
+        1_000,
+      );
+    }
+    return stateRead;
+  }
 
   return async (request: Request): Promise<Response> => {
     const url = new URL(request.url);
@@ -32,6 +61,37 @@ export function createApp(dependencies: AppDependencies): (request: Request) => 
 
     const id = requestId(request);
     try {
+      if (request.method === "GET" && routeMatches(url.pathname, "/v1/states/nearby")) {
+        const data = await requireStateRead().nearby({
+          lat: requiredQueryNumber(url, "lat", -90, 90),
+          lng: requiredQueryNumber(url, "lng", -180, 180),
+          radiusM: requiredQueryNumber(url, "radius_m", 1, MAX_NEARBY_RADIUS_M, true),
+          limit: optionalQueryInteger(url, "limit", DEFAULT_NEARBY_LIMIT, 1, MAX_NEARBY_LIMIT),
+          cursor: url.searchParams.get("cursor"),
+        });
+        return successResponse(id, data);
+      }
+
+      const stateRoute = matchStateRoute(url.pathname);
+      if (request.method === "GET" && stateRoute !== null) {
+        if (stateRoute.history) {
+          const data = await requireStateRead().history({
+            stateId: stateRoute.stateId,
+            limit: optionalQueryInteger(
+              url,
+              "limit",
+              DEFAULT_HISTORY_LIMIT,
+              1,
+              MAX_HISTORY_LIMIT,
+            ),
+            cursor: url.searchParams.get("cursor"),
+          });
+          return successResponse(id, data);
+        }
+
+        return successResponse(id, await requireStateRead().detail(stateRoute.stateId));
+      }
+
       const principal = await dependencies.authVerifier.verify(request);
       const actor = await dependencies.identityRepository.resolveActor(
         principal.authUserId,
@@ -110,4 +170,15 @@ export function createApp(dependencies: AppDependencies): (request: Request) => 
 
 function routeMatches(pathname: string, route: string): boolean {
   return pathname === route || pathname.endsWith(route);
+}
+
+function matchStateRoute(
+  pathname: string,
+): { stateId: string; history: boolean } | null {
+  const match = pathname.match(/(?:^|\/)v1\/states\/([^/]+)(\/history)?$/u);
+  if (!match) return null;
+  if (!UUID_PATTERN.test(match[1])) {
+    throw new ApiFault(400, "INVALID_REQUEST", "Invalid state_id.");
+  }
+  return { stateId: match[1], history: match[2] === "/history" };
 }
