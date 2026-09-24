@@ -98,28 +98,25 @@ function nearbyFromRow(row: NearbyRow): NearbyStateRecord {
 }
 
 function detailFromRow(row: DetailRow): StateDetailRecord {
-  const verification: StateVerificationSummary | null = row.verification_status === null
-    ? null
-    : {
-      status: row.verification_status,
-      reasonCodes: row.verification_reason_codes ?? [],
-      evidenceCount: Number(row.verification_evidence_count ?? 0),
-    };
+  const verification: StateVerificationSummary | null = row.verification_status === null ? null : {
+    status: row.verification_status,
+    reasonCodes: row.verification_reason_codes ?? [],
+    evidenceCount: Number(row.verification_evidence_count ?? 0),
+  };
 
-  const activeRefresh: StateActiveRefreshSummary | null =
-    row.refresh_id === null ||
+  const activeRefresh: StateActiveRefreshSummary | null = row.refresh_id === null ||
       row.refresh_status === null ||
       row.refresh_verification_class === null ||
       row.refresh_expires_at === null ||
       row.refresh_revision === null
-      ? null
-      : {
-        refreshId: row.refresh_id,
-        status: row.refresh_status,
-        verificationClass: row.refresh_verification_class,
-        expiresAt: date(row.refresh_expires_at),
-        revision: Number(row.refresh_revision),
-      };
+    ? null
+    : {
+      refreshId: row.refresh_id,
+      status: row.refresh_status,
+      verificationClass: row.refresh_verification_class,
+      expiresAt: date(row.refresh_expires_at),
+      revision: Number(row.refresh_revision),
+    };
 
   return {
     stateId: row.state_id,
@@ -175,7 +172,9 @@ export class PostgresStateRepository implements StateRepository {
     });
   }
 
-  async listNearby(input: Parameters<StateRepository["listNearby"]>[0]): Promise<NearbyStateRecord[]> {
+  async listNearby(
+    input: Parameters<StateRepository["listNearby"]>[0],
+  ): Promise<NearbyStateRecord[]> {
     const rows = await this.sql`
       select
         state_id,
