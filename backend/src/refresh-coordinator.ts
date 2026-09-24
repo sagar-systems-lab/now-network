@@ -206,6 +206,34 @@ export class RefreshCoordinator {
   }): Promise<{ data: Record<string, unknown>; status: number }> {
     assertActorActive(input.actor);
     const idempotencyKey = requireIdempotencyKey(input.idempotencyKey);
+    const fundingTargetAtomic = atomicAmount(input.fundingTargetAtomic);
+    const requestHash = await requestDigest({
+      state_id: input.stateId,
+      wallet_binding_id: input.walletBindingId,
+      funding_target_atomic: fundingTargetAtomic.toString(),
+    });
+
+    const replay = await this.refreshRepository.lookupCreateReplay({
+      actorId: input.actor.actorId,
+      idempotencyKey,
+      requestHash,
+    });
+    if (replay.kind === "idempotency_conflict") {
+      throw new ApiFault(
+        409,
+        "IDEMPOTENCY_CONFLICT",
+        "The idempotency key was already used for a different request.",
+      );
+    }
+    if (replay.kind === "replayed") {
+      return {
+        data: {
+          ...privatePayload(replay.refresh),
+          next_step: replay.refresh.status === "DRAFT" ? "FUNDING_INTENT" : null,
+        },
+        status: 200,
+      };
+    }
 
     const state = await this.stateRepository.getState(input.stateId);
     if (state === null) {
@@ -241,7 +269,6 @@ export class RefreshCoordinator {
       throw new ApiFault(409, "WALLET_BINDING_REQUIRED", "Wallet binding is invalid.");
     }
 
-    const fundingTargetAtomic = atomicAmount(input.fundingTargetAtomic);
     const terms = witnessTerms(policy);
     const refreshId = crypto.randomUUID();
     const current = this.now();
@@ -283,12 +310,6 @@ export class RefreshCoordinator {
       payoutRule: terms.payoutRule,
       refreshExpiresAtUnix: BigInt(Math.floor(refreshExpiresAt.getTime() / 1000)),
       rewardMint: this.rewardMintBytes,
-    });
-
-    const requestHash = await requestDigest({
-      state_id: input.stateId,
-      wallet_binding_id: input.walletBindingId,
-      funding_target_atomic: fundingTargetAtomic.toString(),
     });
 
     const record: NewRefreshRecord = {
