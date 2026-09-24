@@ -379,6 +379,7 @@ export class RefreshCoordinator {
       requestHash,
       idempotencyExpiresAt: new Date(this.now().getTime() + 24 * 60 * 60 * 1000),
       operationId,
+      observedAt: this.now(),
       addresses,
     });
 
