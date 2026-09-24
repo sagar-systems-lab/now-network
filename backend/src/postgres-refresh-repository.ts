@@ -149,8 +149,7 @@ export class PostgresRefreshRepository implements RefreshRepository {
   async lookupCreateReplay(
     input: Parameters<RefreshRepository["lookupCreateReplay"]>[0],
   ) {
-    const storedKey =
-      `${input.actorId}:refresh:create:v1:${input.idempotencyKey}`;
+    const storedKey = `${input.actorId}:refresh:create:v1:${input.idempotencyKey}`;
     const rows = await this.sql`
       select actor_id, operation_type, request_hash, operation_id
       from app.idempotency_records
@@ -341,11 +340,13 @@ export class PostgresRefreshRepository implements RefreshRepository {
           ${refresh.requesterActorId}::uuid,
           ${refresh.refreshId}::uuid,
           1,
-          ${JSON.stringify({
-            state_id: refresh.stateId,
-            status: "DRAFT",
-            funding_target_atomic: refresh.fundingTargetAtomic.toString(),
-          })}::jsonb
+          ${
+        JSON.stringify({
+          state_id: refresh.stateId,
+          status: "DRAFT",
+          funding_target_atomic: refresh.fundingTargetAtomic.toString(),
+        })
+      }::jsonb
         )
       `;
 
@@ -368,8 +369,7 @@ export class PostgresRefreshRepository implements RefreshRepository {
     input: Parameters<RefreshRepository["prepareFunding"]>[0],
   ): Promise<PrepareFundingResult> {
     return await this.sql.begin(async (tx) => {
-      const storedKey =
-        `${input.actorId}:refresh:funding-intent:v1:${input.idempotencyKey}`;
+      const storedKey = `${input.actorId}:refresh:funding-intent:v1:${input.idempotencyKey}`;
       const operationType = "REFRESH_FUNDING_INTENT_V1";
       await tx`select pg_advisory_xact_lock(hashtextextended(${storedKey}, 4))`;
 
@@ -535,10 +535,12 @@ export class PostgresRefreshRepository implements RefreshRepository {
           ${input.actorId}::uuid,
           ${input.operationId}::uuid,
           ${current.revision + 1},
-          ${JSON.stringify({
-            status: "AWAITING_FUNDING",
-            refresh_address: input.addresses.refreshAddress,
-          })}::jsonb
+          ${
+        JSON.stringify({
+          status: "AWAITING_FUNDING",
+          refresh_address: input.addresses.refreshAddress,
+        })
+      }::jsonb
         )
       `;
 
@@ -554,8 +556,7 @@ export class PostgresRefreshRepository implements RefreshRepository {
     input: Parameters<RefreshRepository["confirmFunding"]>[0],
   ): Promise<ConfirmFundingResult> {
     return await this.sql.begin(async (tx) => {
-      const storedKey =
-        `${input.actorId}:refresh:funding-observe:v1:${input.idempotencyKey}`;
+      const storedKey = `${input.actorId}:refresh:funding-observe:v1:${input.idempotencyKey}`;
       const operationType = "REFRESH_FUNDING_OBSERVE_V1";
       await tx`select pg_advisory_xact_lock(hashtextextended(${storedKey}, 5))`;
 
@@ -732,11 +733,13 @@ export class PostgresRefreshRepository implements RefreshRepository {
           ${input.actorId}::uuid,
           ${current.fundingOperationId}::uuid,
           ${fundedRevision},
-          ${JSON.stringify({
-            status: "FUNDED",
-            chain_signature: input.chainSignature,
-            chain_total_funded_atomic: input.chainTotalFundedAtomic.toString(),
-          })}::jsonb,
+          ${
+        JSON.stringify({
+          status: "FUNDED",
+          chain_signature: input.chainSignature,
+          chain_total_funded_atomic: input.chainTotalFundedAtomic.toString(),
+        })
+      }::jsonb,
           ${input.observedAt}
         ), (
           ${crypto.randomUUID()}::uuid,
