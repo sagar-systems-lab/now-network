@@ -238,7 +238,6 @@ function matchStateRoute(
   return { stateId: match[1], history: match[2] === "/history" };
 }
 
-
 function matchRefreshRoute(
   pathname: string,
 ): {
