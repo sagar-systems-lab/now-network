@@ -28,6 +28,7 @@ export interface RefreshChainObserver {
     contributionAddress: string;
     expectedCreatorWallet: string;
     expectedRewardMint: string;
+    expectedVaultTokenAccount: string;
     expectedChainRefreshId: Uint8Array;
     expectedStateIdDigest: Uint8Array;
     expectedIntentCoreHash: Uint8Array;
@@ -102,6 +103,55 @@ function accountKeys(transaction: Record<string, unknown>): string[] {
     }
   }
   return keys;
+}
+
+function invokesFundingProgram(
+  transaction: Record<string, unknown>,
+  programId: string,
+  refreshAddress: string,
+  contributionAddress: string,
+): boolean {
+  const tx = transaction.transaction as Record<string, unknown> | undefined;
+  const message = tx?.message as Record<string, unknown> | undefined;
+  const keys = accountKeys(transaction);
+  const instructions = Array.isArray(message?.instructions) ? message.instructions : [];
+
+  for (const instruction of instructions) {
+    if (!instruction || typeof instruction !== "object") continue;
+    const record = instruction as Record<string, unknown>;
+
+    if (typeof record.programId === "string") {
+      if (record.programId !== programId) continue;
+      const accounts = Array.isArray(record.accounts)
+        ? record.accounts.filter((value): value is string => typeof value === "string")
+        : [];
+      if (accounts.includes(refreshAddress) && accounts.includes(contributionAddress)) {
+        return true;
+      }
+      continue;
+    }
+
+    if (
+      typeof record.programIdIndex !== "number" ||
+      keys[record.programIdIndex] !== programId ||
+      !Array.isArray(record.accounts)
+    ) {
+      continue;
+    }
+
+    const accountIndexes = record.accounts.filter(
+      (value): value is number => typeof value === "number",
+    );
+    const instructionAccounts = accountIndexes.map((index) => keys[index]);
+    if (
+      instructionAccounts.includes(refreshAddress) &&
+      instructionAccounts.includes(contributionAddress)
+    ) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function verificationCode(value: "FAST" | "CORROBORATED" | "STRICT"): number {
@@ -188,6 +238,16 @@ export class SolanaRpcRefreshChainObserver implements RefreshChainObserver {
     ) {
       if (!keys.has(expected)) return { kind: "failed" };
     }
+    if (
+      !invokesFundingProgram(
+        transactionRecord,
+        this.programId,
+        input.refreshAddress,
+        input.contributionAddress,
+      )
+    ) {
+      return { kind: "failed" };
+    }
 
     const accountResult = await this.rpc("getMultipleAccounts", [
       [input.refreshAddress, input.contributionAddress],
@@ -239,6 +299,7 @@ export class SolanaRpcRefreshChainObserver implements RefreshChainObserver {
       !bytesEqual(refresh.slice(74, 106), input.expectedIntentCoreHash) ||
       !bytesEqual(refresh.slice(106, 138), bs58.decode(input.expectedCreatorWallet)) ||
       !bytesEqual(refresh.slice(138, 170), bs58.decode(input.expectedRewardMint)) ||
+      !bytesEqual(refresh.slice(170, 202), bs58.decode(input.expectedVaultTokenAccount)) ||
       i64(refresh, 242) !== BigInt(Math.floor(input.expectedRefreshExpiresAt.getTime() / 1000)) ||
       refresh[250] !== verificationCode(input.expectedVerificationClass) ||
       refresh[251] !== input.expectedRequiredWitnesses ||
@@ -262,7 +323,7 @@ export class SolanaRpcRefreshChainObserver implements RefreshChainObserver {
     const contributionAmountAtomic = u64(contribution, 74);
     if (
       totalFundedAtomic < input.fundingTargetAtomic ||
-      contributionAmountAtomic <= 0n
+      contributionAmountAtomic < input.fundingTargetAtomic
     ) {
       return { kind: "pending" };
     }
