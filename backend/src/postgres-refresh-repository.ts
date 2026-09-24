@@ -2,6 +2,7 @@ import postgres from "npm:postgres@3.4.7";
 import type {
   ConfirmFundingResult,
   CreateRefreshResult,
+  PrepareFundingResult,
   RefreshRecord,
   RefreshRepository,
 } from "./refresh-repository.ts";
@@ -28,6 +29,7 @@ type RefreshRow = {
   payout_rule: RefreshRecord["payoutRule"];
   chain_refresh_id: Uint8Array;
   state_id_digest: Uint8Array;
+  funding_operation_id: string | null;
   chain_refresh_address: string | null;
   chain_status: string | null;
   chain_total_funded: number | string;
@@ -70,6 +72,7 @@ function fromRow(row: RefreshRow): RefreshRecord {
     payoutRule: row.payout_rule,
     chainRefreshId: new Uint8Array(row.chain_refresh_id),
     stateIdDigest: new Uint8Array(row.state_id_digest),
+    fundingOperationId: row.funding_operation_id,
     chainRefreshAddress: row.chain_refresh_address,
     chainStatus: row.chain_status,
     chainTotalFunded: BigInt(row.chain_total_funded),
@@ -101,6 +104,7 @@ const SELECT_REFRESH = String.raw`
     payout_rule,
     chain_refresh_id,
     state_id_digest,
+    funding_operation_id,
     chain_refresh_address,
     chain_status,
     chain_total_funded,
@@ -110,6 +114,25 @@ const SELECT_REFRESH = String.raw`
     revision
   from app.refresh_requests
 `;
+
+type IdempotencyRow = {
+  actor_id: string | null;
+  operation_type: string;
+  request_hash: Uint8Array;
+  operation_id: string | null;
+};
+
+function idempotencyMatches(
+  row: IdempotencyRow,
+  actorId: string,
+  operationType: string,
+  requestHash: Uint8Array,
+): boolean {
+  return row.actor_id === actorId &&
+    row.operation_type === operationType &&
+    row.operation_id !== null &&
+    bytesEqual(new Uint8Array(row.request_hash), requestHash);
+}
 
 export class PostgresRefreshRepository implements RefreshRepository {
   private readonly sql: ReturnType<typeof postgres>;
@@ -129,9 +152,9 @@ export class PostgresRefreshRepository implements RefreshRepository {
     return await this.sql.begin(async (tx) => {
       const storedKey =
         `${input.refresh.requesterActorId}:refresh:create:v1:${input.idempotencyKey}`;
+      const operationType = "REFRESH_CREATE_V1";
 
       await tx`select pg_advisory_xact_lock(hashtextextended(${storedKey}, 3))`;
-
       const existing = await tx`
         select actor_id, operation_type, request_hash, operation_id
         from app.idempotency_records
@@ -140,28 +163,22 @@ export class PostgresRefreshRepository implements RefreshRepository {
       `;
 
       if (existing[0]) {
-        const row = existing[0] as {
-          actor_id: string | null;
-          operation_type: string;
-          request_hash: Uint8Array;
-          operation_id: string | null;
-        };
+        const row = existing[0] as IdempotencyRow;
         if (
-          row.actor_id !== input.refresh.requesterActorId ||
-          row.operation_type !== "REFRESH_CREATE_V1" ||
-          row.operation_id === null ||
-          !bytesEqual(new Uint8Array(row.request_hash), input.requestHash)
+          !idempotencyMatches(
+            row,
+            input.refresh.requesterActorId,
+            operationType,
+            input.requestHash,
+          )
         ) {
           return { kind: "idempotency_conflict" };
         }
-
         const replayRows = await tx.unsafe(
           `${SELECT_REFRESH} where refresh_id = $1::uuid limit 1`,
           [row.operation_id],
         );
-        if (!replayRows[0]) {
-          throw new Error("idempotency record references a missing refresh");
-        }
+        if (!replayRows[0]) throw new Error("idempotency refresh is missing");
         return {
           kind: "replayed",
           refresh: fromRow(replayRows[0] as RefreshRow),
@@ -185,7 +202,6 @@ export class PostgresRefreshRepository implements RefreshRepository {
           refresh_expires_at,
           evidence_deadline,
           reward_mint,
-          chain_status,
           coordinator_version,
           creator_wallet_address,
           funding_target_atomic,
@@ -197,7 +213,7 @@ export class PostgresRefreshRepository implements RefreshRepository {
           ${refresh.stateId}::uuid,
           ${refresh.stateVersion},
           ${refresh.requesterActorId}::uuid,
-          'AWAITING_FUNDING',
+          'DRAFT',
           ${refresh.verificationClass},
           ${refresh.requiredWitnesses},
           ${refresh.maxWitnesses},
@@ -207,7 +223,6 @@ export class PostgresRefreshRepository implements RefreshRepository {
           ${refresh.refreshExpiresAt},
           ${refresh.evidenceDeadline},
           ${refresh.rewardMint},
-          'PENDING_CREATE',
           1,
           ${refresh.creatorWalletAddress},
           ${refresh.fundingTargetAtomic.toString()}::numeric,
@@ -235,6 +250,7 @@ export class PostgresRefreshRepository implements RefreshRepository {
           payout_rule,
           chain_refresh_id,
           state_id_digest,
+          funding_operation_id,
           chain_refresh_address,
           chain_status,
           chain_total_funded,
@@ -258,7 +274,7 @@ export class PostgresRefreshRepository implements RefreshRepository {
         ) values (
           ${storedKey},
           ${refresh.requesterActorId}::uuid,
-          'REFRESH_CREATE_V1',
+          ${operationType},
           ${input.requestHash},
           'COMPLETED',
           201,
@@ -282,13 +298,13 @@ export class PostgresRefreshRepository implements RefreshRepository {
           ${crypto.randomUUID()}::uuid,
           'refresh',
           ${refresh.refreshId}::uuid,
-          'REFRESH_AWAITING_FUNDING',
+          'REFRESH_DRAFT_CREATED',
           ${refresh.requesterActorId}::uuid,
           ${refresh.refreshId}::uuid,
           1,
           ${JSON.stringify({
             state_id: refresh.stateId,
-            status: "AWAITING_FUNDING",
+            status: "DRAFT",
             funding_target_atomic: refresh.fundingTargetAtomic.toString(),
           })}::jsonb
         )
@@ -309,56 +325,257 @@ export class PostgresRefreshRepository implements RefreshRepository {
     return rows[0] ? fromRow(rows[0] as RefreshRow) : null;
   }
 
-  async confirmFunding(
-    input: Parameters<RefreshRepository["confirmFunding"]>[0],
-  ): Promise<ConfirmFundingResult> {
+  async prepareFunding(
+    input: Parameters<RefreshRepository["prepareFunding"]>[0],
+  ): Promise<PrepareFundingResult> {
     return await this.sql.begin(async (tx) => {
+      const storedKey =
+        `${input.actorId}:refresh:funding-intent:v1:${input.idempotencyKey}`;
+      const operationType = "REFRESH_FUNDING_INTENT_V1";
+      await tx`select pg_advisory_xact_lock(hashtextextended(${storedKey}, 4))`;
+
       const rows = await tx.unsafe(
         `${SELECT_REFRESH} where refresh_id = $1::uuid for update`,
         [input.refreshId],
       );
       if (!rows[0]) return { kind: "not_found" } as const;
-
       const current = fromRow(rows[0] as RefreshRow);
       if (current.requesterActorId !== input.actorId) {
         return { kind: "actor_mismatch" } as const;
       }
-      if (current.status === "AVAILABLE") {
+
+      const existing = await tx`
+        select actor_id, operation_type, request_hash, operation_id
+        from app.idempotency_records
+        where idempotency_key = ${storedKey}
+        for update
+      `;
+      if (existing[0]) {
+        const row = existing[0] as IdempotencyRow;
+        if (!idempotencyMatches(row, input.actorId, operationType, input.requestHash)) {
+          return { kind: "idempotency_conflict" } as const;
+        }
+        if (
+          current.fundingOperationId === null ||
+          row.operation_id !== current.fundingOperationId
+        ) {
+          return { kind: "idempotency_conflict" } as const;
+        }
+        return {
+          kind: "replayed",
+          refresh: current,
+          operationId: current.fundingOperationId,
+        } as const;
+      }
+
+      if (current.refreshExpiresAt.getTime() <= Date.now()) {
+        return { kind: "expired" } as const;
+      }
+      if (current.status !== "DRAFT" && current.status !== "AWAITING_FUNDING") {
+        return { kind: "not_fundable" } as const;
+      }
+
+      if (current.status === "AWAITING_FUNDING") {
+        if (
+          current.fundingOperationId === null ||
+          current.chainRefreshAddress !== input.addresses.refreshAddress
+        ) {
+          return { kind: "not_fundable" } as const;
+        }
+
+        await tx`
+          insert into app.idempotency_records(
+            idempotency_key,
+            actor_id,
+            operation_type,
+            request_hash,
+            status,
+            response_code,
+            response_body,
+            operation_id,
+            expires_at
+          ) values (
+            ${storedKey},
+            ${input.actorId}::uuid,
+            ${operationType},
+            ${input.requestHash},
+            'COMPLETED',
+            200,
+            ${JSON.stringify({ refresh_id: current.refreshId })}::jsonb,
+            ${current.fundingOperationId}::uuid,
+            ${input.idempotencyExpiresAt}
+          )
+        `;
+
+        return {
+          kind: "replayed",
+          refresh: current,
+          operationId: current.fundingOperationId,
+        } as const;
+      }
+
+      const updated = await tx`
+        update app.refresh_requests
+        set
+          status = 'AWAITING_FUNDING',
+          funding_operation_id = ${input.operationId}::uuid,
+          chain_refresh_address = ${input.addresses.refreshAddress},
+          chain_status = 'INTENT_READY',
+          updated_at = now(),
+          revision = revision + 1
+        where refresh_id = ${input.refreshId}::uuid
+        returning
+          refresh_id,
+          state_id,
+          state_version,
+          requester_actor_id,
+          status,
+          verification_class,
+          required_witnesses,
+          max_witnesses,
+          proof_policy_snapshot,
+          proof_policy_digest,
+          intent_core_hash,
+          refresh_expires_at,
+          evidence_deadline,
+          reward_mint,
+          creator_wallet_address,
+          funding_target_atomic,
+          payout_rule,
+          chain_refresh_id,
+          state_id_digest,
+          funding_operation_id,
+          chain_refresh_address,
+          chain_status,
+          chain_total_funded,
+          chain_observed_at,
+          created_at,
+          updated_at,
+          revision
+      `;
+
+      await tx`
+        insert into app.idempotency_records(
+          idempotency_key,
+          actor_id,
+          operation_type,
+          request_hash,
+          status,
+          response_code,
+          response_body,
+          operation_id,
+          expires_at
+        ) values (
+          ${storedKey},
+          ${input.actorId}::uuid,
+          ${operationType},
+          ${input.requestHash},
+          'COMPLETED',
+          200,
+          ${JSON.stringify({ refresh_id: current.refreshId })}::jsonb,
+          ${input.operationId}::uuid,
+          ${input.idempotencyExpiresAt}
+        )
+      `;
+
+      await tx`
+        insert into app.domain_events(
+          event_id,
+          entity_type,
+          entity_id,
+          event_type,
+          actor_id,
+          operation_id,
+          entity_revision,
+          payload
+        ) values (
+          ${crypto.randomUUID()}::uuid,
+          'refresh',
+          ${input.refreshId}::uuid,
+          'REFRESH_FUNDING_INTENT_CREATED',
+          ${input.actorId}::uuid,
+          ${input.operationId}::uuid,
+          ${current.revision + 1},
+          ${JSON.stringify({
+            status: "AWAITING_FUNDING",
+            refresh_address: input.addresses.refreshAddress,
+          })}::jsonb
+        )
+      `;
+
+      return {
+        kind: "prepared",
+        refresh: fromRow(updated[0] as RefreshRow),
+        operationId: input.operationId,
+      } as const;
+    });
+  }
+
+  async confirmFunding(
+    input: Parameters<RefreshRepository["confirmFunding"]>[0],
+  ): Promise<ConfirmFundingResult> {
+    return await this.sql.begin(async (tx) => {
+      const storedKey =
+        `${input.actorId}:refresh:funding-observe:v1:${input.idempotencyKey}`;
+      const operationType = "REFRESH_FUNDING_OBSERVE_V1";
+      await tx`select pg_advisory_xact_lock(hashtextextended(${storedKey}, 5))`;
+
+      const rows = await tx.unsafe(
+        `${SELECT_REFRESH} where refresh_id = $1::uuid for update`,
+        [input.refreshId],
+      );
+      if (!rows[0]) return { kind: "not_found" } as const;
+      const current = fromRow(rows[0] as RefreshRow);
+      if (current.requesterActorId !== input.actorId) {
+        return { kind: "actor_mismatch" } as const;
+      }
+
+      const existing = await tx`
+        select actor_id, operation_type, request_hash, operation_id
+        from app.idempotency_records
+        where idempotency_key = ${storedKey}
+        for update
+      `;
+      if (existing[0]) {
+        const row = existing[0] as IdempotencyRow;
+        if (!idempotencyMatches(row, input.actorId, operationType, input.requestHash)) {
+          return { kind: "idempotency_conflict" } as const;
+        }
+        if (
+          current.fundingOperationId === null ||
+          row.operation_id !== current.fundingOperationId
+        ) {
+          return { kind: "idempotency_conflict" } as const;
+        }
         return { kind: "replayed", refresh: current } as const;
       }
+
       if (current.refreshExpiresAt.getTime() <= input.observedAt.getTime()) {
-        await tx`
-          update app.refresh_requests
-          set status = 'EXPIRED', updated_at = ${input.observedAt}, revision = revision + 1
-          where refresh_id = ${input.refreshId}::uuid
-        `;
         return { kind: "expired" } as const;
       }
       if (
         current.status !== "AWAITING_FUNDING" ||
+        current.fundingOperationId === null ||
+        current.chainRefreshAddress !== input.chainRefreshAddress ||
         input.chainTotalFundedAtomic < current.fundingTargetAtomic
       ) {
         return { kind: "not_fundable" } as const;
       }
 
       const signatureRows = await tx`
-        select refresh_id
+        select refresh_id, operation_id
         from app.refresh_contributions
         where chain_signature = ${input.chainSignature}
         limit 1
       `;
       if (signatureRows[0]) {
-        if (signatureRows[0].refresh_id !== input.refreshId) {
+        if (
+          signatureRows[0].refresh_id !== input.refreshId ||
+          signatureRows[0].operation_id !== current.fundingOperationId
+        ) {
           return { kind: "not_fundable" } as const;
         }
-        const replay = await tx.unsafe(
-          `${SELECT_REFRESH} where refresh_id = $1::uuid limit 1`,
-          [input.refreshId],
-        );
-        return {
-          kind: "replayed",
-          refresh: fromRow(replay[0] as RefreshRow),
-        } as const;
+        return { kind: "replayed", refresh: current } as const;
       }
 
       await tx`
@@ -380,7 +597,7 @@ export class PostgresRefreshRepository implements RefreshRepository {
           ${input.refreshId}::uuid,
           ${input.actorId}::uuid,
           ${current.creatorWalletAddress},
-          ${input.operationId}::uuid,
+          ${current.fundingOperationId}::uuid,
           ${input.contributionAmountAtomic.toString()}::numeric,
           ${input.chainContributionAddress},
           ${input.chainSignature},
@@ -395,7 +612,6 @@ export class PostgresRefreshRepository implements RefreshRepository {
         update app.refresh_requests
         set
           status = 'AVAILABLE',
-          chain_refresh_address = ${input.chainRefreshAddress},
           chain_status = ${input.chainCommitment},
           chain_total_funded = ${input.chainTotalFundedAtomic.toString()}::numeric,
           chain_observed_at = ${input.observedAt},
@@ -422,6 +638,7 @@ export class PostgresRefreshRepository implements RefreshRepository {
           payout_rule,
           chain_refresh_id,
           state_id_digest,
+          funding_operation_id,
           chain_refresh_address,
           chain_status,
           chain_total_funded,
@@ -431,9 +648,32 @@ export class PostgresRefreshRepository implements RefreshRepository {
           revision
       `;
 
+      await tx`
+        insert into app.idempotency_records(
+          idempotency_key,
+          actor_id,
+          operation_type,
+          request_hash,
+          status,
+          response_code,
+          response_body,
+          operation_id,
+          expires_at
+        ) values (
+          ${storedKey},
+          ${input.actorId}::uuid,
+          ${operationType},
+          ${input.requestHash},
+          'COMPLETED',
+          200,
+          ${JSON.stringify({ refresh_id: input.refreshId })}::jsonb,
+          ${current.fundingOperationId}::uuid,
+          ${input.idempotencyExpiresAt}
+        )
+      `;
+
       const fundedRevision = current.revision + 1;
       const availableRevision = current.revision + 2;
-
       await tx`
         insert into app.domain_events(
           event_id,
@@ -451,7 +691,7 @@ export class PostgresRefreshRepository implements RefreshRepository {
           ${input.refreshId}::uuid,
           'REFRESH_FUNDING_CONFIRMED',
           ${input.actorId}::uuid,
-          ${input.operationId}::uuid,
+          ${current.fundingOperationId}::uuid,
           ${fundedRevision},
           ${JSON.stringify({
             status: "FUNDED",
@@ -465,7 +705,7 @@ export class PostgresRefreshRepository implements RefreshRepository {
           ${input.refreshId}::uuid,
           'REFRESH_AVAILABLE',
           ${input.actorId}::uuid,
-          ${input.operationId}::uuid,
+          ${current.fundingOperationId}::uuid,
           ${availableRevision},
           ${JSON.stringify({ status: "AVAILABLE" })}::jsonb,
           ${input.observedAt}
