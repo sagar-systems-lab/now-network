@@ -10,8 +10,7 @@ import type {
   StateRepository,
 } from "./state-repository.ts";
 
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export const DEFAULT_NEARBY_LIMIT = 30;
 export const MAX_NEARBY_LIMIT = 50;
@@ -151,22 +150,18 @@ function detailPayload(record: StateDetailRecord, now: Date): Record<string, unk
       location_type: record.location.locationType,
       display_address: record.location.displayAddress,
     },
-    verification: record.verification === null
-      ? null
-      : {
-        status: record.verification.status,
-        reason_codes: record.verification.reasonCodes,
-        evidence_count: record.verification.evidenceCount,
-      },
-    active_refresh: record.activeRefresh === null
-      ? null
-      : {
-        refresh_id: record.activeRefresh.refreshId,
-        status: record.activeRefresh.status,
-        verification_class: record.activeRefresh.verificationClass,
-        expires_at: record.activeRefresh.expiresAt.toISOString(),
-        revision: record.activeRefresh.revision,
-      },
+    verification: record.verification === null ? null : {
+      status: record.verification.status,
+      reason_codes: record.verification.reasonCodes,
+      evidence_count: record.verification.evidenceCount,
+    },
+    active_refresh: record.activeRefresh === null ? null : {
+      refresh_id: record.activeRefresh.refreshId,
+      status: record.activeRefresh.status,
+      verification_class: record.activeRefresh.verificationClass,
+      expires_at: record.activeRefresh.expiresAt.toISOString(),
+      revision: record.activeRefresh.revision,
+    },
   };
 }
 
