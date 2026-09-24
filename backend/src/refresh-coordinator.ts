@@ -183,12 +183,8 @@ export class RefreshCoordinator {
     try {
       this.rewardMintBytes = Uint8Array.from(bs58.decode(config.rewardMint));
       if (this.rewardMintBytes.length !== 32) throw new Error("wrong mint length");
-      deriveRefreshChainAddresses({
-        programId: this.programId,
-        rewardMint: config.rewardMint,
-        creatorWallet: "11111111111111111111111111111111",
-        chainRefreshId: new Uint8Array(32),
-      });
+      const programIdBytes = Uint8Array.from(bs58.decode(this.programId));
+      if (programIdBytes.length !== 32) throw new Error("wrong program id length");
     } catch {
       throw new Error("invalid Solana refresh coordinator configuration");
     }
@@ -379,7 +375,7 @@ export class RefreshCoordinator {
       transitionRefresh("DRAFT", "FUND_START");
     }
 
-    const addresses = deriveRefreshChainAddresses({
+    const addresses = await deriveRefreshChainAddresses({
       programId: this.programId,
       rewardMint: record.rewardMint,
       creatorWallet: record.creatorWalletAddress,
@@ -478,7 +474,7 @@ export class RefreshCoordinator {
     });
     transitionRefresh("FUNDED", "PUBLISH");
 
-    const addresses = deriveRefreshChainAddresses({
+    const addresses = await deriveRefreshChainAddresses({
       programId: this.programId,
       rewardMint: record.rewardMint,
       creatorWallet: record.creatorWalletAddress,
