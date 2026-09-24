@@ -146,6 +146,45 @@ export class PostgresRefreshRepository implements RefreshRepository {
     });
   }
 
+  async lookupCreateReplay(
+    input: Parameters<RefreshRepository["lookupCreateReplay"]>[0],
+  ) {
+    const storedKey =
+      `${input.actorId}:refresh:create:v1:${input.idempotencyKey}`;
+    const rows = await this.sql`
+      select actor_id, operation_type, request_hash, operation_id
+      from app.idempotency_records
+      where idempotency_key = ${storedKey}
+      limit 1
+    `;
+    if (!rows[0]) return { kind: "none" } as const;
+
+    const row = rows[0] as IdempotencyRow;
+    if (
+      !idempotencyMatches(
+        row,
+        input.actorId,
+        "REFRESH_CREATE_V1",
+        input.requestHash,
+      )
+    ) {
+      return { kind: "idempotency_conflict" } as const;
+    }
+
+    const refreshRows = await this.sql.unsafe(
+      `${SELECT_REFRESH} where refresh_id = $1::uuid limit 1`,
+      [row.operation_id],
+    );
+    if (!refreshRows[0]) {
+      throw new Error("idempotency record references a missing refresh");
+    }
+
+    return {
+      kind: "replayed",
+      refresh: fromRow(refreshRows[0] as RefreshRow),
+    } as const;
+  }
+
   async createOrReplay(
     input: Parameters<RefreshRepository["createOrReplay"]>[0],
   ): Promise<CreateRefreshResult> {
