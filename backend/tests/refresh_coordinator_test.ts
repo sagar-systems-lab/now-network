@@ -148,6 +148,21 @@ class MemoryRefreshRepository implements RefreshRepository {
   readonly signatures = new Map<string, string>();
   now = new Date("2026-09-24T10:00:00.000Z");
 
+  lookupCreateReplay(
+    input: Parameters<RefreshRepository["lookupCreateReplay"]>[0],
+  ) {
+    const key = `create:${input.actorId}:${input.idempotencyKey}`;
+    const existing = this.idempotency.get(key);
+    if (!existing) return Promise.resolve({ kind: "none" } as const);
+    if (!sameBytes(existing.hash, input.requestHash)) {
+      return Promise.resolve({ kind: "idempotency_conflict" } as const);
+    }
+    return Promise.resolve({
+      kind: "replayed",
+      refresh: structuredClone(this.records.get(existing.refreshId)!),
+    } as const);
+  }
+
   createOrReplay(
     input: Parameters<RefreshRepository["createOrReplay"]>[0],
   ): Promise<CreateRefreshResult> {
@@ -406,6 +421,29 @@ Deno.test("refresh creation is idempotent and rejects key reuse with different i
     throw new Error("expected idempotency conflict");
   } catch (error) {
     if (faultCode(error) !== "IDEMPOTENCY_CONFLICT") throw error;
+  }
+});
+
+Deno.test("refresh create replay survives later wallet revocation", async () => {
+  const setup = coordinator();
+  const request = {
+    actor: actor(),
+    stateId: STATE_ID,
+    walletBindingId: BINDING_ID,
+    fundingTargetAtomic: "1000000",
+    idempotencyKey: "request-replay-stable",
+  };
+
+  const first = await setup.service.create(request);
+  setup.identity.bindings.splice(0, setup.identity.bindings.length);
+  const replay = await setup.service.create(request);
+
+  if (
+    replay.status !== 200 ||
+    replay.data.refresh_id !== first.data.refresh_id ||
+    replay.data.status !== "DRAFT"
+  ) {
+    throw new Error("idempotent replay depended on mutable wallet state");
   }
 });
 
