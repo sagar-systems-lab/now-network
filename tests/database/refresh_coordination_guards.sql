@@ -39,7 +39,7 @@ insert into app.state_definitions(
   'Parking availability',
   'Available spaces',
   'NUMERIC',
-  '{}'::jsonb,
+  '{"type":"integer","minimum":0}'::jsonb,
   'spaces',
   '{}'::jsonb,
   '61000000-0000-4000-8000-000000000001',
@@ -61,7 +61,6 @@ insert into app.refresh_requests(
   refresh_expires_at,
   evidence_deadline,
   reward_mint,
-  chain_status,
   coordinator_version,
   creator_wallet_address,
   funding_target_atomic,
@@ -73,7 +72,7 @@ insert into app.refresh_requests(
   '62000000-0000-4000-8000-000000000001',
   1,
   '60000000-0000-4000-8000-000000000001',
-  'AWAITING_FUNDING',
+  'DRAFT',
   'FAST',
   1,
   1,
@@ -83,7 +82,6 @@ insert into app.refresh_requests(
   now() + interval '15 minutes',
   now() + interval '13 minutes',
   'So11111111111111111111111111111111111111112',
-  'PENDING_CREATE',
   1,
   '11111111111111111111111111111111',
   1000000,
@@ -116,7 +114,7 @@ begin
       '62000000-0000-4000-8000-000000000001',
       1,
       '60000000-0000-4000-8000-000000000001',
-      'AWAITING_FUNDING',
+      'DRAFT',
       'FAST',
       1,
       1,
@@ -128,7 +126,7 @@ begin
       'So11111111111111111111111111111111111111112',
       1
     );
-    raise exception 'coordinator v1 row unexpectedly accepted without frozen chain terms';
+    raise exception 'coordinator v1 row unexpectedly accepted without frozen terms';
   exception
     when check_violation then null;
   end;
@@ -165,7 +163,7 @@ begin
       state_id,
       state_version,
       requester_actor_id,
-      status,
+      'DRAFT',
       verification_class,
       required_witnesses,
       max_witnesses,
@@ -187,6 +185,29 @@ begin
     raise exception 'duplicate chain refresh identity unexpectedly accepted';
   exception
     when unique_violation then null;
+  end;
+end
+$$;
+
+update app.refresh_requests
+set
+  status = 'AWAITING_FUNDING',
+  funding_operation_id = '65000000-0000-4000-8000-000000000001',
+  chain_refresh_address = 'RefreshPdaGuard11111111111111111111111111111',
+  chain_status = 'INTENT_READY',
+  revision = revision + 1
+where refresh_id = '63000000-0000-4000-8000-000000000001';
+
+do $$
+begin
+  begin
+    update app.refresh_requests
+    set
+      chain_refresh_address = null
+    where refresh_id = '63000000-0000-4000-8000-000000000001';
+    raise exception 'funding state unexpectedly accepted without chain address';
+  exception
+    when check_violation then null;
   end;
 end
 $$;
