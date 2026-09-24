@@ -27,6 +27,9 @@ Current endpoints:
 
 ```text
 GET  /health
+GET  /v1/states/nearby
+GET  /v1/states/{state_id}
+GET  /v1/states/{state_id}/history
 GET  /v1/me
 POST /v1/wallet-bindings/challenge
 POST /v1/wallet-bindings/verify
@@ -34,3 +37,7 @@ POST /v1/wallet-bindings/verify
 
 Authenticated endpoints require a Supabase access token in `Authorization: Bearer <token>`. Wallet
 binding uses a short-lived, one-time, domain-separated Ed25519 message challenge.
+
+Public state reads expose only the sanitized state projection. Nearby lookup is bounded and executed
+with PostGIS distance predicates; contributor identity, wallet data, precise evidence locations, raw
+evidence metadata, and verification traces are not part of the public state response.
