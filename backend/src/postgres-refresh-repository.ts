@@ -368,7 +368,7 @@ export class PostgresRefreshRepository implements RefreshRepository {
         } as const;
       }
 
-      if (current.refreshExpiresAt.getTime() <= Date.now()) {
+      if (current.refreshExpiresAt.getTime() <= input.observedAt.getTime()) {
         return { kind: "expired" } as const;
       }
       if (current.status !== "DRAFT" && current.status !== "AWAITING_FUNDING") {
@@ -421,7 +421,7 @@ export class PostgresRefreshRepository implements RefreshRepository {
           funding_operation_id = ${input.operationId}::uuid,
           chain_refresh_address = ${input.addresses.refreshAddress},
           chain_status = 'INTENT_READY',
-          updated_at = now(),
+          updated_at = ${input.observedAt},
           revision = revision + 1
         where refresh_id = ${input.refreshId}::uuid
         returning
