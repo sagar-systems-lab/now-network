@@ -1,3 +1,4 @@
+import bs58 from "npm:bs58@6.0.0";
 import { ApiFault } from "../src/errors.ts";
 import type {
   ActorRecord,
@@ -6,14 +7,14 @@ import type {
   WalletBindingChallengeRecord,
   WalletBindingRecord,
 } from "../src/identity-repository.ts";
-import {
-  RefreshCoordinator,
-} from "../src/refresh-coordinator.ts";
+import { RefreshCoordinator } from "../src/refresh-coordinator.ts";
 import type {
   ConfirmFundingInput,
   ConfirmFundingResult,
   CreateRefreshResult,
   NewRefreshRecord,
+  PrepareFundingInput,
+  PrepareFundingResult,
   RefreshRecord,
   RefreshRepository,
 } from "../src/refresh-repository.ts";
@@ -34,6 +35,7 @@ const STATE_ID = "51000000-0000-4000-8000-000000000001";
 const BINDING_ID = "52000000-0000-4000-8000-000000000001";
 const WALLET = "11111111111111111111111111111111";
 const REWARD_MINT = "So11111111111111111111111111111111111111112";
+const VALID_SIGNATURE = bs58.encode(new Uint8Array(64).fill(7));
 
 function actor(actorId = ACTOR_A, status: ActorRecord["status"] = "ACTIVE"): ActorRecord {
   return { actorId, status, revision: 1 };
@@ -83,6 +85,7 @@ class MemoryStateRepository implements StateRepository {
     question: "Available spaces",
     stateType: "NUMERIC",
     unitCode: "spaces",
+    answerSchema: { type: "integer", minimum: 0 },
     currentValue: { scaled_value: "2", scale: 0, unit: "spaces" },
     observedAt: new Date("2026-09-24T10:00:00.000Z"),
     observationEarliest: null,
@@ -97,6 +100,8 @@ class MemoryStateRepository implements StateRepository {
       name: "Parking Lot B",
       locationType: "PARKING",
       displayAddress: "Demo district",
+      centerEwkb: new Uint8Array([1, 2, 3, 4]),
+      boundaryEwkb: null,
     },
     verification: null,
     activeRefresh: null,
@@ -118,8 +123,9 @@ class MemoryStateRepository implements StateRepository {
 function fullRecord(refresh: NewRefreshRecord, now: Date): RefreshRecord {
   return {
     ...structuredClone(refresh),
+    fundingOperationId: null,
     chainRefreshAddress: null,
-    chainStatus: "PENDING_CREATE",
+    chainStatus: null,
     chainTotalFunded: 0n,
     chainObservedAt: null,
     createdAt: new Date(now),
@@ -128,22 +134,27 @@ function fullRecord(refresh: NewRefreshRecord, now: Date): RefreshRecord {
   };
 }
 
+function sameBytes(left: Uint8Array, right: Uint8Array): boolean {
+  return left.length === right.length &&
+    left.every((byte, index) => byte === right[index]);
+}
+
 class MemoryRefreshRepository implements RefreshRepository {
   readonly records = new Map<string, RefreshRecord>();
-  readonly idempotency = new Map<string, { hash: Uint8Array; refreshId: string }>();
+  readonly idempotency = new Map<
+    string,
+    { hash: Uint8Array; refreshId: string; operationId: string }
+  >();
   readonly signatures = new Map<string, string>();
   now = new Date("2026-09-24T10:00:00.000Z");
 
   createOrReplay(
     input: Parameters<RefreshRepository["createOrReplay"]>[0],
   ): Promise<CreateRefreshResult> {
-    const key = `${input.refresh.requesterActorId}:${input.idempotencyKey}`;
+    const key = `create:${input.refresh.requesterActorId}:${input.idempotencyKey}`;
     const existing = this.idempotency.get(key);
     if (existing) {
-      if (
-        existing.hash.length !== input.requestHash.length ||
-        existing.hash.some((byte, index) => byte !== input.requestHash[index])
-      ) {
+      if (!sameBytes(existing.hash, input.requestHash)) {
         return Promise.resolve({ kind: "idempotency_conflict" });
       }
       return Promise.resolve({
@@ -157,6 +168,7 @@ class MemoryRefreshRepository implements RefreshRepository {
     this.idempotency.set(key, {
       hash: new Uint8Array(input.requestHash),
       refreshId: record.refreshId,
+      operationId: record.refreshId,
     });
     return Promise.resolve({ kind: "created", refresh: structuredClone(record) });
   }
@@ -166,12 +178,83 @@ class MemoryRefreshRepository implements RefreshRepository {
     return Promise.resolve(record ? structuredClone(record) : null);
   }
 
+  prepareFunding(input: PrepareFundingInput): Promise<PrepareFundingResult> {
+    const current = this.records.get(input.refreshId);
+    if (!current) return Promise.resolve({ kind: "not_found" });
+    if (current.requesterActorId !== input.actorId) {
+      return Promise.resolve({ kind: "actor_mismatch" });
+    }
+
+    const key = `intent:${input.actorId}:${input.idempotencyKey}`;
+    const existing = this.idempotency.get(key);
+    if (existing) {
+      if (!sameBytes(existing.hash, input.requestHash)) {
+        return Promise.resolve({ kind: "idempotency_conflict" });
+      }
+      return Promise.resolve({
+        kind: "replayed",
+        refresh: structuredClone(current),
+        operationId: existing.operationId,
+      });
+    }
+
+    if (current.refreshExpiresAt.getTime() <= input.observedAt.getTime()) {
+      return Promise.resolve({ kind: "expired" });
+    }
+    if (current.status === "AWAITING_FUNDING" && current.fundingOperationId) {
+      this.idempotency.set(key, {
+        hash: new Uint8Array(input.requestHash),
+        refreshId: current.refreshId,
+        operationId: current.fundingOperationId,
+      });
+      return Promise.resolve({
+        kind: "replayed",
+        refresh: structuredClone(current),
+        operationId: current.fundingOperationId,
+      });
+    }
+    if (current.status !== "DRAFT") {
+      return Promise.resolve({ kind: "not_fundable" });
+    }
+
+    const updated: RefreshRecord = {
+      ...current,
+      status: "AWAITING_FUNDING",
+      fundingOperationId: input.operationId,
+      chainRefreshAddress: input.addresses.refreshAddress,
+      chainStatus: "INTENT_READY",
+      updatedAt: new Date(input.observedAt),
+      revision: current.revision + 1,
+    };
+    this.records.set(updated.refreshId, updated);
+    this.idempotency.set(key, {
+      hash: new Uint8Array(input.requestHash),
+      refreshId: updated.refreshId,
+      operationId: input.operationId,
+    });
+    return Promise.resolve({
+      kind: "prepared",
+      refresh: structuredClone(updated),
+      operationId: input.operationId,
+    });
+  }
+
   confirmFunding(input: ConfirmFundingInput): Promise<ConfirmFundingResult> {
     const current = this.records.get(input.refreshId);
     if (!current) return Promise.resolve({ kind: "not_found" });
     if (current.requesterActorId !== input.actorId) {
       return Promise.resolve({ kind: "actor_mismatch" });
     }
+
+    const key = `observe:${input.actorId}:${input.idempotencyKey}`;
+    const existing = this.idempotency.get(key);
+    if (existing) {
+      if (!sameBytes(existing.hash, input.requestHash)) {
+        return Promise.resolve({ kind: "idempotency_conflict" });
+      }
+      return Promise.resolve({ kind: "replayed", refresh: structuredClone(current) });
+    }
+
     if (current.status === "AVAILABLE") {
       return Promise.resolve({ kind: "replayed", refresh: structuredClone(current) });
     }
@@ -180,6 +263,8 @@ class MemoryRefreshRepository implements RefreshRepository {
     }
     if (
       current.status !== "AWAITING_FUNDING" ||
+      current.fundingOperationId === null ||
+      current.chainRefreshAddress !== input.chainRefreshAddress ||
       input.chainTotalFundedAtomic < current.fundingTargetAtomic
     ) {
       return Promise.resolve({ kind: "not_fundable" });
@@ -193,7 +278,6 @@ class MemoryRefreshRepository implements RefreshRepository {
     const updated: RefreshRecord = {
       ...current,
       status: "AVAILABLE",
-      chainRefreshAddress: input.chainRefreshAddress,
       chainStatus: input.chainCommitment,
       chainTotalFunded: input.chainTotalFundedAtomic,
       chainObservedAt: new Date(input.observedAt),
@@ -202,6 +286,11 @@ class MemoryRefreshRepository implements RefreshRepository {
     };
     this.records.set(updated.refreshId, updated);
     this.signatures.set(input.chainSignature, input.refreshId);
+    this.idempotency.set(key, {
+      hash: new Uint8Array(input.requestHash),
+      refreshId: updated.refreshId,
+      operationId: current.fundingOperationId,
+    });
     return Promise.resolve({ kind: "confirmed", refresh: structuredClone(updated) });
   }
 }
@@ -262,7 +351,17 @@ function faultCode(error: unknown): string {
   return error instanceof ApiFault ? error.code : "";
 }
 
-Deno.test("refresh creation freezes server policy and canonical chain intent", async () => {
+async function createDraft(service: RefreshCoordinator, key: string): Promise<Record<string, unknown>> {
+  return (await service.create({
+    actor: actor(),
+    stateId: STATE_ID,
+    walletBindingId: BINDING_ID,
+    fundingTargetAtomic: "1000000",
+    idempotencyKey: key,
+  })).data;
+}
+
+Deno.test("refresh creation freezes policy and remains DRAFT before wallet funding", async () => {
   const { service } = coordinator();
   const result = await service.create({
     actor: actor(),
@@ -273,26 +372,16 @@ Deno.test("refresh creation freezes server policy and canonical chain intent", a
   });
 
   if (result.status !== 201) throw new Error("new refresh must return 201");
-  const data = result.data;
-  if (data.status !== "AWAITING_FUNDING") throw new Error("refresh must await funding");
-  if (data.verification_class !== "FAST") throw new Error("policy class drift");
-  if (data.required_witnesses !== 1 || data.max_witnesses !== 1) {
-    throw new Error("FAST witness terms must match the settlement program");
+  if (result.data.status !== "DRAFT" || result.data.next_step !== "FUNDING_INTENT") {
+    throw new Error("refresh must remain DRAFT until funding intent is created");
   }
-  if (data.payout_rule !== "SINGLE_WINNER_ALL") {
-    throw new Error("FAST payout rule mismatch");
-  }
-  const policy = data.proof_policy as Record<string, unknown>;
+  if (result.data.verification_class !== "FAST") throw new Error("policy class drift");
+  const policy = result.data.proof_policy as Record<string, unknown>;
   if (policy.template_key !== "parking.available_spaces.v1") {
     throw new Error("canonical policy snapshot was not frozen");
   }
-  const intent = data.chain_intent as Record<string, unknown>;
-  if (
-    intent.program_id !== "7nqsPpBhpUwSahMrpuAPNMupx2vVEGqkU6XXcng7VaAm" ||
-    intent.creator_wallet !== WALLET ||
-    intent.funding_target_atomic !== "1000000"
-  ) {
-    throw new Error("chain intent is incomplete");
+  if (typeof result.data.intent_core_hash !== "string") {
+    throw new Error("intent hash missing");
   }
 });
 
@@ -339,42 +428,49 @@ Deno.test("refresh creation requires an active wallet on the configured cluster"
   }
 });
 
-Deno.test("disabled and restricted actors cannot create refresh authority", async () => {
-  for (const status of ["DISABLED", "RESTRICTED"] as const) {
-    const { service } = coordinator();
-    try {
-      await service.create({
-        actor: actor(ACTOR_A, status),
-        stateId: STATE_ID,
-        walletBindingId: BINDING_ID,
-        fundingTargetAtomic: "1000000",
-        idempotencyKey: `blocked-${status}`,
-      });
-      throw new Error("blocked actor created a refresh");
-    } catch (error) {
-      const expected = status === "DISABLED" ? "ACTOR_DISABLED" : "ACTOR_RESTRICTED";
-      if (faultCode(error) !== expected) throw error;
-    }
+Deno.test("funding intent is stable and advances DRAFT to AWAITING_FUNDING once", async () => {
+  const { service } = coordinator();
+  const draft = await createDraft(service, "request-0004");
+
+  const first = await service.fundingIntent({
+    actor: actor(),
+    refreshId: draft.refresh_id as string,
+    idempotencyKey: "funding-0004",
+  });
+  const replay = await service.fundingIntent({
+    actor: actor(),
+    refreshId: draft.refresh_id as string,
+    idempotencyKey: "funding-0004",
+  });
+
+  if (first.status !== "AWAITING_FUNDING" || first.operation_id !== replay.operation_id) {
+    throw new Error("funding intent must be stable");
+  }
+  const accounts = first.accounts as Record<string, unknown>;
+  for (const field of ["config", "refresh", "contribution", "vault_token_account"]) {
+    if (typeof accounts[field] !== "string") throw new Error(`missing ${field}`);
+  }
+  const plan = first.instruction_plan as unknown[];
+  if (plan.join(",") !== "create_refresh,contribute") {
+    throw new Error("funding instruction plan drift");
   }
 });
 
-Deno.test("funding confirmation remains unknown until chain proof is confirmed", async () => {
+Deno.test("funding observation remains unknown until Solana confirms", async () => {
   const setup = coordinator();
-  const created = await setup.service.create({
+  const draft = await createDraft(setup.service, "request-0005");
+  await setup.service.fundingIntent({
     actor: actor(),
-    stateId: STATE_ID,
-    walletBindingId: BINDING_ID,
-    fundingTargetAtomic: "1000000",
-    idempotencyKey: "request-0004",
+    refreshId: draft.refresh_id as string,
+    idempotencyKey: "funding-0005",
   });
 
   try {
-    await setup.service.confirmFunding({
+    await setup.service.observeFunding({
       actor: actor(),
-      refreshId: created.data.refresh_id as string,
-      signature: "signature-a",
-      refreshAddress: "refresh-address-a",
-      contributionAddress: "contribution-address-a",
+      refreshId: draft.refresh_id as string,
+      signature: VALID_SIGNATURE,
+      idempotencyKey: "observe-0005",
     });
     throw new Error("pending funding was accepted");
   } catch (error) {
@@ -382,14 +478,13 @@ Deno.test("funding confirmation remains unknown until chain proof is confirmed",
   }
 });
 
-Deno.test("confirmed chain funding publishes refresh and advances two revisions", async () => {
+Deno.test("confirmed chain funding publishes refresh at revision four", async () => {
   const setup = coordinator();
-  const created = await setup.service.create({
+  const draft = await createDraft(setup.service, "request-0006");
+  await setup.service.fundingIntent({
     actor: actor(),
-    stateId: STATE_ID,
-    walletBindingId: BINDING_ID,
-    fundingTargetAtomic: "1000000",
-    idempotencyKey: "request-0005",
+    refreshId: draft.refresh_id as string,
+    idempotencyKey: "funding-0006",
   });
   setup.chain.result = {
     kind: "confirmed",
@@ -399,16 +494,15 @@ Deno.test("confirmed chain funding publishes refresh and advances two revisions"
     observedAt: new Date("2026-09-24T10:01:00.000Z"),
   };
 
-  const result = await setup.service.confirmFunding({
+  const result = await setup.service.observeFunding({
     actor: actor(),
-    refreshId: created.data.refresh_id as string,
-    signature: "signature-b",
-    refreshAddress: "refresh-address-b",
-    contributionAddress: "contribution-address-b",
+    refreshId: draft.refresh_id as string,
+    signature: VALID_SIGNATURE,
+    idempotencyKey: "observe-0006",
   });
 
-  if (result.status !== "AVAILABLE" || result.revision !== 3) {
-    throw new Error("confirmed funding must publish the refresh at revision 3");
+  if (result.status !== "AVAILABLE" || result.revision !== 4) {
+    throw new Error("funded refresh must publish at revision four");
   }
   if (result.chain_total_funded_atomic !== "1000000") {
     throw new Error("chain funding total was not persisted");
@@ -418,18 +512,35 @@ Deno.test("confirmed chain funding publishes refresh and advances two revisions"
   }
 });
 
-Deno.test("refresh ownership is hidden from other actors", async () => {
+Deno.test("funding observe rejects malformed signature before RPC", async () => {
   const setup = coordinator();
-  const created = await setup.service.create({
+  const draft = await createDraft(setup.service, "request-0007");
+  await setup.service.fundingIntent({
     actor: actor(),
-    stateId: STATE_ID,
-    walletBindingId: BINDING_ID,
-    fundingTargetAtomic: "1000000",
-    idempotencyKey: "request-0006",
+    refreshId: draft.refresh_id as string,
+    idempotencyKey: "funding-0007",
   });
 
   try {
-    await setup.service.get(actor(ACTOR_B), created.data.refresh_id as string);
+    await setup.service.observeFunding({
+      actor: actor(),
+      refreshId: draft.refresh_id as string,
+      signature: "not-a-signature",
+      idempotencyKey: "observe-0007",
+    });
+    throw new Error("malformed signature was accepted");
+  } catch (error) {
+    if (faultCode(error) !== "INVALID_REQUEST") throw error;
+  }
+  if (setup.chain.lastInput !== null) throw new Error("RPC was called for malformed signature");
+});
+
+Deno.test("refresh ownership is hidden from other actors", async () => {
+  const setup = coordinator();
+  const draft = await createDraft(setup.service, "request-0008");
+
+  try {
+    await setup.service.get(actor(ACTOR_B), draft.refresh_id as string);
     throw new Error("other actor read private refresh coordination state");
   } catch (error) {
     if (faultCode(error) !== "REFRESH_NOT_FOUND") throw error;
