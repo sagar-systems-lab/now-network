@@ -30,6 +30,7 @@ const expectedMigrations = [
   "20260920_015_outbox.sql",
   "20260920_016_financial_replay_guards.sql",
   "20260922_017_wallet_binding_challenges.sql",
+  "20260924_018_state_read_queries.sql",
 ] as const;
 
 async function readMigration(name: string): Promise<string> {
@@ -174,6 +175,21 @@ Deno.test("database indexes cover geospatial and recovery paths", async () => {
     ]
   ) {
     assertIncludes(sql, indexName);
+  }
+});
+
+Deno.test("nearby state reads are PostGIS-backed and bounded", async () => {
+  const sql = await allSql();
+  for (
+    const invariant of [
+      "query_nearby_states_v1",
+      "extensions.st_dwithin",
+      "extensions.st_distance",
+      "p_radius_m between 1 and 50000",
+      "p_limit between 1 and 51",
+    ]
+  ) {
+    assertIncludes(sql, invariant);
   }
 });
 
