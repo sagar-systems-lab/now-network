@@ -1,10 +1,7 @@
 import type { VerificationClass } from "../../packages/contracts/src/core.ts";
 import type { RefreshStatus } from "../../packages/contracts/src/lifecycle.ts";
+import type { RefreshPayoutRule } from "../../packages/contracts/src/refresh-intent.ts";
 import type { PolicyTemplateV1 } from "../../packages/policy/src/types.ts";
-
-export type RefreshPayoutRule =
-  | "SINGLE_WINNER_ALL"
-  | "EQUAL_SPLIT_REQUIRED_WITNESSES";
 
 export type RefreshRecord = {
   refreshId: string;
@@ -26,6 +23,7 @@ export type RefreshRecord = {
   payoutRule: RefreshPayoutRule;
   chainRefreshId: Uint8Array;
   stateIdDigest: Uint8Array;
+  fundingOperationId: string | null;
   chainRefreshAddress: string | null;
   chainStatus: string | null;
   chainTotalFunded: bigint;
@@ -37,6 +35,7 @@ export type RefreshRecord = {
 
 export type NewRefreshRecord = Omit<
   RefreshRecord,
+  | "fundingOperationId"
   | "chainRefreshAddress"
   | "chainStatus"
   | "chainTotalFunded"
@@ -51,9 +50,38 @@ export type CreateRefreshResult =
   | { kind: "replayed"; refresh: RefreshRecord }
   | { kind: "idempotency_conflict" };
 
+export type FundingIntentAddresses = {
+  refreshAddress: string;
+  contributionAddress: string;
+  vaultTokenAccount: string;
+  configAddress: string;
+};
+
+export type PrepareFundingInput = {
+  refreshId: string;
+  actorId: string;
+  idempotencyKey: string;
+  requestHash: Uint8Array;
+  idempotencyExpiresAt: Date;
+  operationId: string;
+  addresses: FundingIntentAddresses;
+};
+
+export type PrepareFundingResult =
+  | { kind: "prepared"; refresh: RefreshRecord; operationId: string }
+  | { kind: "replayed"; refresh: RefreshRecord; operationId: string }
+  | { kind: "idempotency_conflict" }
+  | { kind: "not_found" }
+  | { kind: "actor_mismatch" }
+  | { kind: "not_fundable" }
+  | { kind: "expired" };
+
 export type ConfirmFundingInput = {
   refreshId: string;
   actorId: string;
+  idempotencyKey: string;
+  requestHash: Uint8Array;
+  idempotencyExpiresAt: Date;
   chainRefreshAddress: string;
   chainContributionAddress: string;
   chainSignature: string;
@@ -61,12 +89,12 @@ export type ConfirmFundingInput = {
   contributionAmountAtomic: bigint;
   chainTotalFundedAtomic: bigint;
   observedAt: Date;
-  operationId: string;
 };
 
 export type ConfirmFundingResult =
   | { kind: "confirmed"; refresh: RefreshRecord }
   | { kind: "replayed"; refresh: RefreshRecord }
+  | { kind: "idempotency_conflict" }
   | { kind: "not_found" }
   | { kind: "actor_mismatch" }
   | { kind: "not_fundable" }
@@ -81,6 +109,8 @@ export interface RefreshRepository {
   }): Promise<CreateRefreshResult>;
 
   getRefresh(refreshId: string): Promise<RefreshRecord | null>;
+
+  prepareFunding(input: PrepareFundingInput): Promise<PrepareFundingResult>;
 
   confirmFunding(input: ConfirmFundingInput): Promise<ConfirmFundingResult>;
 }
