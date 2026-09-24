@@ -89,13 +89,13 @@ type RpcFixture = {
 };
 
 function fakeFetch(fixture: RpcFixture): typeof fetch {
-  return (async (_input: string | URL | Request, init?: RequestInit) => {
+  return ((_input: string | URL | Request, init?: RequestInit) => {
     const body = JSON.parse(String(init?.body)) as {
       method: string;
     };
 
     if (body.method === "getSignatureStatuses") {
-      return Response.json({
+      return Promise.resolve(Response.json({
         jsonrpc: "2.0",
         id: 1,
         result: {
@@ -106,11 +106,11 @@ function fakeFetch(fixture: RpcFixture): typeof fetch {
             }]
             : [null],
         },
-      });
+      }));
     }
 
     if (body.method === "getTransaction") {
-      return Response.json({
+      return Promise.resolve(Response.json({
         jsonrpc: "2.0",
         id: 1,
         result: {
@@ -131,11 +131,11 @@ function fakeFetch(fixture: RpcFixture): typeof fetch {
             loadedAddresses: { writable: [], readonly: [] },
           },
         },
-      });
+      }));
     }
 
     if (body.method === "getMultipleAccounts") {
-      return Response.json({
+      return Promise.resolve(Response.json({
         jsonrpc: "2.0",
         id: 1,
         result: {
@@ -150,14 +150,14 @@ function fakeFetch(fixture: RpcFixture): typeof fetch {
             },
           ],
         },
-      });
+      }));
     }
 
-    return Response.json({
+    return Promise.resolve(Response.json({
       jsonrpc: "2.0",
       id: 1,
       error: { code: -32601, message: "unexpected method" },
-    });
+    }));
   }) as typeof fetch;
 }
 
