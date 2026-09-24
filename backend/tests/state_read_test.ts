@@ -82,6 +82,7 @@ function detailRecord(): StateDetailRecord {
     question: nearby.question,
     stateType: nearby.stateType,
     unitCode: nearby.unitCode,
+    answerSchema: { type: "integer", minimum: 0 },
     currentValue: nearby.currentValue,
     observedAt: nearby.observedAt,
     observationEarliest: new Date("2026-09-24T09:59:58.000Z"),
@@ -96,6 +97,8 @@ function detailRecord(): StateDetailRecord {
       name: "Parking Lot B",
       locationType: "PARKING",
       displayAddress: "Demo district",
+      centerEwkb: new Uint8Array([1, 2, 3]),
+      boundaryEwkb: null,
     },
     verification: {
       status: "VERIFIED",

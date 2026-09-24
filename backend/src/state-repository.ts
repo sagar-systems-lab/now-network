@@ -37,6 +37,8 @@ export type StateLocationRecord = {
   name: string;
   locationType: string;
   displayAddress: string | null;
+  centerEwkb: Uint8Array;
+  boundaryEwkb: Uint8Array | null;
 };
 
 export type StateVerificationSummary = {
@@ -61,6 +63,7 @@ export type StateDetailRecord = {
   question: string;
   stateType: StateType;
   unitCode: string | null;
+  answerSchema: unknown;
   currentValue: unknown | null;
   observedAt: Date | null;
   observationEarliest: Date | null;
