@@ -139,7 +139,9 @@ function canonicalJson(value: unknown): string {
 }
 
 export async function sha256Bytes(value: Uint8Array): Promise<Uint8Array> {
-  return new Uint8Array(await crypto.subtle.digest("SHA-256", value));
+  const bytes = new Uint8Array(value.byteLength);
+  bytes.set(value);
+  return new Uint8Array(await crypto.subtle.digest("SHA-256", bytes.buffer));
 }
 
 export async function deriveChainRefreshIdV1(refreshId: string): Promise<Uint8Array> {
