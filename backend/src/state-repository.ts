@@ -21,7 +21,6 @@ export type NearbyStateRecord = {
   question: string;
   stateType: StateType;
   unitCode: string | null;
-  answerSchema: unknown;
   currentValue: unknown | null;
   observedAt: Date | null;
   agingAt: Date | null;
@@ -64,6 +63,7 @@ export type StateDetailRecord = {
   question: string;
   stateType: StateType;
   unitCode: string | null;
+  answerSchema: unknown;
   currentValue: unknown | null;
   observedAt: Date | null;
   observationEarliest: Date | null;
