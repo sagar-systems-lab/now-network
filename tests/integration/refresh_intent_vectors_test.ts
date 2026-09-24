@@ -50,9 +50,7 @@ Deno.test("refresh intent golden vector is byte-stable", async () => {
     deriveLocationScopeDigestV1({
       locationId: vector.location_id,
       centerEwkb: hexToBytes(vector.center_ewkb_hex),
-      boundaryEwkb: vector.boundary_ewkb_hex
-        ? hexToBytes(vector.boundary_ewkb_hex)
-        : null,
+      boundaryEwkb: vector.boundary_ewkb_hex ? hexToBytes(vector.boundary_ewkb_hex) : null,
     }),
     deriveAnswerSchemaDigestV1(vector.answer_schema),
   ]);
