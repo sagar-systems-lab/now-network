@@ -1,0 +1,280 @@
+import bs58 from "npm:bs58@6.0.0";
+import type {
+  RefreshPayoutRule,
+} from "./refresh-repository.ts";
+
+export const NOW_SETTLEMENT_PROGRAM_ID =
+  "7nqsPpBhpUwSahMrpuAPNMupx2vVEGqkU6XXcng7VaAm";
+
+type FetchLike = typeof fetch;
+
+export type ChainFundingInspection =
+  | {
+    kind: "pending";
+  }
+  | {
+    kind: "failed";
+  }
+  | {
+    kind: "confirmed";
+    commitment: "confirmed" | "finalized";
+    contributionAmountAtomic: bigint;
+    totalFundedAtomic: bigint;
+    observedAt: Date;
+  };
+
+export interface RefreshChainObserver {
+  inspectFunding(input: {
+    signature: string;
+    refreshAddress: string;
+    contributionAddress: string;
+    expectedCreatorWallet: string;
+    expectedRewardMint: string;
+    expectedChainRefreshId: Uint8Array;
+    expectedStateIdDigest: Uint8Array;
+    expectedIntentCoreHash: Uint8Array;
+    expectedRefreshExpiresAt: Date;
+    expectedVerificationClass: "FAST" | "CORROBORATED" | "STRICT";
+    expectedRequiredWitnesses: number;
+    expectedMaxWitnesses: number;
+    expectedPayoutRule: RefreshPayoutRule;
+    fundingTargetAtomic: bigint;
+  }): Promise<ChainFundingInspection>;
+}
+
+function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
+  if (left.length !== right.length) return false;
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) return false;
+  }
+  return true;
+}
+
+function decodeBase64(value: string): Uint8Array {
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
+
+async function discriminator(name: string): Promise<Uint8Array> {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(name),
+  );
+  return new Uint8Array(digest).slice(0, 8);
+}
+
+function u16(data: Uint8Array, offset: number): number {
+  return new DataView(data.buffer, data.byteOffset, data.byteLength)
+    .getUint16(offset, true);
+}
+
+function u64(data: Uint8Array, offset: number): bigint {
+  return new DataView(data.buffer, data.byteOffset, data.byteLength)
+    .getBigUint64(offset, true);
+}
+
+function i64(data: Uint8Array, offset: number): bigint {
+  return new DataView(data.buffer, data.byteOffset, data.byteLength)
+    .getBigInt64(offset, true);
+}
+
+function accountKeys(transaction: Record<string, unknown>): string[] {
+  const tx = transaction.transaction as Record<string, unknown> | undefined;
+  const message = tx?.message as Record<string, unknown> | undefined;
+  const raw = Array.isArray(message?.accountKeys) ? message.accountKeys : [];
+  const keys = raw.flatMap((value) => {
+    if (typeof value === "string") return [value];
+    if (value && typeof value === "object") {
+      const pubkey = (value as Record<string, unknown>).pubkey;
+      return typeof pubkey === "string" ? [pubkey] : [];
+    }
+    return [];
+  });
+
+  const meta = transaction.meta as Record<string, unknown> | undefined;
+  const loaded = meta?.loadedAddresses as Record<string, unknown> | undefined;
+  for (const group of [loaded?.writable, loaded?.readonly]) {
+    if (!Array.isArray(group)) continue;
+    for (const value of group) {
+      if (typeof value === "string") keys.push(value);
+    }
+  }
+  return keys;
+}
+
+function verificationCode(value: "FAST" | "CORROBORATED" | "STRICT"): number {
+  switch (value) {
+    case "FAST":
+      return 0;
+    case "CORROBORATED":
+      return 1;
+    case "STRICT":
+      return 2;
+  }
+}
+
+function payoutCode(value: RefreshPayoutRule): number {
+  return value === "SINGLE_WINNER_ALL" ? 0 : 1;
+}
+
+export class SolanaRpcRefreshChainObserver implements RefreshChainObserver {
+  constructor(
+    private readonly rpcUrl: string,
+    private readonly programId = NOW_SETTLEMENT_PROGRAM_ID,
+    private readonly fetchImpl: FetchLike = fetch,
+  ) {}
+
+  private async rpc(method: string, params: unknown[]): Promise<unknown> {
+    const response = await this.fetchImpl(this.rpcUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method,
+        params,
+      }),
+    });
+    if (!response.ok) throw new Error(`Solana RPC HTTP ${response.status}`);
+
+    const payload = await response.json() as Record<string, unknown>;
+    if (payload.error) throw new Error("Solana RPC returned an error");
+    return payload.result;
+  }
+
+  async inspectFunding(
+    input: Parameters<RefreshChainObserver["inspectFunding"]>[0],
+  ): Promise<ChainFundingInspection> {
+    const statusResult = await this.rpc("getSignatureStatuses", [
+      [input.signature],
+      { searchTransactionHistory: true },
+    ]) as Record<string, unknown>;
+    const statusValues = statusResult.value;
+    const status = Array.isArray(statusValues) ? statusValues[0] : null;
+    if (!status || typeof status !== "object") return { kind: "pending" };
+
+    const statusRecord = status as Record<string, unknown>;
+    if (statusRecord.err !== null) return { kind: "failed" };
+
+    const confirmation = statusRecord.confirmationStatus;
+    if (confirmation !== "confirmed" && confirmation !== "finalized") {
+      return { kind: "pending" };
+    }
+
+    const transaction = await this.rpc("getTransaction", [
+      input.signature,
+      {
+        encoding: "json",
+        commitment: confirmation,
+        maxSupportedTransactionVersion: 0,
+      },
+    ]);
+    if (!transaction || typeof transaction !== "object") return { kind: "pending" };
+
+    const transactionRecord = transaction as Record<string, unknown>;
+    const meta = transactionRecord.meta as Record<string, unknown> | undefined;
+    if (!meta || meta.err !== null) return { kind: "failed" };
+
+    const keys = new Set(accountKeys(transactionRecord));
+    for (
+      const expected of [
+        this.programId,
+        input.refreshAddress,
+        input.contributionAddress,
+        input.expectedCreatorWallet,
+      ]
+    ) {
+      if (!keys.has(expected)) return { kind: "failed" };
+    }
+
+    const accountResult = await this.rpc("getMultipleAccounts", [
+      [input.refreshAddress, input.contributionAddress],
+      { encoding: "base64", commitment: confirmation },
+    ]) as Record<string, unknown>;
+    const values = accountResult.value;
+    if (!Array.isArray(values) || values.length !== 2 || !values[0] || !values[1]) {
+      return { kind: "pending" };
+    }
+
+    const refreshInfo = values[0] as Record<string, unknown>;
+    const contributionInfo = values[1] as Record<string, unknown>;
+    if (refreshInfo.owner !== this.programId || contributionInfo.owner !== this.programId) {
+      return { kind: "failed" };
+    }
+
+    const refreshEncoded = refreshInfo.data;
+    const contributionEncoded = contributionInfo.data;
+    if (
+      !Array.isArray(refreshEncoded) ||
+      typeof refreshEncoded[0] !== "string" ||
+      !Array.isArray(contributionEncoded) ||
+      typeof contributionEncoded[0] !== "string"
+    ) {
+      return { kind: "failed" };
+    }
+
+    const refresh = decodeBase64(refreshEncoded[0]);
+    const contribution = decodeBase64(contributionEncoded[0]);
+    if (refresh.length !== 500 || contribution.length !== 107) {
+      return { kind: "failed" };
+    }
+
+    const [refreshDiscriminator, contributionDiscriminator] = await Promise.all([
+      discriminator("account:RefreshEscrow"),
+      discriminator("account:Contribution"),
+    ]);
+    if (
+      !bytesEqual(refresh.slice(0, 8), refreshDiscriminator) ||
+      !bytesEqual(contribution.slice(0, 8), contributionDiscriminator)
+    ) {
+      return { kind: "failed" };
+    }
+
+    if (
+      u16(refresh, 8) !== 1 ||
+      !bytesEqual(refresh.slice(10, 42), input.expectedChainRefreshId) ||
+      !bytesEqual(refresh.slice(42, 74), input.expectedStateIdDigest) ||
+      !bytesEqual(refresh.slice(74, 106), input.expectedIntentCoreHash) ||
+      !bytesEqual(refresh.slice(106, 138), bs58.decode(input.expectedCreatorWallet)) ||
+      !bytesEqual(refresh.slice(138, 170), bs58.decode(input.expectedRewardMint)) ||
+      i64(refresh, 242) !== BigInt(Math.floor(input.expectedRefreshExpiresAt.getTime() / 1000)) ||
+      refresh[250] !== verificationCode(input.expectedVerificationClass) ||
+      refresh[251] !== input.expectedRequiredWitnesses ||
+      refresh[252] !== input.expectedMaxWitnesses ||
+      refresh[253] !== payoutCode(input.expectedPayoutRule) ||
+      refresh[254] !== 0
+    ) {
+      return { kind: "failed" };
+    }
+
+    const refreshAddressBytes = bs58.decode(input.refreshAddress);
+    if (
+      u16(contribution, 8) !== 1 ||
+      !bytesEqual(contribution.slice(10, 42), refreshAddressBytes) ||
+      !bytesEqual(contribution.slice(42, 74), bs58.decode(input.expectedCreatorWallet))
+    ) {
+      return { kind: "failed" };
+    }
+
+    const totalFundedAtomic = u64(refresh, 255);
+    const contributionAmountAtomic = u64(contribution, 74);
+    if (
+      totalFundedAtomic < input.fundingTargetAtomic ||
+      contributionAmountAtomic <= 0n
+    ) {
+      return { kind: "pending" };
+    }
+
+    return {
+      kind: "confirmed",
+      commitment: confirmation,
+      contributionAmountAtomic,
+      totalFundedAtomic,
+      observedAt: new Date(),
+    };
+  }
+}
