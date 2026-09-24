@@ -90,8 +90,22 @@ jobs:
           trap cleanup EXIT
           trap diagnostics ERR
 
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager             "platform-tools"             "emulator"             "system-images;android-35;aosp_atd;x86_64"
+          SDK_ROOT="${ANDROID_SDK_ROOT:-$HOME/.android/sdk}"
+          EMULATOR_BIN="$SDK_ROOT/emulator/emulator"
+          ADB_BIN="$SDK_ROOT/platform-tools/adb"
+          SYSTEM_IMAGE_DIR="$SDK_ROOT/system-images/android-35/aosp_atd/x86_64"
+
+          if [ ! -x "$EMULATOR_BIN" ] || [ ! -x "$ADB_BIN" ] || [ ! -d "$SYSTEM_IMAGE_DIR" ]; then
+            yes | sdkmanager --licenses >/dev/null || true
+            sdkmanager \
+              "platform-tools" \
+              "emulator" \
+              "system-images;android-35;aosp_atd;x86_64"
+          fi
+
+          test -x "$EMULATOR_BIN"
+          test -x "$ADB_BIN"
+          test -d "$SYSTEM_IMAGE_DIR"
 
           AVD_CONFIG="$HOME/.android/avd/$AVD_NAME.avd/config.ini"
           if [ ! -f "$AVD_CONFIG" ]; then
@@ -102,9 +116,6 @@ jobs:
           echo "disk.dataPartition.size=4096M" >> "$AVD_CONFIG"
 
           sudo chmod 666 /dev/kvm || true
-
-          EMULATOR_BIN="$ANDROID_SDK_ROOT/emulator/emulator"
-          test -x "$EMULATOR_BIN"
 
           nohup "$EMULATOR_BIN"             -avd "$AVD_NAME"             -port 5554             -no-window             -no-audio             -no-boot-anim             -no-snapshot             -gpu swiftshader_indirect             -cores 2             -memory 2048             > "$EMULATOR_LOG" 2>&1 &
 
