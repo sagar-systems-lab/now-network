@@ -1,7 +1,5 @@
 import bs58 from "npm:bs58@6.0.0";
-import type {
-  RefreshPayoutRule,
-} from "./refresh-repository.ts";
+import type { RefreshPayoutRule } from "../../packages/contracts/src/refresh-intent.ts";
 
 export const NOW_SETTLEMENT_PROGRAM_ID =
   "7nqsPpBhpUwSahMrpuAPNMupx2vVEGqkU6XXcng7VaAm";
@@ -158,7 +156,7 @@ export class SolanaRpcRefreshChainObserver implements RefreshChainObserver {
     if (!status || typeof status !== "object") return { kind: "pending" };
 
     const statusRecord = status as Record<string, unknown>;
-    if (statusRecord.err !== null) return { kind: "failed" };
+    if (statusRecord.err != null) return { kind: "failed" };
 
     const confirmation = statusRecord.confirmationStatus;
     if (confirmation !== "confirmed" && confirmation !== "finalized") {
@@ -177,7 +175,7 @@ export class SolanaRpcRefreshChainObserver implements RefreshChainObserver {
 
     const transactionRecord = transaction as Record<string, unknown>;
     const meta = transactionRecord.meta as Record<string, unknown> | undefined;
-    if (!meta || meta.err !== null) return { kind: "failed" };
+    if (!meta || meta.err != null) return { kind: "failed" };
 
     const keys = new Set(accountKeys(transactionRecord));
     for (
