@@ -153,6 +153,8 @@ Deno.test("database constraints encode critical correctness boundaries", async (
       "evidence_deadline < refresh_expires_at",
       "refresh_requests_coordinator_v1_shape",
       "funding_target_atomic > 0",
+      "funding_target_atomic <= 18446744073709551615",
+      "octet_length(intent_core_hash) = 32",
     ]
   ) {
     assertIncludes(sql, invariant);
@@ -177,6 +179,7 @@ Deno.test("database indexes cover geospatial and recovery paths", async () => {
       "wallet_binding_challenges_expiry_idx",
       "refresh_requests_chain_refresh_id_idx",
       "refresh_requests_chain_refresh_address_idx",
+      "refresh_requests_funding_operation_idx",
       "refresh_contributions_chain_signature_idx",
       "refresh_requests_requester_status_idx",
     ]
