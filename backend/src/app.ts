@@ -12,6 +12,7 @@ import {
   UUID_PATTERN,
 } from "./http.ts";
 import type { IdentityRepository } from "./identity-repository.ts";
+import type { RefreshCoordinator } from "./refresh-coordinator.ts";
 import type { StateRepository } from "./state-repository.ts";
 import {
   DEFAULT_HISTORY_LIMIT,
@@ -28,6 +29,7 @@ export type AppDependencies = {
   authVerifier: AuthVerifier;
   identityRepository: IdentityRepository;
   stateRepository?: StateRepository;
+  refreshCoordinator?: RefreshCoordinator;
   now?: () => Date;
 };
 
@@ -48,6 +50,19 @@ export function createApp(dependencies: AppDependencies): (request: Request) => 
       );
     }
     return stateRead;
+  }
+
+  function requireRefreshCoordinator(): RefreshCoordinator {
+    if (!dependencies.refreshCoordinator) {
+      throw new ApiFault(
+        503,
+        "REFRESH_COORDINATOR_UNAVAILABLE",
+        "Refresh coordination is temporarily unavailable.",
+        true,
+        1_000,
+      );
+    }
+    return dependencies.refreshCoordinator;
   }
 
   return async (request: Request): Promise<Response> => {
@@ -97,6 +112,39 @@ export function createApp(dependencies: AppDependencies): (request: Request) => 
         principal.authUserId,
         principal.principalType,
       );
+
+      const stateRefreshRoute = matchStateRefreshRoute(url.pathname);
+      if (request.method === "POST" && stateRefreshRoute !== null) {
+        const body = await readJsonObject(request);
+        const result = await requireRefreshCoordinator().create({
+          actor,
+          stateId: stateRefreshRoute.stateId,
+          walletBindingId: requiredUuid(body, "wallet_binding_id"),
+          fundingTargetAtomic: requiredString(body, "funding_target_atomic", 32),
+          idempotencyKey: request.headers.get("idempotency-key")?.trim() ?? "",
+        });
+        return successResponse(id, result.data, result.status);
+      }
+
+      const refreshRoute = matchRefreshRoute(url.pathname);
+      if (refreshRoute !== null) {
+        if (request.method === "GET" && !refreshRoute.fundingConfirmation) {
+          const data = await requireRefreshCoordinator().get(actor, refreshRoute.refreshId);
+          return successResponse(id, data);
+        }
+
+        if (request.method === "POST" && refreshRoute.fundingConfirmation) {
+          const body = await readJsonObject(request);
+          const data = await requireRefreshCoordinator().confirmFunding({
+            actor,
+            refreshId: refreshRoute.refreshId,
+            signature: requiredString(body, "signature", 128),
+            refreshAddress: requiredString(body, "refresh_address", 64),
+            contributionAddress: requiredString(body, "contribution_address", 64),
+          });
+          return successResponse(id, data);
+        }
+      }
 
       if (request.method === "GET" && routeMatches(url.pathname, "/v1/me")) {
         const bindings = await dependencies.identityRepository.listWalletBindings(actor.actorId);
@@ -181,4 +229,30 @@ function matchStateRoute(
     throw new ApiFault(400, "INVALID_REQUEST", "Invalid state_id.");
   }
   return { stateId: match[1], history: match[2] === "/history" };
+}
+
+
+function matchStateRefreshRoute(pathname: string): { stateId: string } | null {
+  const match = pathname.match(/(?:^|\/)v1\/states\/([^/]+)\/refreshes$/u);
+  if (!match) return null;
+  if (!UUID_PATTERN.test(match[1])) {
+    throw new ApiFault(400, "INVALID_REQUEST", "Invalid state_id.");
+  }
+  return { stateId: match[1] };
+}
+
+function matchRefreshRoute(
+  pathname: string,
+): { refreshId: string; fundingConfirmation: boolean } | null {
+  const match = pathname.match(
+    /(?:^|\/)v1\/refreshes\/([^/]+)(\/funding-confirmation)?$/u,
+  );
+  if (!match) return null;
+  if (!UUID_PATTERN.test(match[1])) {
+    throw new ApiFault(400, "INVALID_REQUEST", "Invalid refresh_id.");
+  }
+  return {
+    refreshId: match[1],
+    fundingConfirmation: match[2] === "/funding-confirmation",
+  };
 }
