@@ -20,8 +20,9 @@ function hexToBytes(value: string): Uint8Array {
 }
 
 Deno.test("refresh intent golden vector is byte-stable", async () => {
+  const url = new URL("../../test-vectors/refresh-intent-v1.json", import.meta.url);
   const vector = JSON.parse(
-    await Deno.readTextFile("test-vectors/refresh-intent-v1.json"),
+    await Deno.readTextFile(url),
   ) as {
     refresh_id: string;
     state_id: string;
