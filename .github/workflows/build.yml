@@ -16,17 +16,20 @@ concurrency:
 
 jobs:
   android:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+    needs: [api, database, security]
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: JDK 17
-        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
-        with:
-          distribution: temurin
-          java-version: "17"
+        shell: bash
+        run: |
+          java -version
+          javac -version
+          java_major="$(java -XshowSettings:properties -version 2>&1 | awk -F'= ' '/java.version =/ {print $2}' | cut -d. -f1)"
+          test "$java_major" = "17"
 
       - name: Android SDK
         uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
@@ -48,17 +51,20 @@ jobs:
 
 
   android-instrumented:
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
+    needs: [android]
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: JDK 17
-        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
-        with:
-          distribution: temurin
-          java-version: "17"
+        shell: bash
+        run: |
+          java -version
+          javac -version
+          java_major="$(java -XshowSettings:properties -version 2>&1 | awk -F'= ' '/java.version =/ {print $2}' | cut -d. -f1)"
+          test "$java_major" = "17"
 
       - name: Android SDK
         uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
@@ -84,20 +90,32 @@ jobs:
           trap cleanup EXIT
           trap diagnostics ERR
 
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager             "platform-tools"             "emulator"             "system-images;android-35;aosp_atd;x86_64"
+          SDK_ROOT="${ANDROID_SDK_ROOT:-$HOME/.android/sdk}"
+          EMULATOR_BIN="$SDK_ROOT/emulator/emulator"
+          ADB_BIN="$SDK_ROOT/platform-tools/adb"
+          SYSTEM_IMAGE_DIR="$SDK_ROOT/system-images/android-35/aosp_atd/x86_64"
 
-          echo "no" | avdmanager create avd             --force             --name "$AVD_NAME"             --package "system-images;android-35;aosp_atd;x86_64"
+          if [ ! -x "$EMULATOR_BIN" ] || [ ! -x "$ADB_BIN" ] || [ ! -d "$SYSTEM_IMAGE_DIR" ]; then
+            yes | sdkmanager --licenses >/dev/null || true
+            sdkmanager \
+              "platform-tools" \
+              "emulator" \
+              "system-images;android-35;aosp_atd;x86_64"
+          fi
+
+          test -x "$EMULATOR_BIN"
+          test -x "$ADB_BIN"
+          test -d "$SYSTEM_IMAGE_DIR"
 
           AVD_CONFIG="$HOME/.android/avd/$AVD_NAME.avd/config.ini"
+          if [ ! -f "$AVD_CONFIG" ]; then
+            echo "no" | avdmanager create avd               --force               --name "$AVD_NAME"               --package "system-images;android-35;aosp_atd;x86_64"
+          fi
           test -f "$AVD_CONFIG"
           sed -i '/^disk.dataPartition.size=/d' "$AVD_CONFIG"
           echo "disk.dataPartition.size=4096M" >> "$AVD_CONFIG"
 
           sudo chmod 666 /dev/kvm || true
-
-          EMULATOR_BIN="$ANDROID_SDK_ROOT/emulator/emulator"
-          test -x "$EMULATOR_BIN"
 
           nohup "$EMULATOR_BIN"             -avd "$AVD_NAME"             -port 5554             -no-window             -no-audio             -no-boot-anim             -no-snapshot             -gpu swiftshader_indirect             -cores 2             -memory 2048             > "$EMULATOR_LOG" 2>&1 &
 
@@ -122,7 +140,7 @@ jobs:
 
 
   api:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 15
     steps:
       - name: Checkout
@@ -143,7 +161,7 @@ jobs:
           deno task test
 
   database:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 15
     services:
       postgres:
@@ -191,6 +209,14 @@ jobs:
           set -Eeuo pipefail
           docker exec -i "$DB_CONTAINER" psql -X -U postgres -d now_test -v ON_ERROR_STOP=1 < tests/database/financial_replay_guards.sql
 
+      - name: Verify wallet binding guards
+        shell: bash
+        env:
+          DB_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          set -Eeuo pipefail
+          docker exec -i "$DB_CONTAINER" psql -X -U postgres -d now_test -v ON_ERROR_STOP=1 < tests/database/wallet_binding_guards.sql
+
       - name: Verify database security baseline
         shell: bash
         env:
@@ -208,6 +234,7 @@ jobs:
                 ('app', 'actors'),
                 ('app', 'actor_auth_principals'),
                 ('app', 'wallet_bindings'),
+                ('app', 'wallet_binding_challenges'),
                 ('app', 'locations'),
                 ('app', 'state_definitions'),
                 ('app', 'live_states'),
@@ -296,48 +323,42 @@ jobs:
           fi
 
   program:
-    runs-on: ubuntu-latest
+    needs: [api, database, security]
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Rust
+      - name: Pinned native toolchain
         shell: bash
         run: |
-          rustup toolchain install 1.98.1 --profile minimal
-          rustup default 1.98.1
-          rustc --version
-          cargo --version
+          set -Eeuo pipefail
 
-      - name: Install Agave
-        shell: bash
-        run: |
-          mkdir -p "$HOME/agave"
-          curl --fail --silent --show-error --location             --output "$RUNNER_TEMP/solana-release.tar.bz2"             "https://github.com/anza-xyz/agave/releases/download/v4.1.2/solana-release-x86_64-unknown-linux-gnu.tar.bz2"
-          echo "5991d027a686eb419a709a479178b33eb83501e8a2bfbf599a81a286bfcbf770  $RUNNER_TEMP/solana-release.tar.bz2" | sha256sum -c -
-          tar -xjf "$RUNNER_TEMP/solana-release.tar.bz2" -C "$HOME/agave"
-          echo "$HOME/agave/solana-release/bin" >> "$GITHUB_PATH"
+          test -f "$HOME/.cargo/env"
+          . "$HOME/.cargo/env"
+
+          AGAVE_BIN="$HOME/agave-4.1.2/solana-release/bin"
+          ANCHOR_BIN="$HOME/.local/bin"
+
+          test -x "$HOME/.cargo/bin/rustup"
+          test -x "$AGAVE_BIN/solana"
+          test -x "$ANCHOR_BIN/anchor"
+
+          export PATH="$HOME/.cargo/bin:$AGAVE_BIN:$ANCHOR_BIN:$PATH"
+          printf '%s\n' "$HOME/.cargo/bin" "$AGAVE_BIN" "$ANCHOR_BIN" >> "$GITHUB_PATH"
+
+          rustup toolchain list | grep -Fq '1.98.1-x86_64-unknown-linux-gnu'
+
+          rustup run 1.98.1 rustc --version | grep -E '^rustc 1\.98\.1 '
+          rustup run 1.98.1 cargo --version
+          solana --version | grep -F '4.1.2'
+          anchor --version | grep -F '1.2.0'
 
       - name: Deno
         uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
         with:
           deno-version: "2.9.7"
-
-      - name: Install Anchor
-        shell: bash
-        run: |
-          mkdir -p "$HOME/.local/bin"
-          curl --fail --silent --show-error --location             --output "$RUNNER_TEMP/anchor"             "https://github.com/otter-sec/anchor/releases/download/v1.2.0/anchor-1.2.0-x86_64-unknown-linux-gnu"
-          echo "0c9c41a3292c281cc6eadb78d6e1c8224d8324a34b0736a89d640fd314db05b7  $RUNNER_TEMP/anchor" | sha256sum -c -
-          install -m 0755 "$RUNNER_TEMP/anchor" "$HOME/.local/bin/anchor"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-
-      - name: Versions
-        shell: bash
-        run: |
-          solana --version
-          anchor --version
 
       - name: Rust tests
         shell: bash
@@ -412,7 +433,7 @@ jobs:
           scripts/solana/qualify-protocol-flow-local.sh
 
   security:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 10
     steps:
       - name: Checkout

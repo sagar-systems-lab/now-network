@@ -1,3 +1,3 @@
-import { handleRequest } from "../../../backend/src/health.ts";
+import { createProductionHandler } from "../../../backend/src/runtime.ts";
 
-Deno.serve(handleRequest);
+Deno.serve(createProductionHandler());

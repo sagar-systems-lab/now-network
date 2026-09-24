@@ -29,6 +29,7 @@ const expectedMigrations = [
   "20260920_014_security.sql",
   "20260920_015_outbox.sql",
   "20260920_016_financial_replay_guards.sql",
+  "20260922_017_wallet_binding_challenges.sql",
 ] as const;
 
 async function readMigration(name: string): Promise<string> {
@@ -100,6 +101,7 @@ Deno.test("authoritative tables enable row-level security immediately", async ()
     "app.actors",
     "app.actor_auth_principals",
     "app.wallet_bindings",
+    "app.wallet_binding_challenges",
     "app.locations",
     "app.state_definitions",
     "app.live_states",
@@ -132,6 +134,10 @@ Deno.test("database constraints encode critical correctness boundaries", async (
   for (
     const invariant of [
       "unique (cluster, wallet_address)",
+      "purpose = 'wallet_binding'",
+      "domain = 'NOW Network'",
+      "octet_length(message_sha256) = 32",
+      "octet_length(nonce_hash) = 32",
       "unique (canonical_key, version)",
       "unique (refresh_id, actor_id)",
       "challenge_id uuid not null unique",
@@ -163,6 +169,8 @@ Deno.test("database indexes cover geospatial and recovery paths", async () => {
       "domain_events_entity_sequence_idx",
       "domain_events_entity_time_idx",
       "outbox_events_pending_idx",
+      "wallet_binding_challenges_one_issued_per_principal",
+      "wallet_binding_challenges_expiry_idx",
     ]
   ) {
     assertIncludes(sql, indexName);
