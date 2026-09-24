@@ -118,6 +118,12 @@ function fakeFetch(fixture: RpcFixture): typeof fetch {
           transaction: {
             message: {
               accountKeys: fixture.transactionKeys ?? [],
+              instructions: [{
+                programId: NOW_SETTLEMENT_PROGRAM_ID,
+                accounts: (fixture.transactionKeys ?? []).filter((value) =>
+                  value !== NOW_SETTLEMENT_PROGRAM_ID
+                ),
+              }],
             },
           },
           meta: {
@@ -206,6 +212,7 @@ async function fixture(options?: {
       contributionAddress: addresses.contributionAddress,
       expectedCreatorWallet: CREATOR,
       expectedRewardMint: MINT,
+      expectedVaultTokenAccount: addresses.vaultTokenAccount,
       expectedChainRefreshId: CHAIN_ID,
       expectedStateIdDigest: STATE_DIGEST,
       expectedIntentCoreHash: INTENT_HASH,
