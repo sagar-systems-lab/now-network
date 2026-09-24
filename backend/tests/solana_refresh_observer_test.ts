@@ -88,6 +88,10 @@ type RpcFixture = {
   contributionData?: Uint8Array;
 };
 
+function jsonResponse(body: unknown): Promise<Response> {
+  return Promise.resolve(Response.json(body));
+}
+
 function fakeFetch(fixture: RpcFixture): typeof fetch {
   return ((_input: string | URL | Request, init?: RequestInit) => {
     const body = JSON.parse(String(init?.body)) as {
@@ -95,7 +99,7 @@ function fakeFetch(fixture: RpcFixture): typeof fetch {
     };
 
     if (body.method === "getSignatureStatuses") {
-      return Promise.resolve(Response.json({
+      return jsonResponse({
         jsonrpc: "2.0",
         id: 1,
         result: {
@@ -106,11 +110,11 @@ function fakeFetch(fixture: RpcFixture): typeof fetch {
             }]
             : [null],
         },
-      }));
+      });
     }
 
     if (body.method === "getTransaction") {
-      return Promise.resolve(Response.json({
+      return jsonResponse({
         jsonrpc: "2.0",
         id: 1,
         result: {
@@ -131,11 +135,11 @@ function fakeFetch(fixture: RpcFixture): typeof fetch {
             loadedAddresses: { writable: [], readonly: [] },
           },
         },
-      }));
+      });
     }
 
     if (body.method === "getMultipleAccounts") {
-      return Promise.resolve(Response.json({
+      return jsonResponse({
         jsonrpc: "2.0",
         id: 1,
         result: {
@@ -150,14 +154,14 @@ function fakeFetch(fixture: RpcFixture): typeof fetch {
             },
           ],
         },
-      }));
+      });
     }
 
-    return Promise.resolve(Response.json({
+    return jsonResponse({
       jsonrpc: "2.0",
       id: 1,
       error: { code: -32601, message: "unexpected method" },
-    }));
+    });
   }) as typeof fetch;
 }
 
