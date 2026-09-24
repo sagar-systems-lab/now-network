@@ -50,6 +50,11 @@ export type CreateRefreshResult =
   | { kind: "replayed"; refresh: RefreshRecord }
   | { kind: "idempotency_conflict" };
 
+export type CreateReplayLookup =
+  | { kind: "none" }
+  | { kind: "replayed"; refresh: RefreshRecord }
+  | { kind: "idempotency_conflict" };
+
 export type FundingIntentAddresses = {
   refreshAddress: string;
   contributionAddress: string;
@@ -102,6 +107,12 @@ export type ConfirmFundingResult =
   | { kind: "expired" };
 
 export interface RefreshRepository {
+  lookupCreateReplay(input: {
+    actorId: string;
+    idempotencyKey: string;
+    requestHash: Uint8Array;
+  }): Promise<CreateReplayLookup>;
+
   createOrReplay(input: {
     idempotencyKey: string;
     requestHash: Uint8Array;
