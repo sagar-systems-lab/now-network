@@ -35,6 +35,7 @@ type DetailRow = {
   question: string;
   state_type: StateDetailRecord["stateType"];
   unit_code: string | null;
+  answer_schema: unknown;
   current_value: unknown | null;
   observed_at: DateLike | null;
   observation_earliest: DateLike | null;
@@ -48,6 +49,8 @@ type DetailRow = {
   location_name: string;
   location_type: string;
   display_address: string | null;
+  center_ewkb: Uint8Array;
+  boundary_ewkb: Uint8Array | null;
   verification_status: StateVerificationSummary["status"] | null;
   verification_reason_codes: string[] | null;
   verification_evidence_count: number | string | null;
@@ -85,6 +88,7 @@ function nearbyFromRow(row: NearbyRow): NearbyStateRecord {
     question: row.question,
     stateType: row.state_type,
     unitCode: row.unit_code,
+    answerSchema: row.answer_schema,
     currentValue: row.current_value,
     observedAt: dateOrNull(row.observed_at),
     agingAt: dateOrNull(row.aging_at),
@@ -140,6 +144,8 @@ function detailFromRow(row: DetailRow): StateDetailRecord {
       name: row.location_name,
       locationType: row.location_type,
       displayAddress: row.display_address,
+      centerEwkb: new Uint8Array(row.center_ewkb),
+      boundaryEwkb: row.boundary_ewkb === null ? null : new Uint8Array(row.boundary_ewkb),
     },
     verification,
     activeRefresh,
@@ -213,6 +219,7 @@ export class PostgresStateRepository implements StateRepository {
         sd.question,
         sd.state_type,
         sd.unit_code,
+        sd.answer_schema,
         ls.current_value,
         ls.observed_at,
         ls.observation_earliest,
@@ -226,6 +233,11 @@ export class PostgresStateRepository implements StateRepository {
         l.name as location_name,
         l.location_type,
         l.display_address,
+        extensions.st_asewkb(l.center::geometry) as center_ewkb,
+        case
+          when l.boundary is null then null
+          else extensions.st_asewkb(l.boundary::geometry)
+        end as boundary_ewkb,
         vr.status as verification_status,
         vr.reason_codes as verification_reason_codes,
         cardinality(vr.evidence_ids) as verification_evidence_count,
