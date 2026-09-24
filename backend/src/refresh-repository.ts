@@ -64,6 +64,7 @@ export type PrepareFundingInput = {
   requestHash: Uint8Array;
   idempotencyExpiresAt: Date;
   operationId: string;
+  observedAt: Date;
   addresses: FundingIntentAddresses;
 };
 
