@@ -113,12 +113,11 @@ export function createApp(dependencies: AppDependencies): (request: Request) => 
         principal.principalType,
       );
 
-      const stateRefreshRoute = matchStateRefreshRoute(url.pathname);
-      if (request.method === "POST" && stateRefreshRoute !== null) {
+      if (request.method === "POST" && routeMatches(url.pathname, "/v1/refreshes")) {
         const body = await readJsonObject(request);
         const result = await requireRefreshCoordinator().create({
           actor,
-          stateId: stateRefreshRoute.stateId,
+          stateId: requiredUuid(body, "state_id"),
           walletBindingId: requiredUuid(body, "wallet_binding_id"),
           fundingTargetAtomic: requiredString(body, "funding_target_atomic", 32),
           idempotencyKey: request.headers.get("idempotency-key")?.trim() ?? "",
@@ -128,19 +127,27 @@ export function createApp(dependencies: AppDependencies): (request: Request) => 
 
       const refreshRoute = matchRefreshRoute(url.pathname);
       if (refreshRoute !== null) {
-        if (request.method === "GET" && !refreshRoute.fundingConfirmation) {
+        if (request.method === "GET" && refreshRoute.action === "detail") {
           const data = await requireRefreshCoordinator().get(actor, refreshRoute.refreshId);
           return successResponse(id, data);
         }
 
-        if (request.method === "POST" && refreshRoute.fundingConfirmation) {
+        if (request.method === "POST" && refreshRoute.action === "funding-intent") {
+          const data = await requireRefreshCoordinator().fundingIntent({
+            actor,
+            refreshId: refreshRoute.refreshId,
+            idempotencyKey: request.headers.get("idempotency-key")?.trim() ?? "",
+          });
+          return successResponse(id, data);
+        }
+
+        if (request.method === "POST" && refreshRoute.action === "funding-observe") {
           const body = await readJsonObject(request);
-          const data = await requireRefreshCoordinator().confirmFunding({
+          const data = await requireRefreshCoordinator().observeFunding({
             actor,
             refreshId: refreshRoute.refreshId,
             signature: requiredString(body, "signature", 128),
-            refreshAddress: requiredString(body, "refresh_address", 64),
-            contributionAddress: requiredString(body, "contribution_address", 64),
+            idempotencyKey: request.headers.get("idempotency-key")?.trim() ?? "",
           });
           return successResponse(id, data);
         }
@@ -232,20 +239,14 @@ function matchStateRoute(
 }
 
 
-function matchStateRefreshRoute(pathname: string): { stateId: string } | null {
-  const match = pathname.match(/(?:^|\/)v1\/states\/([^/]+)\/refreshes$/u);
-  if (!match) return null;
-  if (!UUID_PATTERN.test(match[1])) {
-    throw new ApiFault(400, "INVALID_REQUEST", "Invalid state_id.");
-  }
-  return { stateId: match[1] };
-}
-
 function matchRefreshRoute(
   pathname: string,
-): { refreshId: string; fundingConfirmation: boolean } | null {
+): {
+  refreshId: string;
+  action: "detail" | "funding-intent" | "funding-observe";
+} | null {
   const match = pathname.match(
-    /(?:^|\/)v1\/refreshes\/([^/]+)(\/funding-confirmation)?$/u,
+    /(?:^|\/)v1\/refreshes\/([^/]+)(?:\/(funding-intent|funding-observe))?$/u,
   );
   if (!match) return null;
   if (!UUID_PATTERN.test(match[1])) {
@@ -253,6 +254,10 @@ function matchRefreshRoute(
   }
   return {
     refreshId: match[1],
-    fundingConfirmation: match[2] === "/funding-confirmation",
+    action: match[2] === "funding-intent"
+      ? "funding-intent"
+      : match[2] === "funding-observe"
+      ? "funding-observe"
+      : "detail",
   };
 }
