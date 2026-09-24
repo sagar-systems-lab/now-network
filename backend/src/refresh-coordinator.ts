@@ -478,6 +478,7 @@ export class RefreshCoordinator {
         contributionAddress: addresses.contributionAddress,
         expectedCreatorWallet: record.creatorWalletAddress,
         expectedRewardMint: record.rewardMint,
+        expectedVaultTokenAccount: addresses.vaultTokenAccount,
         expectedChainRefreshId: record.chainRefreshId,
         expectedStateIdDigest: record.stateIdDigest,
         expectedIntentCoreHash: record.intentCoreHash,
