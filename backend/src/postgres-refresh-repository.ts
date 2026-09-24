@@ -180,7 +180,7 @@ export class PostgresRefreshRepository implements RefreshRepository {
 
     return {
       kind: "replayed",
-      refresh: fromRow(refreshRows[0] as RefreshRow),
+      refresh: fromRow(refreshRows[0] as unknown as RefreshRow),
     } as const;
   }
 
@@ -219,7 +219,7 @@ export class PostgresRefreshRepository implements RefreshRepository {
         if (!replayRows[0]) throw new Error("idempotency refresh is missing");
         return {
           kind: "replayed",
-          refresh: fromRow(replayRows[0] as RefreshRow),
+          refresh: fromRow(replayRows[0] as unknown as RefreshRow),
         };
       }
 
@@ -352,7 +352,7 @@ export class PostgresRefreshRepository implements RefreshRepository {
 
       return {
         kind: "created",
-        refresh: fromRow(inserted[0] as RefreshRow),
+        refresh: fromRow(inserted[0] as unknown as RefreshRow),
       };
     });
   }
@@ -362,7 +362,7 @@ export class PostgresRefreshRepository implements RefreshRepository {
       `${SELECT_REFRESH} where refresh_id = $1::uuid limit 1`,
       [refreshId],
     );
-    return rows[0] ? fromRow(rows[0] as RefreshRow) : null;
+    return rows[0] ? fromRow(rows[0] as unknown as RefreshRow) : null;
   }
 
   async prepareFunding(
@@ -378,7 +378,7 @@ export class PostgresRefreshRepository implements RefreshRepository {
         [input.refreshId],
       );
       if (!rows[0]) return { kind: "not_found" } as const;
-      const current = fromRow(rows[0] as RefreshRow);
+      const current = fromRow(rows[0] as unknown as RefreshRow);
       if (current.requesterActorId !== input.actorId) {
         return { kind: "actor_mismatch" } as const;
       }
@@ -546,7 +546,7 @@ export class PostgresRefreshRepository implements RefreshRepository {
 
       return {
         kind: "prepared",
-        refresh: fromRow(updated[0] as RefreshRow),
+        refresh: fromRow(updated[0] as unknown as RefreshRow),
         operationId: input.operationId,
       } as const;
     });
@@ -565,7 +565,7 @@ export class PostgresRefreshRepository implements RefreshRepository {
         [input.refreshId],
       );
       if (!rows[0]) return { kind: "not_found" } as const;
-      const current = fromRow(rows[0] as RefreshRow);
+      const current = fromRow(rows[0] as unknown as RefreshRow);
       if (current.requesterActorId !== input.actorId) {
         return { kind: "actor_mismatch" } as const;
       }
@@ -756,7 +756,7 @@ export class PostgresRefreshRepository implements RefreshRepository {
 
       return {
         kind: "confirmed",
-        refresh: fromRow(updated[0] as RefreshRow),
+        refresh: fromRow(updated[0] as unknown as RefreshRow),
       } as const;
     });
   }
