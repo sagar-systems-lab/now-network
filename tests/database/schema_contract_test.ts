@@ -32,6 +32,7 @@ const expectedMigrations = [
   "20260922_017_wallet_binding_challenges.sql",
   "20260924_018_state_read_queries.sql",
   "20260924_019_refresh_coordination.sql",
+  "20260925_020_opportunity_queries.sql",
 ] as const;
 
 async function readMigration(name: string): Promise<string> {
@@ -193,6 +194,25 @@ Deno.test("nearby state reads are PostGIS-backed and bounded", async () => {
   for (
     const invariant of [
       "query_nearby_states_v1",
+      "extensions.st_dwithin",
+      "extensions.st_distance",
+      "p_radius_m between 1 and 50000",
+      "p_limit between 1 and 51",
+    ]
+  ) {
+    assertIncludes(sql, invariant);
+  }
+});
+
+Deno.test("nearby opportunity reads are PostGIS-backed and capacity-bounded", async () => {
+  const sql = await allSql();
+  for (
+    const invariant of [
+      "query_nearby_opportunities_v1",
+      "rr.status = 'AVAILABLE'",
+      "rr.refresh_expires_at > now()",
+      "rr.requester_actor_id <> p_actor_id",
+      "coalesce(claims.active_claims, 0) < rr.max_witnesses",
       "extensions.st_dwithin",
       "extensions.st_distance",
       "p_radius_m between 1 and 50000",
