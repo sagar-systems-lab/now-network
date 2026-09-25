@@ -318,11 +318,6 @@ export class VerificationService {
       throw new ApiFault(404, "REFRESH_NOT_FOUND", "Refresh was not found.");
     }
 
-    const observedAt = this.now();
-    if (context.refreshExpiresAt.getTime() <= observedAt.getTime()) {
-      throw new ApiFault(410, "REFRESH_EXPIRED", "Refresh has expired.");
-    }
-
     const policy = parsePolicyTemplate(context.proofPolicySnapshot);
     const currentPolicyVersion = policyVersion(policy.template_key);
     const evidenceSetRevision = context.evidence.length;
@@ -373,6 +368,11 @@ export class VerificationService {
       };
     }
 
+    const observedAt = this.now();
+    if (context.refreshExpiresAt.getTime() <= observedAt.getTime()) {
+      throw new ApiFault(410, "REFRESH_EXPIRED", "Refresh has expired.");
+    }
+
     if (context.refreshStatus !== "EVIDENCE_SUBMITTED") {
       throw new ApiFault(
         409,
@@ -381,9 +381,10 @@ export class VerificationService {
       );
     }
 
+    const executionHash = context.executionHash;
     if (
-      context.executionHash === null ||
-      context.executionHash.length !== 32 ||
+      executionHash === null ||
+      executionHash.length !== 32 ||
       context.intentCoreHash.length !== 32
     ) {
       throw new ApiFault(
@@ -398,7 +399,7 @@ export class VerificationService {
         evidence.intentCoreHash.length !== 32 ||
         evidence.executionHash.length !== 32 ||
         !bytesEqual(evidence.intentCoreHash, context.intentCoreHash) ||
-        !bytesEqual(evidence.executionHash, context.executionHash) ||
+        !bytesEqual(evidence.executionHash, executionHash) ||
         evidence.answerType !== context.stateType
       ) {
         throw new ApiFault(
@@ -574,7 +575,7 @@ export class VerificationService {
           reason_codes: reasonCodes,
           policy_reason_codes: evaluated.policyReasonCodes,
           final_answer: evaluated.finalAnswer,
-          execution_hash: bytesToHex(context.executionHash),
+          execution_hash: bytesToHex(executionHash),
           verifier_build: this.verifierBuild,
         }),
       ),
@@ -588,7 +589,7 @@ export class VerificationService {
       policyVersion: currentPolicyVersion,
       policySnapshot: policy,
       evidenceIds: allEvidenceIds(context.evidence),
-      executionHash: context.executionHash,
+      executionHash,
       canonicalDigest,
       outcome,
       verifierBuild: this.verifierBuild,
