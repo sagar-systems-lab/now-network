@@ -13,6 +13,7 @@ export type EvidenceChallengeContext = {
   claimDeadline: Date | null;
   claimRevision: number;
   refreshStatus: RefreshStatus;
+  refreshRevision: number;
   refreshExpiresAt: Date;
   evidenceDeadline: Date;
   proofPolicySnapshot: PolicyTemplateV1;
@@ -39,6 +40,8 @@ export type IssueEvidenceChallengeResult =
     challenge: EvidenceChallengeRecord;
     claimStatus: "CAPTURE_ACTIVE";
     claimRevision: number;
+    refreshStatus: "CAPTURE_IN_PROGRESS";
+    refreshRevision: number;
   }
   | { kind: "not_found" }
   | { kind: "actor_mismatch" }

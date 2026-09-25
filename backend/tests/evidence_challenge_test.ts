@@ -31,6 +31,7 @@ function context(
     claimDeadline: new Date("2026-09-25T12:03:00.000Z"),
     claimRevision: 5,
     refreshStatus: "CLAIMED",
+    refreshRevision: 7,
     refreshExpiresAt: new Date("2026-09-25T12:15:00.000Z"),
     evidenceDeadline: new Date("2026-09-25T12:02:00.000Z"),
     proofPolicySnapshot: {
@@ -97,6 +98,8 @@ class MemoryChallengeRepository implements EvidenceChallengeRepository {
       },
       claimStatus: "CAPTURE_ACTIVE",
       claimRevision: this.challengeContext.claimRevision + 1,
+      refreshStatus: "CAPTURE_IN_PROGRESS",
+      refreshRevision: this.challengeContext.refreshRevision + 1,
     });
   }
 }
@@ -115,7 +118,8 @@ Deno.test("evidence challenge is claim-bound and expires at the earliest authori
     response.refresh_id !== REFRESH_ID ||
     response.expires_at !== "2026-09-25T12:02:00.000Z" ||
     response.policy_version !== 1 ||
-    response.claim_status !== "CAPTURE_ACTIVE"
+    response.claim_status !== "CAPTURE_ACTIVE" ||
+    response.refresh_status !== "CAPTURE_IN_PROGRESS"
   ) {
     throw new Error("challenge response lost authority-bound fields");
   }
@@ -156,6 +160,10 @@ Deno.test("evidence challenge rejects closed or expired capture windows", async 
     const [challengeContext, expectedCode] of [
       [
         context({ claimStatus: "EVIDENCE_COMMITTED" }),
+        "CLAIM_NOT_AVAILABLE",
+      ],
+      [
+        context({ refreshStatus: "AVAILABLE" }),
         "CLAIM_NOT_AVAILABLE",
       ],
       [

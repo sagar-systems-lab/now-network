@@ -6,6 +6,7 @@ import type {
   IssueEvidenceChallengeResult,
 } from "./evidence-challenge-repository.ts";
 import { transitionClaim } from "../../packages/domain/src/claim-machine.ts";
+import { transitionRefresh } from "../../packages/domain/src/refresh-machine.ts";
 import { policyVersion } from "../../packages/policy/src/template.ts";
 
 function bytesToBase64Url(bytes: Uint8Array): string {
@@ -61,7 +62,6 @@ function ensureChallengeable(
     throw new ApiFault(409, "CLAIM_NOT_AVAILABLE", "This claim cannot capture evidence.");
   }
   if (
-    context.refreshStatus !== "AVAILABLE" &&
     context.refreshStatus !== "CLAIMED" &&
     context.refreshStatus !== "CAPTURE_IN_PROGRESS"
   ) {
@@ -116,6 +116,12 @@ export class EvidenceChallengeService {
         refreshExpired: false,
       });
     }
+    if (context.refreshStatus === "CLAIMED") {
+      transitionRefresh("CLAIMED", "CHALLENGE_ISSUED", {
+        challengeIssued: true,
+        refreshExpired: false,
+      });
+    }
 
     const nonceBytes = crypto.getRandomValues(new Uint8Array(32));
     const nonce = bytesToBase64Url(nonceBytes);
@@ -147,6 +153,8 @@ export class EvidenceChallengeService {
       },
       claim_status: result.claimStatus,
       claim_revision: result.claimRevision,
+      refresh_status: result.refreshStatus,
+      refresh_revision: result.refreshRevision,
     };
   }
 }

@@ -18,6 +18,7 @@ type ContextRow = {
   claim_deadline: DateLike | null;
   claim_revision: number | string;
   refresh_status: EvidenceChallengeContext["refreshStatus"];
+  refresh_revision: number | string;
   refresh_expires_at: DateLike;
   evidence_deadline: DateLike;
   proof_policy_snapshot: EvidenceChallengeContext["proofPolicySnapshot"];
@@ -48,6 +49,7 @@ const SELECT_CONTEXT = String.raw`
     ra.claim_deadline,
     ra.revision as claim_revision,
     rr.status as refresh_status,
+    rr.revision as refresh_revision,
     rr.refresh_expires_at,
     rr.evidence_deadline,
     rr.proof_policy_snapshot
@@ -69,6 +71,7 @@ function contextFromRow(row: ContextRow): EvidenceChallengeContext {
     claimDeadline: row.claim_deadline === null ? null : date(row.claim_deadline),
     claimRevision: Number(row.claim_revision),
     refreshStatus: row.refresh_status,
+    refreshRevision: Number(row.refresh_revision),
     refreshExpiresAt: date(row.refresh_expires_at),
     evidenceDeadline: date(row.evidence_deadline),
     proofPolicySnapshot: row.proof_policy_snapshot,
@@ -107,7 +110,6 @@ function challengeable(context: EvidenceChallengeContext): boolean {
   return (
     (context.claimStatus === "CLAIMED" || context.claimStatus === "CAPTURE_ACTIVE") &&
     (
-      context.refreshStatus === "AVAILABLE" ||
       context.refreshStatus === "CLAIMED" ||
       context.refreshStatus === "CAPTURE_IN_PROGRESS"
     )
@@ -207,6 +209,22 @@ export class PostgresEvidenceChallengeRepository implements EvidenceChallengeRep
         claimRevision = Number(updated[0].revision);
       }
 
+      let refreshRevision = context.refreshRevision;
+      if (context.refreshStatus === "CLAIMED") {
+        const updated = await tx`
+          update app.refresh_requests
+          set
+            status = 'CAPTURE_IN_PROGRESS',
+            updated_at = ${input.issuedAt},
+            revision = revision + 1
+          where refresh_id = ${context.refreshId}::uuid
+            and status = 'CLAIMED'
+          returning revision
+        `;
+        if (!updated[0]) return { kind: "not_available" } as const;
+        refreshRevision = Number(updated[0].revision);
+      }
+
       const inserted = await tx`
         insert into app.evidence_challenges(
           challenge_id,
@@ -275,6 +293,16 @@ export class PostgresEvidenceChallengeRepository implements EvidenceChallengeRep
           ${claimRevision},
           ${eventPayload}::jsonb,
           ${input.issuedAt}
+        ), (
+          ${crypto.randomUUID()}::uuid,
+          'refresh',
+          ${context.refreshId}::uuid,
+          'REFRESH_CAPTURE_STARTED',
+          ${input.actorId}::uuid,
+          ${input.challengeId}::uuid,
+          ${refreshRevision},
+          ${JSON.stringify({ status: "CAPTURE_IN_PROGRESS" })}::jsonb,
+          ${input.issuedAt}
         )
       `;
 
@@ -283,6 +311,8 @@ export class PostgresEvidenceChallengeRepository implements EvidenceChallengeRep
         challenge: challengeFromRow(inserted[0] as unknown as ChallengeRow),
         claimStatus: "CAPTURE_ACTIVE",
         claimRevision,
+        refreshStatus: "CAPTURE_IN_PROGRESS",
+        refreshRevision,
       } as const;
     });
   }
