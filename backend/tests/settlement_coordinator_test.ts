@@ -8,9 +8,10 @@ import type {
 } from "../src/settlement-repository.ts";
 import { SettlementCoordinator } from "../src/settlement-coordinator.ts";
 import type {
+  PreparedSettlementAttempt,
+  SettlementBroadcast,
   SettlementChainClient,
   SettlementInspection,
-  SettlementSubmission,
 } from "../src/solana-settlement-client.ts";
 
 const NOW = new Date("2026-09-25T12:00:00.000Z");
@@ -55,6 +56,7 @@ function operation(
   status: SettlementOperation["status"],
   overrides: Partial<SettlementOperation> = {},
 ): SettlementOperation {
+  const hasAttempt = !["ELIGIBLE", "NOT_SETTLED"].includes(status);
   return {
     settlementId: "f6000000-0000-4000-8000-000000000001",
     refreshId: "f1000000-0000-4000-8000-000000000001",
@@ -74,11 +76,12 @@ function operation(
     chainRefreshAddress: "11111111111111111111111111111111",
     refreshExpiresAt: new Date("2026-09-25T12:10:00.000Z"),
     status,
-    chainSignature: status === "ELIGIBLE" ? null : "sig-old",
-    recentBlockhash: status === "ELIGIBLE" ? null : "blockhash-old",
-    lastValidBlockHeight: status === "ELIGIBLE" ? null : 100,
+    chainSignature: hasAttempt ? "sig-old" : null,
+    recentBlockhash: hasAttempt ? "blockhash-old" : null,
+    lastValidBlockHeight: hasAttempt ? 100 : null,
+    signedTransactionBase64: hasAttempt ? "c2lnbmVkLXR4LW9sZA==" : null,
     chainCommitment: null,
-    attemptCount: status === "ELIGIBLE" ? 0 : 1,
+    attemptCount: hasAttempt ? 1 : 0,
     nextReconcileAt: NOW,
     lastChainObservedAt: null,
     lastErrorCode: null,
@@ -90,12 +93,25 @@ function operation(
   };
 }
 
+function prepared(
+  suffix: string,
+  lastValidBlockHeight = 200,
+): PreparedSettlementAttempt {
+  return {
+    signature: `sig-${suffix}`,
+    recentBlockhash: `blockhash-${suffix}`,
+    lastValidBlockHeight,
+    signedTransactionBase64: btoa(`signed-${suffix}`),
+  };
+}
+
 class MemorySettlementRepository implements SettlementRepository {
   candidate: SettlementEligibility | null = null;
   current: SettlementOperation | null = null;
   conflictCodes: string[] = [];
   deferCodes: string[] = [];
-  markAttempts = 0;
+  reservations = 0;
+  broadcasts = 0;
 
   findEligible(): Promise<PrepareSettlementResult> {
     return Promise.resolve(
@@ -142,18 +158,39 @@ class MemorySettlementRepository implements SettlementRepository {
     );
   }
 
-  markAttempt(
-    input: Parameters<SettlementRepository["markAttempt"]>[0],
+  reserveAttempt(
+    input: Parameters<SettlementRepository["reserveAttempt"]>[0],
   ): Promise<SettlementMutationResult> {
     if (this.current === null) return Promise.resolve({ kind: "not_found" });
-    this.markAttempts += 1;
+    if (this.current.status === "SUBMITTING") {
+      return Promise.resolve({ kind: "replayed", operation: this.current });
+    }
+    this.reservations += 1;
     this.current = {
       ...this.current,
-      status: input.ambiguous ? "VERIFYING" : "SUBMITTED",
+      status: "SUBMITTING",
       chainSignature: input.chainSignature,
       recentBlockhash: input.recentBlockhash,
       lastValidBlockHeight: input.lastValidBlockHeight,
+      signedTransactionBase64: input.signedTransactionBase64,
       attemptCount: this.current.attemptCount + 1,
+      nextReconcileAt: input.observedAt,
+      updatedAt: input.observedAt,
+    };
+    return Promise.resolve({ kind: "updated", operation: this.current });
+  }
+
+  markBroadcast(
+    input: Parameters<SettlementRepository["markBroadcast"]>[0],
+  ): Promise<SettlementMutationResult> {
+    if (this.current === null) return Promise.resolve({ kind: "not_found" });
+    if (this.current.chainSignature !== input.chainSignature) {
+      return Promise.resolve({ kind: "authority_conflict" });
+    }
+    this.broadcasts += 1;
+    this.current = {
+      ...this.current,
+      status: input.ambiguous ? "VERIFYING" : "SUBMITTED",
       nextReconcileAt: input.nextReconcileAt,
       lastErrorCode: input.errorCode,
       updatedAt: input.observedAt,
@@ -220,15 +257,24 @@ class MemorySettlementRepository implements SettlementRepository {
 }
 
 class FakeSettlementChain implements SettlementChainClient {
-  submissions: SettlementSubmission[] = [];
+  prepared: PreparedSettlementAttempt[] = [];
+  broadcasts: SettlementBroadcast[] = [];
   inspections: SettlementInspection[] = [];
-  submittedOperations: SettlementOperation[] = [];
+  preparedOperations: SettlementOperation[] = [];
+  broadcastAttempts: PreparedSettlementAttempt[] = [];
   inspectedOperations: SettlementOperation[] = [];
 
-  submit(operation: SettlementOperation): Promise<SettlementSubmission> {
-    this.submittedOperations.push(structuredClone(operation));
-    const next = this.submissions.shift();
-    if (!next) throw new Error("unexpected settlement submission");
+  prepare(operation: SettlementOperation): Promise<PreparedSettlementAttempt> {
+    this.preparedOperations.push(structuredClone(operation));
+    const next = this.prepared.shift();
+    if (!next) throw new Error("unexpected settlement preparation");
+    return Promise.resolve(next);
+  }
+
+  broadcast(attempt: PreparedSettlementAttempt): Promise<SettlementBroadcast> {
+    this.broadcastAttempts.push(structuredClone(attempt));
+    const next = this.broadcasts.shift();
+    if (!next) throw new Error("unexpected settlement broadcast");
     return Promise.resolve(next);
   }
 
@@ -240,16 +286,12 @@ class FakeSettlementChain implements SettlementChainClient {
   }
 }
 
-Deno.test("settlement prepares verified two-of-three recipients and submits once", async () => {
+Deno.test("settlement freezes verified two-of-three recipients before broadcast", async () => {
   const repository = new MemorySettlementRepository();
   repository.candidate = eligibility();
   const chain = new FakeSettlementChain();
-  chain.submissions.push({
-    kind: "submitted",
-    signature: "sig-new",
-    recentBlockhash: "blockhash-new",
-    lastValidBlockHeight: 200,
-  });
+  chain.prepared.push(prepared("new"));
+  chain.broadcasts.push({ kind: "accepted" });
   const coordinator = new SettlementCoordinator(
     repository,
     chain,
@@ -260,36 +302,55 @@ Deno.test("settlement prepares verified two-of-three recipients and submits once
   const summary = await coordinator.runOnce(8);
   if (
     summary.prepared !== 1 ||
+    summary.signed !== 1 ||
     summary.submitted !== 1 ||
     repository.current?.recipientMask !== 0b101 ||
-    repository.markAttempts !== 1 ||
-    chain.submittedOperations.length !== 1
+    repository.reservations !== 1 ||
+    repository.broadcasts !== 1
   ) {
-    throw new Error("verified beneficiary settlement was not submitted exactly once");
+    throw new Error("verified beneficiary settlement was not durably submitted");
   }
 });
 
-Deno.test("ambiguous submission enters reconciliation without blind retry", async () => {
+Deno.test("ambiguous broadcast enters reconciliation without a new transaction", async () => {
   const repository = new MemorySettlementRepository();
   repository.current = operation("ELIGIBLE");
   const chain = new FakeSettlementChain();
-  chain.submissions.push({
+  chain.prepared.push(prepared("ambiguous"));
+  chain.broadcasts.push({
     kind: "ambiguous",
-    signature: "sig-ambiguous",
-    recentBlockhash: "blockhash-a",
-    lastValidBlockHeight: 200,
     errorCode: "SETTLEMENT_SUBMISSION_AMBIGUOUS",
   });
   const coordinator = new SettlementCoordinator(repository, chain, () => NOW);
 
   const summary = await coordinator.runOnce(1);
   if (
+    summary.signed !== 1 ||
     summary.ambiguous !== 1 ||
     repository.current.status !== "VERIFYING" ||
-    chain.submittedOperations.length !== 1 ||
+    chain.preparedOperations.length !== 1 ||
+    chain.broadcastAttempts.length !== 1 ||
     chain.inspectedOperations.length !== 0
   ) {
-    throw new Error("ambiguous settlement was not isolated for reconciliation");
+    throw new Error("ambiguous settlement did not enter reconciliation");
+  }
+});
+
+Deno.test("reserved transaction resumes after a worker crash", async () => {
+  const repository = new MemorySettlementRepository();
+  repository.current = operation("SUBMITTING");
+  const chain = new FakeSettlementChain();
+  chain.broadcasts.push({ kind: "accepted" });
+  const coordinator = new SettlementCoordinator(repository, chain, () => NOW);
+
+  const summary = await coordinator.runOnce(1);
+  if (
+    summary.signed !== 0 ||
+    summary.submitted !== 1 ||
+    chain.preparedOperations.length !== 0 ||
+    chain.broadcastAttempts[0]?.signature !== "sig-old"
+  ) {
+    throw new Error("reserved transaction was not resumed exactly");
   }
 });
 
@@ -303,31 +364,35 @@ Deno.test("pending settlement is deferred without resubmission", async () => {
   const summary = await coordinator.runOnce(1);
   if (
     summary.pending !== 1 ||
-    chain.submittedOperations.length !== 0 ||
+    chain.preparedOperations.length !== 0 ||
+    chain.broadcastAttempts.length !== 0 ||
     repository.deferCodes.at(-1) !== "SETTLEMENT_CONFIRMATION_PENDING"
   ) {
     throw new Error("pending settlement was resubmitted");
   }
 });
 
-Deno.test("proven absent settlement retries with the same logical operation", async () => {
+Deno.test("proven absent settlement retries the same logical operation", async () => {
   const repository = new MemorySettlementRepository();
-  repository.current = operation("NOT_SETTLED");
+  repository.current = operation("NOT_SETTLED", {
+    chainSignature: "sig-old",
+    recentBlockhash: "blockhash-old",
+    lastValidBlockHeight: 100,
+    signedTransactionBase64: "c2lnbmVkLXR4LW9sZA==",
+    attemptCount: 1,
+  });
   const originalId = repository.current.operationId;
   const originalHash = [...repository.current.operationHash];
   const chain = new FakeSettlementChain();
   chain.inspections.push({ kind: "not_settled", observedAt: NOW });
-  chain.submissions.push({
-    kind: "submitted",
-    signature: "sig-retry",
-    recentBlockhash: "blockhash-retry",
-    lastValidBlockHeight: 300,
-  });
+  chain.prepared.push(prepared("retry", 300));
+  chain.broadcasts.push({ kind: "accepted" });
   const coordinator = new SettlementCoordinator(repository, chain, () => NOW);
 
   const summary = await coordinator.runOnce(1);
-  const retried = chain.submittedOperations[0];
+  const retried = chain.preparedOperations[0];
   if (
+    summary.signed !== 1 ||
     summary.submitted !== 1 ||
     retried?.operationId !== originalId ||
     JSON.stringify([...retried.operationHash]) !== JSON.stringify(originalHash)
@@ -339,6 +404,10 @@ Deno.test("proven absent settlement retries with the same logical operation", as
 Deno.test("expired proven-absent settlement cannot retry", async () => {
   const repository = new MemorySettlementRepository();
   repository.current = operation("NOT_SETTLED", {
+    chainSignature: "sig-old",
+    recentBlockhash: "blockhash-old",
+    lastValidBlockHeight: 100,
+    signedTransactionBase64: "c2lnbmVkLXR4LW9sZA==",
     refreshExpiresAt: new Date("2026-09-25T11:59:59.000Z"),
   });
   const chain = new FakeSettlementChain();
@@ -347,7 +416,7 @@ Deno.test("expired proven-absent settlement cannot retry", async () => {
   const summary = await coordinator.runOnce(1);
   if (
     summary.conflicts !== 1 ||
-    chain.submittedOperations.length !== 0 ||
+    chain.preparedOperations.length !== 0 ||
     chain.inspectedOperations.length !== 0 ||
     repository.conflictCodes.at(-1) !== "SETTLEMENT_WINDOW_EXPIRED"
   ) {

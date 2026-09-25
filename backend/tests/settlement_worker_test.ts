@@ -25,6 +25,7 @@ Deno.test("settlement worker rejects unauthenticated execution", async () => {
 Deno.test("settlement worker runs a bounded authenticated tick", async () => {
   const expected = {
     prepared: 1,
+    signed: 1,
     submitted: 1,
     ambiguous: 0,
     pending: 0,
