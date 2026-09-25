@@ -34,6 +34,7 @@ const expectedMigrations = [
   "20260924_019_refresh_coordination.sql",
   "20260925_020_opportunity_queries.sql",
   "20260925_021_claim_orchestration.sql",
+  "20260925_022_evidence_challenge_hardening.sql",
 ] as const;
 
 async function readMigration(name: string): Promise<string> {
@@ -154,6 +155,8 @@ Deno.test("database constraints encode critical correctness boundaries", async (
       "check (revision > 0)",
       "evidence_deadline < refresh_expires_at",
       "refresh_requests_coordinator_v1_shape",
+      "evidence_challenges_nonce_hash_sha256",
+      "evidence_challenges_status_timestamps",
       "funding_target_atomic > 0",
       "funding_target_atomic <= 18446744073709551615",
       "octet_length(intent_core_hash) = 32",
@@ -187,6 +190,8 @@ Deno.test("database indexes cover geospatial and recovery paths", async () => {
       "refresh_acceptances_claim_duration_seconds_bounds",
       "refresh_acceptances_chain_signature_uq",
       "refresh_acceptances_active_reservation_idx",
+      "evidence_challenges_nonce_hash_uq",
+      "evidence_challenges_expiry_idx",
     ]
   ) {
     assertIncludes(sql, indexName);

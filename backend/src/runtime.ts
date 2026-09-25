@@ -1,7 +1,9 @@
 import { createApp } from "./app.ts";
 import { ClaimCoordinator } from "./claim-coordinator.ts";
+import { EvidenceChallengeService } from "./evidence-challenge-service.ts";
 import { SupabaseAuthVerifier } from "./auth.ts";
 import { PostgresClaimRepository } from "./postgres-claim-repository.ts";
+import { PostgresEvidenceChallengeRepository } from "./postgres-evidence-challenge-repository.ts";
 import { PostgresIdentityRepository } from "./postgres-identity-repository.ts";
 import { OpportunityMatcher } from "./opportunity-matcher.ts";
 import { PostgresOpportunityRepository } from "./postgres-opportunity-repository.ts";
@@ -45,6 +47,9 @@ export function createProductionHandler(): (request: Request) => Promise<Respons
   const stateRepository = new PostgresStateRepository(connectionString);
   const refreshRepository = new PostgresRefreshRepository(connectionString);
   const claimRepository = new PostgresClaimRepository(connectionString);
+  const evidenceChallengeRepository = new PostgresEvidenceChallengeRepository(
+    connectionString,
+  );
   const opportunityRepository = new PostgresOpportunityRepository(connectionString);
   const opportunityMatcher = new OpportunityMatcher(opportunityRepository);
   const chainObserver = new SolanaRpcRefreshChainObserver(
@@ -79,6 +84,9 @@ export function createProductionHandler(): (request: Request) => Promise<Respons
       ),
     },
   );
+  const evidenceChallengeService = new EvidenceChallengeService(
+    evidenceChallengeRepository,
+  );
   return createApp({
     authVerifier,
     identityRepository,
@@ -86,5 +94,6 @@ export function createProductionHandler(): (request: Request) => Promise<Respons
     refreshCoordinator,
     opportunityMatcher,
     claimCoordinator,
+    evidenceChallengeService,
   });
 }

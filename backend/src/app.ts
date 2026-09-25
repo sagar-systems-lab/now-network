@@ -1,5 +1,6 @@
 import type { AuthVerifier } from "./auth.ts";
 import type { ClaimCoordinator } from "./claim-coordinator.ts";
+import type { EvidenceChallengeService } from "./evidence-challenge-service.ts";
 import { ApiFault } from "./errors.ts";
 import {
   faultResponse,
@@ -39,6 +40,7 @@ export type AppDependencies = {
   refreshCoordinator?: RefreshCoordinator;
   opportunityMatcher?: OpportunityMatcher;
   claimCoordinator?: ClaimCoordinator;
+  evidenceChallengeService?: EvidenceChallengeService;
   now?: () => Date;
 };
 
@@ -85,6 +87,19 @@ export function createApp(dependencies: AppDependencies): (request: Request) => 
       );
     }
     return dependencies.claimCoordinator;
+  }
+
+  function requireEvidenceChallengeService(): EvidenceChallengeService {
+    if (!dependencies.evidenceChallengeService) {
+      throw new ApiFault(
+        503,
+        "EVIDENCE_CHALLENGE_UNAVAILABLE",
+        "Evidence challenge issuance is temporarily unavailable.",
+        true,
+        1_000,
+      );
+    }
+    return dependencies.evidenceChallengeService;
   }
 
   function requireOpportunityMatcher(): OpportunityMatcher {
@@ -200,6 +215,13 @@ export function createApp(dependencies: AppDependencies): (request: Request) => 
             signature: requiredString(body, "signature", 128),
           });
           return successResponse(id, data);
+        }
+        if (request.method === "POST" && claimRoute.action === "challenge") {
+          const data = await requireEvidenceChallengeService().issue(
+            actor,
+            claimRoute.acceptanceId,
+          );
+          return successResponse(id, data, 201);
         }
       }
 
@@ -380,14 +402,20 @@ function matchOpportunityClaimRoute(pathname: string): { refreshId: string } | n
 
 function matchClaimRoute(
   pathname: string,
-): { acceptanceId: string; action: "detail" | "observe" } | null {
-  const match = pathname.match(/(?:^|\/)v1\/claims\/([^/]+)(?:\/(observe))?$/u);
+): { acceptanceId: string; action: "detail" | "observe" | "challenge" } | null {
+  const match = pathname.match(
+    /(?:^|\/)v1\/claims\/([^/]+)(?:\/(observe|challenge))?$/u,
+  );
   if (!match) return null;
   if (!UUID_PATTERN.test(match[1])) {
     throw new ApiFault(400, "INVALID_REQUEST", "Invalid acceptance_id.");
   }
   return {
     acceptanceId: match[1],
-    action: match[2] === "observe" ? "observe" : "detail",
+    action: match[2] === "observe"
+      ? "observe"
+      : match[2] === "challenge"
+      ? "challenge"
+      : "detail",
   };
 }
