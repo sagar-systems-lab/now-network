@@ -28,9 +28,15 @@ create unique index evidence_challenges_reserved_evidence_id_uq
   where reserved_evidence_id is not null;
 
 alter table app.evidence_packets
+  add column commit_request_hash bytea,
   add constraint evidence_packets_digest_lengths
     check (
       octet_length(intent_core_hash) = 32
       and octet_length(execution_hash) = 32
       and (media_sha256 is null or octet_length(media_sha256) = 32)
+      and (commit_request_hash is null or octet_length(commit_request_hash) = 32)
     );
+
+create unique index evidence_packets_commit_request_actor_uq
+  on app.evidence_packets(actor_id, commit_request_hash)
+  where commit_request_hash is not null;
