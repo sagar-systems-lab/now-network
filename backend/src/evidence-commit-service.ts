@@ -302,11 +302,9 @@ export class EvidenceCommitService {
     }
 
     const observedAt = this.now();
+    const committedReplay = context.challengeStatus === "CONSUMED";
     if (
-      context.challengeStatus !== "ISSUED" ||
-      context.claimStatus !== "CAPTURE_ACTIVE" ||
-      context.refreshStatus !== "CAPTURE_IN_PROGRESS" ||
-      context.claimDeadline === null ||
+      (context.challengeStatus !== "ISSUED" && !committedReplay) ||
       context.reservedObjectKey === null ||
       context.reservedMediaMime === null
     ) {
@@ -317,10 +315,27 @@ export class EvidenceCommitService {
       );
     }
     if (
-      context.challengeExpiresAt.getTime() <= observedAt.getTime() ||
-      context.claimDeadline.getTime() <= observedAt.getTime() ||
-      context.evidenceDeadline.getTime() <= observedAt.getTime() ||
-      context.refreshExpiresAt.getTime() <= observedAt.getTime()
+      !committedReplay &&
+      (
+        context.claimStatus !== "CAPTURE_ACTIVE" ||
+        context.refreshStatus !== "CAPTURE_IN_PROGRESS" ||
+        context.claimDeadline === null
+      )
+    ) {
+      throw new ApiFault(
+        409,
+        "VERIFICATION_NOT_ELIGIBLE",
+        "Evidence is not eligible for commit.",
+      );
+    }
+    if (
+      !committedReplay &&
+      (
+        context.challengeExpiresAt.getTime() <= observedAt.getTime() ||
+        (context.claimDeadline?.getTime() ?? 0) <= observedAt.getTime() ||
+        context.evidenceDeadline.getTime() <= observedAt.getTime() ||
+        context.refreshExpiresAt.getTime() <= observedAt.getTime()
+      )
     ) {
       throw new ApiFault(
         410,
@@ -381,33 +396,20 @@ export class EvidenceCommitService {
       );
     }
 
-    let objectIntegrity;
-    try {
-      objectIntegrity = await this.storage.inspectUploadedObject(
-        context.reservedObjectKey,
-        this.maxMediaBytes,
-      );
-    } catch {
-      throw new ApiFault(
-        503,
-        "EVIDENCE_UPLOAD_UNAVAILABLE",
-        "Uploaded evidence could not be inspected yet.",
-        true,
-        1_000,
-      );
-    }
-
-    if (
-      objectIntegrity.sizeBytes !== mediaSizeBytes ||
-      objectIntegrity.mediaMime !== context.reservedMediaMime ||
-      !bytesEqual(objectIntegrity.sha256, mediaSha256)
-    ) {
-      throw new ApiFault(
-        409,
-        "EVIDENCE_MEDIA_INVALID",
-        "Uploaded evidence does not match the committed media metadata.",
-      );
-    }
+    const requestHash = await sha256Bytes(
+      encoder.encode(
+        canonicalJson({
+          evidence_id: input.evidenceId,
+          media_sha256: [...mediaSha256],
+          media_size_bytes: mediaSizeBytes,
+          answer_type: context.stateType,
+          answer_value: answerValue,
+          capture_started_monotonic_ms: captureStartedMonotonicMs,
+          capture_completed_monotonic_ms: captureCompletedMonotonicMs,
+          location_samples: samples,
+        }),
+      ),
+    );
 
     let executionHash = context.executionHash;
     if (executionHash === null) {
@@ -428,25 +430,40 @@ export class EvidenceCommitService {
       });
     }
 
-    transitionEvidence("UPLOADED", "COMMIT");
-    transitionClaim("CAPTURE_ACTIVE", "EVIDENCE_COMMITTED", {
-      evidenceCommittedBeforeDeadline: true,
-    });
+    if (!committedReplay) {
+      let objectIntegrity;
+      try {
+        objectIntegrity = await this.storage.inspectUploadedObject(
+          context.reservedObjectKey,
+          this.maxMediaBytes,
+        );
+      } catch {
+        throw new ApiFault(
+          503,
+          "EVIDENCE_UPLOAD_UNAVAILABLE",
+          "Uploaded evidence could not be inspected yet.",
+          true,
+          1_000,
+        );
+      }
 
-    const requestHash = await sha256Bytes(
-      encoder.encode(
-        canonicalJson({
-          evidence_id: input.evidenceId,
-          media_sha256: [...mediaSha256],
-          media_size_bytes: mediaSizeBytes,
-          answer_type: context.stateType,
-          answer_value: answerValue,
-          capture_started_monotonic_ms: captureStartedMonotonicMs,
-          capture_completed_monotonic_ms: captureCompletedMonotonicMs,
-          location_samples: samples,
-        }),
-      ),
-    );
+      if (
+        objectIntegrity.sizeBytes !== mediaSizeBytes ||
+        objectIntegrity.mediaMime !== context.reservedMediaMime ||
+        !bytesEqual(objectIntegrity.sha256, mediaSha256)
+      ) {
+        throw new ApiFault(
+          409,
+          "EVIDENCE_MEDIA_INVALID",
+          "Uploaded evidence does not match the committed media metadata.",
+        );
+      }
+
+      transitionEvidence("UPLOADED", "COMMIT");
+      transitionClaim("CAPTURE_ACTIVE", "EVIDENCE_COMMITTED", {
+        evidenceCommittedBeforeDeadline: true,
+      });
+    }
 
     const result = await this.repository.commitEvidence({
       evidenceId: input.evidenceId,
@@ -471,11 +488,18 @@ export class EvidenceCommitService {
       throw commitFault(result);
     }
 
-    transitionEvidence("COMMITTING", result.kind === "replayed" ? "IDEMPOTENT_DUPLICATE" : "COMMIT_OK", {
-      commitAccepted: result.kind === "committed",
-      commitAlreadyAccepted: result.kind === "replayed",
-    });
-    if (result.refreshStatus === "EVIDENCE_SUBMITTED") {
+    transitionEvidence(
+      "COMMITTING",
+      result.kind === "replayed" ? "IDEMPOTENT_DUPLICATE" : "COMMIT_OK",
+      {
+        commitAccepted: result.kind === "committed",
+        commitAlreadyAccepted: result.kind === "replayed",
+      },
+    );
+    if (
+      result.kind === "committed" &&
+      result.refreshStatus === "EVIDENCE_SUBMITTED"
+    ) {
       transitionRefresh("CAPTURE_IN_PROGRESS", "EVIDENCE_COMMITTED", {
         evidenceCommitted: true,
         refreshExpired: false,
