@@ -135,6 +135,14 @@ function selectedCount(mask: number): number {
   return count;
 }
 
+function selectedSlots(mask: number): number[] {
+  const slots: number[] = [];
+  for (let bit = 0; bit < 3; bit += 1) {
+    if ((mask & (1 << bit)) !== 0) slots.push(bit);
+  }
+  return slots;
+}
+
 export function settlementVerifierFromJson(raw: string): Keypair {
   let decoded: unknown;
   try {
@@ -342,10 +350,32 @@ export class SolanaSettlementClient implements SettlementChainClient {
       );
     }
 
-    const recipients = operation.recipientWallets.map((wallet) => {
+    const slots = selectedSlots(operation.recipientMask);
+    const recipients = operation.recipientWallets.map((wallet, index) => {
       try {
-        return deriveAssociatedTokenAddress(new PublicKey(wallet), rewardMint);
-      } catch {
+        const claimant = new PublicKey(wallet);
+        const slot = slots[index];
+        if (slot === undefined) {
+          throw new Error("recipient slot missing");
+        }
+        const claimantOffset = 272 + slot * 32;
+        const claimStatusOffset = 416 + slot;
+        if (
+          refreshData[claimStatusOffset] !== 1 ||
+          !bytesEqual(
+            refreshData.slice(claimantOffset, claimantOffset + 32),
+            claimant.toBuffer(),
+          )
+        ) {
+          throw new SettlementChainError(
+            "SETTLEMENT_RECIPIENT_AUTHORITY_DRIFT",
+            false,
+            "Stored settlement recipient does not match the on-chain claim slot.",
+          );
+        }
+        return deriveAssociatedTokenAddress(claimant, rewardMint);
+      } catch (error) {
+        if (error instanceof SettlementChainError) throw error;
         throw new SettlementChainError(
           "SETTLEMENT_RECIPIENT_INVALID",
           false,
