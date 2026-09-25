@@ -6,7 +6,8 @@ alter table app.settlement_operations
   add column refresh_expires_at timestamptz,
   add column reward_mint text,
   add column locked_reward_atomic numeric(20,0),
-  add column chain_refresh_address text;
+  add column chain_refresh_address text,
+  add column signed_transaction_base64 text;
 
 update app.settlement_operations so
 set
@@ -34,6 +35,7 @@ begin
        or reward_mint is null
        or locked_reward_atomic is null
        or chain_refresh_address is null
+       or (chain_signature is not null and signed_transaction_base64 is null)
   ) then
     raise exception 'existing settlement operation cannot be upgraded safely';
   end if;
@@ -54,7 +56,10 @@ alter table app.settlement_operations
   add constraint settlement_operations_recipient_mask_ck
     check (recipient_mask between 1 and 7),
   add constraint settlement_operations_recipient_wallets_ck
-    check (cardinality(recipient_wallets) between 1 and 3),
+    check (
+      cardinality(recipient_wallets) between 1 and 3
+      and array_position(recipient_wallets, null) is null
+    ),
   add constraint settlement_operations_chain_refresh_id_32_ck
     check (octet_length(chain_refresh_id) = 32),
   add constraint settlement_operations_locked_reward_ck
@@ -68,12 +73,21 @@ alter table app.settlement_operations
     check (length(btrim(chain_refresh_address)) > 0),
   add constraint settlement_operations_attempt_shape_ck
     check (
-      chain_signature is null
+      (
+        chain_signature is null
+        and recent_blockhash is null
+        and last_valid_block_height is null
+        and signed_transaction_base64 is null
+      )
       or (
-        recent_blockhash is not null
+        chain_signature is not null
+        and length(btrim(chain_signature)) > 0
+        and recent_blockhash is not null
         and length(btrim(recent_blockhash)) > 0
         and last_valid_block_height is not null
         and last_valid_block_height >= 0
+        and signed_transaction_base64 is not null
+        and length(btrim(signed_transaction_base64)) > 0
       )
     );
 
@@ -84,6 +98,7 @@ create index settlement_operations_reconcile_idx
   on app.settlement_operations(status, next_reconcile_at)
   where status in (
     'ELIGIBLE',
+    'SUBMITTING',
     'SUBMITTED',
     'VERIFYING',
     'CONFIRMED',

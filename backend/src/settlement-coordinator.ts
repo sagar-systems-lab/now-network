@@ -3,6 +3,7 @@ import {
 } from "../../packages/domain/src/payment-machine.ts";
 import { transitionRefresh } from "../../packages/domain/src/refresh-machine.ts";
 import {
+  bytesToHex,
   deriveSettlementOperationHashV1,
 } from "./settlement-identity.ts";
 import type {
@@ -11,6 +12,7 @@ import type {
 } from "./settlement-repository.ts";
 import {
   SettlementChainError,
+  type PreparedSettlementAttempt,
   type SettlementChainClient,
   type SettlementInspection,
 } from "./solana-settlement-client.ts";
@@ -45,8 +47,28 @@ function recipientMask(operation: {
   return mask;
 }
 
+function persistedAttempt(
+  operation: SettlementOperation,
+): PreparedSettlementAttempt {
+  if (
+    operation.chainSignature === null ||
+    operation.recentBlockhash === null ||
+    operation.lastValidBlockHeight === null ||
+    operation.signedTransactionBase64 === null
+  ) {
+    throw new Error("reserved settlement attempt is incomplete");
+  }
+  return {
+    signature: operation.chainSignature,
+    recentBlockhash: operation.recentBlockhash,
+    lastValidBlockHeight: operation.lastValidBlockHeight,
+    signedTransactionBase64: operation.signedTransactionBase64,
+  };
+}
+
 export type SettlementTickSummary = {
   prepared: number;
+  signed: number;
   submitted: number;
   ambiguous: number;
   pending: number;
@@ -108,43 +130,96 @@ export class SettlementCoordinator {
     if (created.kind === "authority_conflict") {
       throw new Error("settlement authority changed during operation creation");
     }
-    return created.operation;
+
+    const persisted = created.operation;
+    const persistedHash = await deriveSettlementOperationHashV1({
+      chainRefreshId: persisted.chainRefreshId,
+      executionHash: persisted.executionHash,
+      verificationDigest: persisted.verificationDigest,
+      operationId: persisted.operationId,
+      recipientMask: persisted.recipientMask,
+    });
+    if (bytesToHex(persistedHash) !== bytesToHex(persisted.operationHash)) {
+      throw new Error("persisted settlement operation identity is inconsistent");
+    }
+    return persisted;
   }
 
-  private async submit(
+  private async defer(
+    operation: SettlementOperation,
+    errorCode: string,
+    summary: SettlementTickSummary,
+  ): Promise<void> {
+    const observedAt = this.now();
+    await this.repository.defer({
+      settlementId: operation.settlementId,
+      nextReconcileAt: this.nextReconcileAt(observedAt),
+      errorCode,
+      observedAt,
+    });
+    summary.deferred += 1;
+  }
+
+  private async reserveNewAttempt(
+    operation: SettlementOperation,
+    summary: SettlementTickSummary,
+  ): Promise<SettlementOperation | null> {
+    const observedAt = this.now();
+    let prepared: PreparedSettlementAttempt;
+    try {
+      prepared = await this.chain.prepare(operation);
+    } catch (error) {
+      if (error instanceof SettlementChainError && !error.retryable) {
+        await this.repository.markAuthorityConflict({
+          settlementId: operation.settlementId,
+          errorCode: error.code,
+          observedAt,
+        });
+        summary.conflicts += 1;
+        return null;
+      }
+      await this.defer(
+        operation,
+        error instanceof SettlementChainError
+          ? error.code
+          : "SETTLEMENT_PREPARATION_UNAVAILABLE",
+        summary,
+      );
+      return null;
+    }
+
+    const reserved = await this.repository.reserveAttempt({
+      settlementId: operation.settlementId,
+      chainSignature: prepared.signature,
+      recentBlockhash: prepared.recentBlockhash,
+      lastValidBlockHeight: prepared.lastValidBlockHeight,
+      signedTransactionBase64: prepared.signedTransactionBase64,
+      observedAt,
+    });
+    if (reserved.kind === "not_found") {
+      throw new Error("settlement operation disappeared before attempt reservation");
+    }
+    if (reserved.kind === "authority_conflict") {
+      await this.repository.markAuthorityConflict({
+        settlementId: operation.settlementId,
+        errorCode: "SETTLEMENT_ATTEMPT_RESERVATION_CONFLICT",
+        observedAt,
+      });
+      summary.conflicts += 1;
+      return null;
+    }
+    if (reserved.kind === "updated") summary.signed += 1;
+    return reserved.operation;
+  }
+
+  private async broadcastReserved(
     operation: SettlementOperation,
     summary: SettlementTickSummary,
   ): Promise<void> {
     const observedAt = this.now();
+    let broadcast;
     try {
-      const submission = await this.chain.submit(operation);
-      if (submission.kind === "ambiguous") {
-        transitionPayment("PENDING", "OUTCOME_AMBIGUOUS");
-        await this.repository.markAttempt({
-          settlementId: operation.settlementId,
-          chainSignature: submission.signature,
-          recentBlockhash: submission.recentBlockhash,
-          lastValidBlockHeight: submission.lastValidBlockHeight,
-          ambiguous: true,
-          nextReconcileAt: this.nextReconcileAt(observedAt),
-          errorCode: submission.errorCode,
-          observedAt,
-        });
-        summary.ambiguous += 1;
-        return;
-      }
-
-      await this.repository.markAttempt({
-        settlementId: operation.settlementId,
-        chainSignature: submission.signature,
-        recentBlockhash: submission.recentBlockhash,
-        lastValidBlockHeight: submission.lastValidBlockHeight,
-        ambiguous: false,
-        nextReconcileAt: this.nextReconcileAt(observedAt),
-        errorCode: null,
-        observedAt,
-      });
-      summary.submitted += 1;
+      broadcast = await this.chain.broadcast(persistedAttempt(operation));
     } catch (error) {
       if (error instanceof SettlementChainError && !error.retryable) {
         await this.repository.markAuthorityConflict({
@@ -155,16 +230,37 @@ export class SettlementCoordinator {
         summary.conflicts += 1;
         return;
       }
-      await this.repository.defer({
-        settlementId: operation.settlementId,
-        nextReconcileAt: this.nextReconcileAt(observedAt),
-        errorCode: error instanceof SettlementChainError
+      await this.defer(
+        operation,
+        error instanceof SettlementChainError
           ? error.code
-          : "SETTLEMENT_DEPENDENCY_UNAVAILABLE",
-        observedAt,
-      });
-      summary.deferred += 1;
+          : "SETTLEMENT_BROADCAST_UNAVAILABLE",
+        summary,
+      );
+      return;
     }
+
+    const ambiguous = broadcast.kind === "ambiguous";
+    if (ambiguous) {
+      transitionPayment("PENDING", "OUTCOME_AMBIGUOUS");
+    }
+    const marked = await this.repository.markBroadcast({
+      settlementId: operation.settlementId,
+      chainSignature: persistedAttempt(operation).signature,
+      ambiguous,
+      nextReconcileAt: this.nextReconcileAt(observedAt),
+      errorCode: ambiguous ? broadcast.errorCode : null,
+      observedAt,
+    });
+    if (
+      marked.kind === "not_found" ||
+      marked.kind === "authority_conflict"
+    ) {
+      throw new Error("settlement broadcast lost its reserved attempt identity");
+    }
+
+    if (ambiguous) summary.ambiguous += 1;
+    else summary.submitted += 1;
   }
 
   private async applyInspection(
@@ -174,12 +270,11 @@ export class SettlementCoordinator {
   ): Promise<void> {
     switch (inspection.kind) {
       case "pending":
-        await this.repository.defer({
-          settlementId: operation.settlementId,
-          nextReconcileAt: this.nextReconcileAt(this.now()),
-          errorCode: "SETTLEMENT_CONFIRMATION_PENDING",
-          observedAt: this.now(),
-        });
+        await this.defer(
+          operation,
+          "SETTLEMENT_CONFIRMATION_PENDING",
+          summary,
+        );
         summary.pending += 1;
         return;
 
@@ -240,7 +335,13 @@ export class SettlementCoordinator {
     summary: SettlementTickSummary,
   ): Promise<void> {
     if (operation.status === "ELIGIBLE") {
-      await this.submit(operation, summary);
+      const reserved = await this.reserveNewAttempt(operation, summary);
+      if (reserved !== null) await this.broadcastReserved(reserved, summary);
+      return;
+    }
+
+    if (operation.status === "SUBMITTING") {
+      await this.broadcastReserved(operation, summary);
       return;
     }
 
@@ -254,18 +355,20 @@ export class SettlementCoordinator {
         summary.conflicts += 1;
         return;
       }
-      // Re-check the old attempt before reusing the logical operation.
+
       const inspection = await this.chain.inspect(operation);
       if (inspection.kind !== "not_settled") {
         await this.applyInspection(operation, inspection, summary);
         return;
       }
+
       transitionPayment("NOT_SETTLED", "RETRY_SETTLEMENT", {
         retryAuthorized: true,
         settlementDefinitivelyAbsent: true,
         sameOperationIdentity: true,
       });
-      await this.submit(operation, summary);
+      const reserved = await this.reserveNewAttempt(operation, summary);
+      if (reserved !== null) await this.broadcastReserved(reserved, summary);
       return;
     }
 
@@ -287,15 +390,13 @@ export class SettlementCoordinator {
           summary.conflicts += 1;
           return;
         }
-        await this.repository.defer({
-          settlementId: operation.settlementId,
-          nextReconcileAt: this.nextReconcileAt(this.now()),
-          errorCode: error instanceof SettlementChainError
+        await this.defer(
+          operation,
+          error instanceof SettlementChainError
             ? error.code
             : "SETTLEMENT_RECONCILIATION_UNAVAILABLE",
-          observedAt: this.now(),
-        });
-        summary.deferred += 1;
+          summary,
+        );
       }
     }
   }
@@ -304,6 +405,7 @@ export class SettlementCoordinator {
     const boundedLimit = Math.max(1, Math.min(32, Math.trunc(limit)));
     const summary: SettlementTickSummary = {
       prepared: 0,
+      signed: 0,
       submitted: 0,
       ambiguous: 0,
       pending: 0,

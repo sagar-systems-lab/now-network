@@ -46,6 +46,7 @@ export type SettlementOperation = {
   chainSignature: string | null;
   recentBlockhash: string | null;
   lastValidBlockHeight: number | null;
+  signedTransactionBase64: string | null;
   chainCommitment: string | null;
   attemptCount: number;
   nextReconcileAt: Date | null;
@@ -88,11 +89,18 @@ export interface SettlementRepository {
     limit: number;
   }): Promise<SettlementOperation[]>;
 
-  markAttempt(input: {
+  reserveAttempt(input: {
     settlementId: string;
     chainSignature: string;
     recentBlockhash: string;
     lastValidBlockHeight: number;
+    signedTransactionBase64: string;
+    observedAt: Date;
+  }): Promise<SettlementMutationResult>;
+
+  markBroadcast(input: {
+    settlementId: string;
+    chainSignature: string;
     ambiguous: boolean;
     nextReconcileAt: Date;
     errorCode: string | null;

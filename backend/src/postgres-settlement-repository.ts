@@ -59,6 +59,7 @@ type OperationRow = {
   chain_signature: string | null;
   recent_blockhash: string | null;
   last_valid_block_height: number | string | null;
+  signed_transaction_base64: string | null;
   chain_commitment: string | null;
   attempt_count: number | string;
   next_reconcile_at: DateLike | null;
@@ -125,6 +126,7 @@ function operationFromRow(row: OperationRow): SettlementOperation {
     lastValidBlockHeight: row.last_valid_block_height === null
       ? null
       : Number(row.last_valid_block_height),
+    signedTransactionBase64: row.signed_transaction_base64,
     chainCommitment: row.chain_commitment,
     attemptCount: Number(row.attempt_count),
     nextReconcileAt: row.next_reconcile_at === null ? null : date(row.next_reconcile_at),
@@ -159,6 +161,7 @@ const SELECT_OPERATION = String.raw`
     chain_signature,
     recent_blockhash,
     last_valid_block_height,
+    signed_transaction_base64,
     chain_commitment,
     attempt_count,
     next_reconcile_at,
@@ -388,12 +391,16 @@ export class PostgresSettlementRepository implements SettlementRepository {
         const wallets = input.eligibility.beneficiaries.map((item) => item.walletAddress);
         if (
           existing.verificationResultId !== input.eligibility.verificationResultId ||
-          !bytesEqual(existing.operationHash, input.operationHash) ||
           !bytesEqual(existing.verificationDigest, input.eligibility.verificationDigest) ||
           !bytesEqual(existing.executionHash, input.eligibility.executionHash) ||
           existing.recipientMask !== input.recipientMask ||
           !stringsEqual(existing.recipientWallets, wallets) ||
-          !bytesEqual(existing.chainRefreshId, input.eligibility.chainRefreshId)
+          !bytesEqual(existing.chainRefreshId, input.eligibility.chainRefreshId) ||
+          existing.chainRefreshAddress !== input.eligibility.chainRefreshAddress ||
+          existing.refreshExpiresAt.getTime() !==
+            input.eligibility.refreshExpiresAt.getTime() ||
+          existing.rewardMint !== input.eligibility.rewardMint ||
+          existing.lockedRewardAtomic !== input.eligibility.lockedRewardAtomic
         ) {
           return { kind: "authority_conflict" } as const;
         }
@@ -545,7 +552,14 @@ export class PostgresSettlementRepository implements SettlementRepository {
     const limit = Math.max(1, Math.min(100, Math.trunc(input.limit)));
     const rows = await this.sql.unsafe(
       `${SELECT_OPERATION}
-       where status in ('ELIGIBLE', 'SUBMITTED', 'VERIFYING', 'CONFIRMED', 'NOT_SETTLED')
+       where status in (
+         'ELIGIBLE',
+         'SUBMITTING',
+         'SUBMITTED',
+         'VERIFYING',
+         'CONFIRMED',
+         'NOT_SETTLED'
+       )
          and (next_reconcile_at is null or next_reconcile_at <= $1)
        order by coalesce(next_reconcile_at, created_at), created_at, settlement_id
        limit $2`,
@@ -554,8 +568,8 @@ export class PostgresSettlementRepository implements SettlementRepository {
     return rows.map((row) => operationFromRow(row as unknown as OperationRow));
   }
 
-  async markAttempt(
-    input: Parameters<SettlementRepository["markAttempt"]>[0],
+  async reserveAttempt(
+    input: Parameters<SettlementRepository["reserveAttempt"]>[0],
   ): Promise<SettlementMutationResult> {
     return await this.sql.begin(async (tx) => {
       const rows = await tx.unsafe(
@@ -565,12 +579,7 @@ export class PostgresSettlementRepository implements SettlementRepository {
       if (!rows[0]) return { kind: "not_found" } as const;
       const current = operationFromRow(rows[0] as unknown as OperationRow);
 
-      if (
-        current.chainSignature === input.chainSignature &&
-        current.recentBlockhash === input.recentBlockhash &&
-        current.lastValidBlockHeight === input.lastValidBlockHeight &&
-        ["SUBMITTED", "VERIFYING", "CONFIRMED", "FINALIZED"].includes(current.status)
-      ) {
+      if (current.status === "SUBMITTING") {
         return { kind: "replayed", operation: current } as const;
       }
       if (!["ELIGIBLE", "NOT_SETTLED"].includes(current.status)) {
@@ -586,16 +595,93 @@ export class PostgresSettlementRepository implements SettlementRepository {
       `;
       if (signatureRows[0]) return { kind: "authority_conflict" } as const;
 
+      await tx`
+        update app.settlement_operations
+        set
+          status = 'SUBMITTING',
+          chain_signature = ${input.chainSignature},
+          recent_blockhash = ${input.recentBlockhash},
+          last_valid_block_height = ${input.lastValidBlockHeight},
+          signed_transaction_base64 = ${input.signedTransactionBase64},
+          chain_commitment = null,
+          attempt_count = attempt_count + 1,
+          next_reconcile_at = ${input.observedAt},
+          last_chain_observed_at = ${input.observedAt},
+          last_error_code = null,
+          updated_at = ${input.observedAt}
+        where settlement_id = ${input.settlementId}::uuid
+      `;
+
+      await tx`
+        insert into app.domain_events(
+          event_id,
+          entity_type,
+          entity_id,
+          event_type,
+          operation_id,
+          payload,
+          occurred_at
+        ) values (
+          ${crypto.randomUUID()}::uuid,
+          'settlement',
+          ${current.settlementId}::uuid,
+          'SETTLEMENT_ATTEMPT_RESERVED',
+          ${current.operationId}::uuid,
+          ${JSON.stringify({
+            chain_signature: input.chainSignature,
+            last_valid_block_height: input.lastValidBlockHeight,
+            attempt: current.attemptCount + 1,
+          })}::jsonb,
+          ${input.observedAt}
+        )
+      `;
+
+      const updatedRows = await tx.unsafe(
+        `${SELECT_OPERATION} where settlement_id = $1::uuid limit 1`,
+        [input.settlementId],
+      );
+      return {
+        kind: "updated",
+        operation: operationFromRow(updatedRows[0] as unknown as OperationRow),
+      } as const;
+    });
+  }
+
+  async markBroadcast(
+    input: Parameters<SettlementRepository["markBroadcast"]>[0],
+  ): Promise<SettlementMutationResult> {
+    return await this.sql.begin(async (tx) => {
+      const rows = await tx.unsafe(
+        `${SELECT_OPERATION} where settlement_id = $1::uuid limit 1 for update`,
+        [input.settlementId],
+      );
+      if (!rows[0]) return { kind: "not_found" } as const;
+      const current = operationFromRow(rows[0] as unknown as OperationRow);
+
+      if (current.chainSignature !== input.chainSignature) {
+        return { kind: "authority_conflict" } as const;
+      }
+      if (
+        current.status === "FINALIZED" ||
+        current.status === "CONFIRMED" ||
+        current.status === "SUBMITTED" ||
+        (current.status === "VERIFYING" && input.ambiguous)
+      ) {
+        return { kind: "replayed", operation: current } as const;
+      }
+      if (
+        current.status !== "SUBMITTING" &&
+        !(current.status === "VERIFYING" && !input.ambiguous)
+      ) {
+        return { kind: "authority_conflict" } as const;
+      }
+
       const status: SettlementStatus = input.ambiguous ? "VERIFYING" : "SUBMITTED";
       await tx`
         update app.settlement_operations
         set
           status = ${status},
-          chain_signature = ${input.chainSignature},
-          recent_blockhash = ${input.recentBlockhash},
-          last_valid_block_height = ${input.lastValidBlockHeight},
           chain_commitment = null,
-          attempt_count = attempt_count + 1,
           next_reconcile_at = ${input.nextReconcileAt},
           last_chain_observed_at = ${input.observedAt},
           last_error_code = ${input.errorCode},
@@ -608,7 +694,8 @@ export class PostgresSettlementRepository implements SettlementRepository {
           update app.refresh_requests
           set
             status = case
-              when status = 'SETTLEMENT_PENDING' then 'SETTLEMENT_VERIFYING'::app.refresh_status
+              when status = 'SETTLEMENT_PENDING'
+                then 'SETTLEMENT_VERIFYING'::app.refresh_status
               else status
             end,
             updated_at = ${input.observedAt},
@@ -631,12 +718,13 @@ export class PostgresSettlementRepository implements SettlementRepository {
           ${crypto.randomUUID()}::uuid,
           'settlement',
           ${current.settlementId}::uuid,
-          ${input.ambiguous ? "SETTLEMENT_OUTCOME_UNKNOWN" : "SETTLEMENT_SUBMITTED"},
+          ${input.ambiguous
+            ? "SETTLEMENT_BROADCAST_AMBIGUOUS"
+            : "SETTLEMENT_SUBMITTED"},
           ${current.operationId}::uuid,
           ${JSON.stringify({
             chain_signature: input.chainSignature,
-            last_valid_block_height: input.lastValidBlockHeight,
-            attempt: current.attemptCount + 1,
+            attempt: current.attemptCount,
           })}::jsonb,
           ${input.observedAt}
         )

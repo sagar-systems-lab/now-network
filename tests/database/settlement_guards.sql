@@ -9,7 +9,8 @@ declare
   recipient_mask_constraint text;
   recipient_wallets_constraint text;
   chain_refresh_constraint text;
-  expiry_not_null boolean;
+  attempt_shape_constraint text;
+  expiry_nullable boolean;
   verification_index text;
   reconcile_index text;
   signature_index text;
@@ -69,14 +70,28 @@ begin
     raise exception 'settlement chain refresh identity guard missing';
   end if;
 
+  select pg_get_constraintdef(oid)
+  into attempt_shape_constraint
+  from pg_constraint
+  where conrelid = 'app.settlement_operations'::regclass
+    and conname = 'settlement_operations_attempt_shape_ck';
+
+  if attempt_shape_constraint is null
+     or position('chain_signature' in lower(attempt_shape_constraint)) = 0
+     or position('recent_blockhash' in lower(attempt_shape_constraint)) = 0
+     or position('last_valid_block_height' in lower(attempt_shape_constraint)) = 0
+     or position('signed_transaction_base64' in lower(attempt_shape_constraint)) = 0 then
+    raise exception 'settlement persisted-attempt guard missing';
+  end if;
+
   select not a.attnotnull
-  into expiry_not_null
+  into expiry_nullable
   from pg_attribute a
   where a.attrelid = 'app.settlement_operations'::regclass
     and a.attname = 'refresh_expires_at'
     and not a.attisdropped;
 
-  if coalesce(expiry_not_null, true) then
+  if coalesce(expiry_nullable, true) then
     raise exception 'settlement refresh expiry snapshot must be NOT NULL';
   end if;
 
@@ -100,6 +115,7 @@ begin
     and indexname = 'settlement_operations_reconcile_idx';
 
   if reconcile_index is null
+     or position('SUBMITTING' in reconcile_index) = 0
      or position('NOT_SETTLED' in reconcile_index) = 0
      or position('VERIFYING' in reconcile_index) = 0 then
     raise exception 'settlement reconciliation index missing';

@@ -26,20 +26,16 @@ type RpcResponse<T> = {
   error?: unknown;
 };
 
-export type SettlementSubmission =
-  | {
-    kind: "submitted";
-    signature: string;
-    recentBlockhash: string;
-    lastValidBlockHeight: number;
-  }
-  | {
-    kind: "ambiguous";
-    signature: string;
-    recentBlockhash: string;
-    lastValidBlockHeight: number;
-    errorCode: string;
-  };
+export type PreparedSettlementAttempt = {
+  signature: string;
+  recentBlockhash: string;
+  lastValidBlockHeight: number;
+  signedTransactionBase64: string;
+};
+
+export type SettlementBroadcast =
+  | { kind: "accepted" }
+  | { kind: "ambiguous"; errorCode: string };
 
 export type SettlementInspection =
   | { kind: "pending" }
@@ -53,7 +49,8 @@ export type SettlementInspection =
   | { kind: "authority_conflict"; errorCode: string; observedAt: Date };
 
 export interface SettlementChainClient {
-  submit(operation: SettlementOperation): Promise<SettlementSubmission>;
+  prepare(operation: SettlementOperation): Promise<PreparedSettlementAttempt>;
+  broadcast(attempt: PreparedSettlementAttempt): Promise<SettlementBroadcast>;
   inspect(operation: SettlementOperation): Promise<SettlementInspection>;
 }
 
@@ -84,6 +81,11 @@ function u16(data: Uint8Array, offset: number): number {
 function u64(data: Uint8Array, offset: number): bigint {
   return new DataView(data.buffer, data.byteOffset, data.byteLength)
     .getBigUint64(offset, true);
+}
+
+function i64(data: Uint8Array, offset: number): bigint {
+  return new DataView(data.buffer, data.byteOffset, data.byteLength)
+    .getBigInt64(offset, true);
 }
 
 async function discriminator(name: string): Promise<Uint8Array> {
@@ -120,19 +122,14 @@ function ownerOf(value: unknown): string | null {
   return typeof owner === "string" ? owner : null;
 }
 
-function deriveAssociatedTokenAddress(owner: PublicKey, mint: PublicKey): PublicKey {
+function deriveAssociatedTokenAddress(
+  owner: PublicKey,
+  mint: PublicKey,
+): PublicKey {
   return PublicKey.findProgramAddressSync(
     [owner.toBuffer(), TOKEN_PROGRAM_ID.toBuffer(), mint.toBuffer()],
     ASSOCIATED_TOKEN_PROGRAM_ID,
   )[0];
-}
-
-function selectedCount(mask: number): number {
-  let count = 0;
-  for (let bit = 0; bit < 3; bit += 1) {
-    if ((mask & (1 << bit)) !== 0) count += 1;
-  }
-  return count;
 }
 
 function selectedSlots(mask: number): number[] {
@@ -173,6 +170,7 @@ export class SolanaSettlementClient implements SettlementChainClient {
     private readonly verifier: Keypair,
     programId = NOW_SETTLEMENT_PROGRAM_ID,
     private readonly fetchImpl: FetchLike = fetch,
+    private readonly now: () => Date = () => new Date(),
   ) {
     this.programId = new PublicKey(programId);
     this.configAddress = PublicKey.findProgramAddressSync(
@@ -263,12 +261,13 @@ export class SolanaSettlementClient implements SettlementChainClient {
       );
     }
 
+    const slots = selectedSlots(operation.recipientMask);
     if (
       operation.chainRefreshId.length !== 32 ||
       operation.executionHash.length !== 32 ||
       operation.verificationDigest.length !== 32 ||
       operation.operationHash.length !== 32 ||
-      selectedCount(operation.recipientMask) !== operation.recipientWallets.length
+      slots.length !== operation.recipientWallets.length
     ) {
       throw new SettlementChainError(
         "SETTLEMENT_AUTHORITY_INVALID",
@@ -332,13 +331,9 @@ export class SolanaSettlementClient implements SettlementChainClient {
         refreshData.slice(202, 234),
         this.verifier.publicKey.toBuffer(),
       ) ||
+      i64(refreshData, 242) !==
+        BigInt(Math.floor(operation.refreshExpiresAt.getTime() / 1_000)) ||
       refreshData[254] !== 1 ||
-      new DataView(
-        refreshData.buffer,
-        refreshData.byteOffset,
-        refreshData.byteLength,
-      ).getBigInt64(242, true) !==
-        BigInt(Math.floor(operation.refreshExpiresAt.getTime() / 1000)) ||
       u64(refreshData, 263) !== operation.lockedRewardAtomic ||
       refreshData[271] !== 1 ||
       !refreshData.slice(467, 499).every((byte) => byte === 0)
@@ -350,14 +345,11 @@ export class SolanaSettlementClient implements SettlementChainClient {
       );
     }
 
-    const slots = selectedSlots(operation.recipientMask);
     const recipients = operation.recipientWallets.map((wallet, index) => {
       try {
         const claimant = new PublicKey(wallet);
         const slot = slots[index];
-        if (slot === undefined) {
-          throw new Error("recipient slot missing");
-        }
+        if (slot === undefined) throw new Error("recipient slot missing");
         const claimantOffset = 272 + slot * 32;
         const claimStatusOffset = 416 + slot;
         if (
@@ -387,8 +379,10 @@ export class SolanaSettlementClient implements SettlementChainClient {
     return { refresh, rewardMint, vault, recipients };
   }
 
-  async submit(operation: SettlementOperation): Promise<SettlementSubmission> {
-    if (Date.now() > operation.refreshExpiresAt.getTime()) {
+  async prepare(
+    operation: SettlementOperation,
+  ): Promise<PreparedSettlementAttempt> {
+    if (this.now().getTime() > operation.refreshExpiresAt.getTime()) {
       throw new SettlementChainError(
         "SETTLEMENT_WINDOW_EXPIRED",
         false,
@@ -479,9 +473,20 @@ export class SolanaSettlementClient implements SettlementChainClient {
       verifySignatures: true,
     });
 
+    return {
+      signature,
+      recentBlockhash: latest.value.blockhash,
+      lastValidBlockHeight: latest.value.lastValidBlockHeight,
+      signedTransactionBase64: Buffer.from(raw).toString("base64"),
+    };
+  }
+
+  async broadcast(
+    attempt: PreparedSettlementAttempt,
+  ): Promise<SettlementBroadcast> {
     try {
       const response = await this.rpcRaw<string>("sendTransaction", [
-        Buffer.from(raw).toString("base64"),
+        attempt.signedTransactionBase64,
         {
           encoding: "base64",
           skipPreflight: false,
@@ -492,29 +497,18 @@ export class SolanaSettlementClient implements SettlementChainClient {
       if (
         response.error !== undefined ||
         typeof response.result !== "string" ||
-        response.result !== signature
+        response.result !== attempt.signature
       ) {
         return {
           kind: "ambiguous",
-          signature,
-          recentBlockhash: latest.value.blockhash,
-          lastValidBlockHeight: latest.value.lastValidBlockHeight,
           errorCode: "SETTLEMENT_SUBMISSION_AMBIGUOUS",
         };
       }
-      return {
-        kind: "submitted",
-        signature,
-        recentBlockhash: latest.value.blockhash,
-        lastValidBlockHeight: latest.value.lastValidBlockHeight,
-      };
+      return { kind: "accepted" };
     } catch (error) {
       if (error instanceof SettlementChainError && !error.retryable) throw error;
       return {
         kind: "ambiguous",
-        signature,
-        recentBlockhash: latest.value.blockhash,
-        lastValidBlockHeight: latest.value.lastValidBlockHeight,
         errorCode: error instanceof SettlementChainError
           ? error.code
           : "SETTLEMENT_SUBMISSION_AMBIGUOUS",
@@ -523,10 +517,11 @@ export class SolanaSettlementClient implements SettlementChainClient {
   }
 
   async inspect(operation: SettlementOperation): Promise<SettlementInspection> {
-    const observedAt = new Date();
+    const observedAt = this.now();
     if (
       operation.chainSignature === null ||
-      operation.lastValidBlockHeight === null
+      operation.lastValidBlockHeight === null ||
+      operation.signedTransactionBase64 === null
     ) {
       return {
         kind: "authority_conflict",
