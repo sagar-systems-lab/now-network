@@ -140,22 +140,20 @@ function evaluatePolicy(
   if (context.stateType === "NUMERIC") {
     const values = reports.map((item) => item.answerValue);
     if (!values.every((value) => typeof value === "number" && Number.isSafeInteger(value))) {
-      return {
-        result: "REJECTED",
-        policyReasonCodes: ["ANSWER_SCHEMA_INVALID"],
-        matchingIndexes: [],
-        finalAnswer: null,
-      };
+      throw new ApiFault(
+        409,
+        "VERIFICATION_NOT_ELIGIBLE",
+        "Committed evidence does not match the frozen answer schema.",
+      );
     }
 
     const numeric = policy.numeric;
     if (!numeric) {
-      return {
-        result: "REJECTED",
-        policyReasonCodes: ["POLICY_INTERNAL_ERROR"],
-        matchingIndexes: [],
-        finalAnswer: null,
-      };
+      throw new ApiFault(
+        409,
+        "VERIFICATION_NOT_ELIGIBLE",
+        "Verification policy is incomplete for the frozen state.",
+      );
     }
 
     const decision = evaluateNumericConflict(
@@ -194,12 +192,11 @@ function evaluatePolicy(
   if (context.stateType === "BINARY") {
     const values = reports.map((item) => item.answerValue);
     if (!values.every((value) => typeof value === "string" && value.length > 0)) {
-      return {
-        result: "REJECTED",
-        policyReasonCodes: ["ANSWER_SCHEMA_INVALID"],
-        matchingIndexes: [],
-        finalAnswer: null,
-      };
+      throw new ApiFault(
+        409,
+        "VERIFICATION_NOT_ELIGIBLE",
+        "Committed evidence does not match the frozen answer schema.",
+      );
     }
 
     const decision = evaluateBinaryConflict(
@@ -319,6 +316,13 @@ export class VerificationService {
     }
 
     const policy = parsePolicyTemplate(context.proofPolicySnapshot);
+    if (policy.state_type !== context.stateType) {
+      throw new ApiFault(
+        409,
+        "VERIFICATION_NOT_ELIGIBLE",
+        "Verification policy does not match the frozen state type.",
+      );
+    }
     const currentPolicyVersion = policyVersion(policy.template_key);
     const evidenceSetRevision = context.evidence.length;
     if (evidenceSetRevision < 1) {
@@ -429,6 +433,20 @@ export class VerificationService {
           409,
           "VERIFICATION_NOT_ELIGIBLE",
           "Required location context is unavailable.",
+        );
+      }
+      if (
+        evidence.serverObservationEarliest.getTime() >
+          evidence.serverObservationLatest.getTime() ||
+        evidence.serverObservationLatest.getTime() >
+          context.evidenceDeadline.getTime() ||
+        evidence.serverObservationLatest.getTime() >
+          context.refreshExpiresAt.getTime()
+      ) {
+        throw new ApiFault(
+          409,
+          "VERIFICATION_NOT_ELIGIBLE",
+          "Evidence observation timing is outside the frozen refresh authority.",
         );
       }
     }
