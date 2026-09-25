@@ -105,6 +105,7 @@ as $$
       and rr.refresh_expires_at > now()
       and sd.status = 'ACTIVE'
       and coalesce(rr.chain_locked_reward, rr.chain_total_funded) > 0
+      and rr.payout_rule in ('SINGLE_WINNER_ALL', 'EQUAL_SPLIT_REQUIRED_WITNESSES')
       and coalesce(claims.active_claims, 0) < rr.max_witnesses
       and extensions.st_dwithin(l.center, qp.point, p_radius_m)
       and not exists (
