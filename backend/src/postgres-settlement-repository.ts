@@ -286,6 +286,21 @@ function beneficiaryFromRow(row: BeneficiaryRow): SettlementBeneficiary {
   };
 }
 
+function selectedBeneficiaries(
+  row: EligibilityRow,
+  rows: readonly BeneficiaryRow[],
+): SettlementBeneficiary[] {
+  const requiredWitnesses = Number(row.required_witnesses);
+  if (!Number.isSafeInteger(requiredWitnesses) || requiredWitnesses < 1) {
+    throw new Error("settlement required witness count is invalid");
+  }
+  const matching = rows.map(beneficiaryFromRow);
+  if (matching.length < requiredWitnesses) {
+    throw new Error("verified settlement has fewer matching beneficiaries than required");
+  }
+  return matching.slice(0, requiredWitnesses);
+}
+
 function validateEligibility(
   row: EligibilityRow,
   beneficiaries: SettlementBeneficiary[],
@@ -363,8 +378,9 @@ export class PostgresSettlementRepository implements SettlementRepository {
       row.refresh_id,
       row.matching_evidence_ids,
     ]);
-    const beneficiaries = beneficiaryRows.map((item) =>
-      beneficiaryFromRow(item as unknown as BeneficiaryRow)
+    const beneficiaries = selectedBeneficiaries(
+      row,
+      beneficiaryRows as unknown as BeneficiaryRow[],
     );
     return {
       kind: "eligible",
@@ -420,8 +436,9 @@ export class PostgresSettlementRepository implements SettlementRepository {
         input.eligibility.refreshId,
         authority.matching_evidence_ids,
       ]);
-      const lockedBeneficiaries = beneficiaryRows.map((item) =>
-        beneficiaryFromRow(item as unknown as BeneficiaryRow)
+      const lockedBeneficiaries = selectedBeneficiaries(
+        authority,
+        beneficiaryRows as unknown as BeneficiaryRow[],
       );
       const locked = validateEligibility(authority, lockedBeneficiaries);
       if (
