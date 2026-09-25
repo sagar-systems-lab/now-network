@@ -247,6 +247,9 @@ export class ClaimCoordinator {
       throw new ApiFault(409, "CLAIM_REJECTED", "A different transaction is already bound.");
     }
 
+    const refreshAddress = record.refresh.chainRefreshAddress;
+    const claimDurationSeconds = record.claim.claimDurationSeconds;
+
     const addresses = await deriveClaimChainAddresses({
       programId: this.programId,
       rewardMint: record.refresh.rewardMint,
@@ -295,7 +298,7 @@ export class ClaimCoordinator {
     try {
       observation = await this.chainObserver.inspectClaim({
         signature: input.signature,
-        refreshAddress: record.refresh.chainRefreshAddress,
+        refreshAddress,
         configAddress: addresses.configAddress,
         claimantWallet: record.claim.walletAddress,
         claimantRewardTokenAccount: addresses.claimantRewardTokenAccount,
@@ -306,7 +309,7 @@ export class ClaimCoordinator {
         expectedIntentCoreHash: record.refresh.intentCoreHash,
         expectedRefreshExpiresAt: record.refresh.refreshExpiresAt,
         expectedMaxWitnesses: record.refresh.maxWitnesses,
-        claimDurationSeconds: record.claim.claimDurationSeconds,
+        claimDurationSeconds,
       });
     } catch {
       if (record.claim.status !== "UNKNOWN") {
