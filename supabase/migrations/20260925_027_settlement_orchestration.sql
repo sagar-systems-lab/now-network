@@ -85,3 +85,7 @@ create index settlement_operations_reconcile_idx
     'CONFIRMED',
     'NOT_SETTLED'
   );
+
+create unique index settlement_operations_chain_signature_uq
+  on app.settlement_operations(chain_signature)
+  where chain_signature is not null;

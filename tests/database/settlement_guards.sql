@@ -11,6 +11,7 @@ declare
   chain_refresh_constraint text;
   verification_index text;
   reconcile_index text;
+  signature_index text;
 begin
   select pg_get_constraintdef(oid)
   into operation_hash_constraint
@@ -90,6 +91,19 @@ begin
      or position('NOT_SETTLED' in reconcile_index) = 0
      or position('VERIFYING' in reconcile_index) = 0 then
     raise exception 'settlement reconciliation index missing';
+  end if;
+
+  select indexdef
+  into signature_index
+  from pg_indexes
+  where schemaname = 'app'
+    and tablename = 'settlement_operations'
+    and indexname = 'settlement_operations_chain_signature_uq';
+
+  if signature_index is null
+     or position('UNIQUE INDEX' in signature_index) = 0
+     or position('chain_signature' in signature_index) = 0 then
+    raise exception 'settlement signature uniqueness missing';
   end if;
 end
 $$;
