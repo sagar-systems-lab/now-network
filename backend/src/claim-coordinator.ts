@@ -5,7 +5,11 @@ import type {
   IdentityRepository,
   WalletBindingRecord,
 } from "./identity-repository.ts";
-import { type ClaimChainAddresses, deriveClaimChainAddresses } from "./solana-refresh-addresses.ts";
+import {
+  type ClaimChainAddresses,
+  deriveClaimChainAddresses,
+  deriveExecutionHashV1,
+} from "./solana-refresh-addresses.ts";
 import {
   type ChainClaimInspection,
   type ClaimChainObserver,

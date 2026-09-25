@@ -62,7 +62,8 @@ export type EvidenceCommitRecord = {
 };
 
 export type CommitEvidenceResult =
-  | ({ kind: "committed" | "replayed" } & EvidenceCommitRecord)
+  | ({ kind: "committed" } & EvidenceCommitRecord)
+  | ({ kind: "replayed" } & EvidenceCommitRecord)
   | { kind: "not_found" }
   | { kind: "actor_mismatch" }
   | { kind: "idempotency_conflict" }
