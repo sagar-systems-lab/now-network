@@ -20,6 +20,7 @@ import { sha256Bytes } from "../../packages/contracts/src/refresh-intent.ts";
 import { transitionEvidence } from "../../packages/domain/src/evidence-machine.ts";
 import { transitionRefresh } from "../../packages/domain/src/refresh-machine.ts";
 import { transitionVerification } from "../../packages/domain/src/verification-machine.ts";
+import type { PolicyTemplateV1 } from "../../packages/policy/src/types.ts";
 
 const encoder = new TextEncoder();
 export const DEFAULT_VERIFIER_BUILD = "now-verifier-v1";
@@ -42,6 +43,18 @@ function assertActorActive(actor: ActorRecord): void {
   }
   if (actor.status === "RESTRICTED") {
     throw new ApiFault(403, "ACTOR_RESTRICTED", "This actor is restricted.");
+  }
+}
+
+function parseFrozenPolicy(value: unknown): PolicyTemplateV1 {
+  try {
+    return parsePolicyTemplate(value);
+  } catch {
+    throw new ApiFault(
+      409,
+      "VERIFICATION_NOT_ELIGIBLE",
+      "Frozen verification policy is invalid.",
+    );
   }
 }
 
@@ -125,7 +138,7 @@ function evaluatePolicy(
   matchingIndexes: number[];
   finalAnswer: unknown | null;
 } {
-  const policy = parsePolicyTemplate(context.proofPolicySnapshot);
+  const policy = parseFrozenPolicy(context.proofPolicySnapshot);
   const reports = context.evidence;
 
   if (reports.length < policy.required_witnesses) {
@@ -315,7 +328,7 @@ export class VerificationService {
       throw new ApiFault(404, "REFRESH_NOT_FOUND", "Refresh was not found.");
     }
 
-    const policy = parsePolicyTemplate(context.proofPolicySnapshot);
+    const policy = parseFrozenPolicy(context.proofPolicySnapshot);
     if (policy.state_type !== context.stateType) {
       throw new ApiFault(
         409,

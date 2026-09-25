@@ -287,8 +287,16 @@ Deno.test("verification replays the same frozen evidence result without mutation
 Deno.test("verification fails closed when policy state type drifts", async () => {
   const value = context({
     proofPolicySnapshot: {
-      ...context().proofPolicySnapshot,
+      template_key: "parking.available_spaces.v1",
       state_type: "BINARY",
+      fresh_ttl_seconds: 600,
+      aging_ratio: 0.7,
+      verification_class: "FAST",
+      required_witnesses: 1,
+      capture: {
+        media_required: true,
+        location_required: true,
+      },
     },
   });
   const repository = new MemoryVerificationRepository(value);
@@ -342,5 +350,30 @@ Deno.test("verification resolves two-of-three numeric majority without averaging
     result.data.refresh_status !== "VERIFIED"
   ) {
     throw new Error("two-of-three numeric majority did not resolve deterministically");
+  }
+});
+
+Deno.test("verification maps malformed frozen policy to a stable fail-closed fault", async () => {
+  const value = context({
+    proofPolicySnapshot: {
+      ...context().proofPolicySnapshot,
+      state_type: "BINARY",
+    },
+  });
+  const repository = new MemoryVerificationRepository(value);
+  const service = new VerificationService(
+    repository,
+    "verification-test-v1",
+    () => NOW,
+  );
+
+  try {
+    await service.verify(actor(), REFRESH_ID);
+    throw new Error("malformed frozen policy unexpectedly verified");
+  } catch (error) {
+    if (faultCode(error) !== "VERIFICATION_NOT_ELIGIBLE") throw error;
+  }
+  if (repository.persistCalls !== 0) {
+    throw new Error("verification persisted after malformed frozen policy");
   }
 });
