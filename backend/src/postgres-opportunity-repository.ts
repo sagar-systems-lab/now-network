@@ -68,18 +68,6 @@ function fromRow(row: OpportunityRow): OpportunityRecord {
   };
 }
 
-const ACTIVE_ACCEPTANCE_STATUSES = [
-  "PREPARING",
-  "WALLET_PENDING",
-  "SUBMITTED",
-  "CONFIRMING",
-  "CLAIMED",
-  "CAPTURE_ACTIVE",
-  "EVIDENCE_COMMITTED",
-  "RELEASE_ELIGIBLE",
-  "UNKNOWN",
-] as const;
-
 export class PostgresOpportunityRepository implements OpportunityRepository {
   private readonly sql: ReturnType<typeof postgres>;
 
@@ -152,7 +140,17 @@ export class PostgresOpportunityRepository implements OpportunityRepository {
         from app.refresh_acceptances ra
         where ra.refresh_id = rr.refresh_id
           and ra.claim_slot is not null
-          and ra.status = any(${ACTIVE_ACCEPTANCE_STATUSES}::text[])
+          and ra.status in (
+            'PREPARING',
+            'WALLET_PENDING',
+            'SUBMITTED',
+            'CONFIRMING',
+            'CLAIMED',
+            'CAPTURE_ACTIVE',
+            'EVIDENCE_COMMITTED',
+            'RELEASE_ELIGIBLE',
+            'UNKNOWN'
+          )
       ) claims on true
       where rr.refresh_id = ${input.refreshId}::uuid
         and rr.requester_actor_id <> ${input.actorId}::uuid
@@ -160,13 +158,24 @@ export class PostgresOpportunityRepository implements OpportunityRepository {
         and rr.refresh_expires_at > now()
         and sd.status = 'ACTIVE'
         and coalesce(rr.chain_locked_reward, rr.chain_total_funded) > 0
+        and rr.payout_rule in ('SINGLE_WINNER_ALL', 'EQUAL_SPLIT_REQUIRED_WITNESSES')
         and coalesce(claims.active_claims, 0) < rr.max_witnesses
         and not exists (
           select 1
           from app.refresh_acceptances mine
           where mine.refresh_id = rr.refresh_id
             and mine.actor_id = ${input.actorId}::uuid
-            and mine.status = any(${ACTIVE_ACCEPTANCE_STATUSES}::text[])
+            and mine.status in (
+              'PREPARING',
+              'WALLET_PENDING',
+              'SUBMITTED',
+              'CONFIRMING',
+              'CLAIMED',
+              'CAPTURE_ACTIVE',
+              'EVIDENCE_COMMITTED',
+              'RELEASE_ELIGIBLE',
+              'UNKNOWN'
+            )
         )
       limit 1
     `;
