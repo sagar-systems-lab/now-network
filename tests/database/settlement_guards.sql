@@ -9,6 +9,7 @@ declare
   recipient_mask_constraint text;
   recipient_wallets_constraint text;
   chain_refresh_constraint text;
+  expiry_not_null boolean;
   verification_index text;
   reconcile_index text;
   signature_index text;
@@ -66,6 +67,17 @@ begin
   if chain_refresh_constraint is null
      or position('chain_refresh_id' in lower(chain_refresh_constraint)) = 0 then
     raise exception 'settlement chain refresh identity guard missing';
+  end if;
+
+  select not a.attnotnull
+  into expiry_not_null
+  from pg_attribute a
+  where a.attrelid = 'app.settlement_operations'::regclass
+    and a.attname = 'refresh_expires_at'
+    and not a.attisdropped;
+
+  if coalesce(expiry_not_null, true) then
+    raise exception 'settlement refresh expiry snapshot must be NOT NULL';
   end if;
 
   select indexdef

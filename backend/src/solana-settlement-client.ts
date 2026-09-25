@@ -325,6 +325,12 @@ export class SolanaSettlementClient implements SettlementChainClient {
         this.verifier.publicKey.toBuffer(),
       ) ||
       refreshData[254] !== 1 ||
+      new DataView(
+        refreshData.buffer,
+        refreshData.byteOffset,
+        refreshData.byteLength,
+      ).getBigInt64(242, true) !==
+        BigInt(Math.floor(operation.refreshExpiresAt.getTime() / 1000)) ||
       u64(refreshData, 263) !== operation.lockedRewardAtomic ||
       refreshData[271] !== 1 ||
       !refreshData.slice(467, 499).every((byte) => byte === 0)
@@ -352,6 +358,13 @@ export class SolanaSettlementClient implements SettlementChainClient {
   }
 
   async submit(operation: SettlementOperation): Promise<SettlementSubmission> {
+    if (Date.now() > operation.refreshExpiresAt.getTime()) {
+      throw new SettlementChainError(
+        "SETTLEMENT_WINDOW_EXPIRED",
+        false,
+        "Settlement window has expired.",
+      );
+    }
     const authority = await this.assertPinnedAuthority(operation);
     const latest = await this.rpc<{
       value: { blockhash: string; lastValidBlockHeight: number };

@@ -245,6 +245,15 @@ export class SettlementCoordinator {
     }
 
     if (operation.status === "NOT_SETTLED") {
+      if (this.now().getTime() > operation.refreshExpiresAt.getTime()) {
+        await this.repository.markAuthorityConflict({
+          settlementId: operation.settlementId,
+          errorCode: "SETTLEMENT_WINDOW_EXPIRED",
+          observedAt: this.now(),
+        });
+        summary.conflicts += 1;
+        return;
+      }
       // Re-check the old attempt before reusing the logical operation.
       const inspection = await this.chain.inspect(operation);
       if (inspection.kind !== "not_settled") {

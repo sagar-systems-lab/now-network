@@ -19,6 +19,7 @@ export type SettlementEligibility = {
   executionHash: Uint8Array;
   chainRefreshId: Uint8Array;
   chainRefreshAddress: string;
+  refreshExpiresAt: Date;
   rewardMint: string;
   lockedRewardAtomic: bigint;
   requiredWitnesses: number;
@@ -40,6 +41,7 @@ export type SettlementOperation = {
   rewardMint: string;
   lockedRewardAtomic: bigint;
   chainRefreshAddress: string;
+  refreshExpiresAt: Date;
   status: SettlementStatus;
   chainSignature: string | null;
   recentBlockhash: string | null;

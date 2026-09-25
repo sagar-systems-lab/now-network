@@ -53,6 +53,7 @@ type OperationRow = {
   reward_mint: string;
   locked_reward_atomic: number | string;
   chain_refresh_address: string;
+  refresh_expires_at: DateLike;
   status: SettlementStatus;
   chain_signature: string | null;
   recent_blockhash: string | null;
@@ -116,6 +117,7 @@ function operationFromRow(row: OperationRow): SettlementOperation {
     rewardMint: row.reward_mint,
     lockedRewardAtomic: BigInt(row.locked_reward_atomic),
     chainRefreshAddress: row.chain_refresh_address,
+    refreshExpiresAt: date(row.refresh_expires_at),
     status: row.status,
     chainSignature: row.chain_signature,
     recentBlockhash: row.recent_blockhash,
@@ -151,6 +153,7 @@ const SELECT_OPERATION = String.raw`
     reward_mint,
     locked_reward_atomic,
     chain_refresh_address,
+    refresh_expires_at,
     status,
     chain_signature,
     recent_blockhash,
@@ -175,6 +178,7 @@ const SELECT_ELIGIBILITY = String.raw`
     rr.max_witnesses,
     rr.chain_refresh_id,
     rr.chain_refresh_address,
+    rr.refresh_expires_at,
     rr.reward_mint,
     rr.chain_locked_reward,
     rr.execution_hash as refresh_execution_hash,
@@ -285,6 +289,7 @@ function validateEligibility(
     executionHash: new Uint8Array(row.refresh_execution_hash),
     chainRefreshId: new Uint8Array(row.chain_refresh_id),
     chainRefreshAddress: row.chain_refresh_address,
+    refreshExpiresAt: date(row.refresh_expires_at),
     rewardMint: row.reward_mint,
     lockedRewardAtomic: BigInt(row.chain_locked_reward),
     requiredWitnesses,
@@ -384,6 +389,8 @@ export class PostgresSettlementRepository implements SettlementRepository {
         !bytesEqual(locked.executionHash, input.eligibility.executionHash) ||
         !bytesEqual(locked.chainRefreshId, input.eligibility.chainRefreshId) ||
         locked.chainRefreshAddress !== input.eligibility.chainRefreshAddress ||
+        locked.refreshExpiresAt.getTime() !==
+          input.eligibility.refreshExpiresAt.getTime() ||
         locked.rewardMint !== input.eligibility.rewardMint ||
         locked.lockedRewardAtomic !== input.eligibility.lockedRewardAtomic ||
         !beneficiariesEqual(locked.beneficiaries, input.eligibility.beneficiaries)
@@ -407,6 +414,7 @@ export class PostgresSettlementRepository implements SettlementRepository {
           reward_mint,
           locked_reward_atomic,
           chain_refresh_address,
+          refresh_expires_at,
           status,
           attempt_count,
           next_reconcile_at,
@@ -426,6 +434,7 @@ export class PostgresSettlementRepository implements SettlementRepository {
           ${locked.rewardMint},
           ${locked.lockedRewardAtomic.toString()}::numeric,
           ${locked.chainRefreshAddress},
+          ${locked.refreshExpiresAt},
           'ELIGIBLE',
           0,
           ${input.observedAt},
