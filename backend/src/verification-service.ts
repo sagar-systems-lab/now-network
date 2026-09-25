@@ -341,14 +341,13 @@ export class VerificationService {
         context.existing.status,
       )
     ) {
-      const replayResult: VerificationResult =
-        context.existing.status === "VERIFIED"
-          ? "VERIFIED"
-          : context.existing.status === "CONFLICT"
-          ? "CONFLICT"
-          : context.existing.status === "WAITING_FOR_MORE_EVIDENCE"
-          ? "REQUIRES_ADDITIONAL_VERIFICATION"
-          : "REJECTED";
+      const replayResult: VerificationResult = context.existing.status === "VERIFIED"
+        ? "VERIFIED"
+        : context.existing.status === "CONFLICT"
+        ? "CONFLICT"
+        : context.existing.status === "WAITING_FOR_MORE_EVIDENCE"
+        ? "REQUIRES_ADDITIONAL_VERIFICATION"
+        : "REJECTED";
       return {
         status: 200,
         data: {
@@ -362,10 +361,8 @@ export class VerificationService {
           evidence_set_revision: evidenceSetRevision,
           policy_version: currentPolicyVersion,
           replayed: true,
-          next_step: replayResult === "VERIFIED"
-            ? "PROJECTION"
-            : replayResult === "CONFLICT" ||
-                replayResult === "REQUIRES_ADDITIONAL_VERIFICATION"
+          next_step: replayResult === "VERIFIED" ? "PROJECTION" : replayResult === "CONFLICT" ||
+              replayResult === "REQUIRES_ADDITIONAL_VERIFICATION"
             ? "ADDITIONAL_VERIFICATION"
             : "REVIEW",
         },
@@ -488,16 +485,14 @@ export class VerificationService {
         evidence_order: allEvidenceIds(context.evidence),
         policy_decision_reason_codes: evaluated.policyReasonCodes,
         matching_evidence_ids: matchingEvidenceIds,
-        numeric_selection_rule:
-          context.stateType === "NUMERIC" && evaluated.result === "VERIFIED"
-            ? "resolved-value-or-latest-matching-evidence"
-            : null,
+        numeric_selection_rule: context.stateType === "NUMERIC" && evaluated.result === "VERIFIED"
+          ? "resolved-value-or-latest-matching-evidence"
+          : null,
       },
       locationSummary: {
         required: policy.capture.location_required,
-        evidence_with_location: context.evidence.filter((item) =>
-          item.locationSampleCount > 0
-        ).length,
+        evidence_with_location:
+          context.evidence.filter((item) => item.locationSampleCount > 0).length,
         sample_count: context.evidence.reduce(
           (total, item) => total + item.locationSampleCount,
           0,
@@ -506,16 +501,12 @@ export class VerificationService {
       freshnessSummary: {
         earliest_observation: new Date(
           Math.min(
-            ...context.evidence.map((item) =>
-              item.serverObservationEarliest.getTime()
-            ),
+            ...context.evidence.map((item) => item.serverObservationEarliest.getTime()),
           ),
         ).toISOString(),
         latest_observation: new Date(
           Math.max(
-            ...context.evidence.map((item) =>
-              item.serverObservationLatest.getTime()
-            ),
+            ...context.evidence.map((item) => item.serverObservationLatest.getTime()),
           ),
         ).toISOString(),
         evidence_deadline: context.evidenceDeadline.toISOString(),
@@ -523,9 +514,10 @@ export class VerificationService {
       },
       mediaIntegritySummary: {
         required: policy.capture.media_required,
-        bound_media_count: context.evidence.filter((item) =>
-          item.mediaSha256 !== null && item.mediaSha256.length === 32
-        ).length,
+        bound_media_count:
+          context.evidence.filter((item) =>
+            item.mediaSha256 !== null && item.mediaSha256.length === 32
+          ).length,
       },
       replaySummary: {
         exact_media_replay_guarded_at_commit: true,

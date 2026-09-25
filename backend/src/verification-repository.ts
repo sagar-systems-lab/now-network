@@ -71,17 +71,17 @@ export type VerificationOutcome = {
 
 type PersistedVerificationRecord = {
   verificationResultId: string;
-    refreshId: string;
-    evidenceSetRevision: number;
-    policyVersion: number;
-    result: VerificationResult;
-    status: VerificationStatus;
-    reasonCodes: string[];
-    evidenceIds: string[];
-    finalAnswer: unknown | null;
-    canonicalDigest: Uint8Array;
-    refreshStatus: RefreshStatus;
-    refreshRevision: number;
+  refreshId: string;
+  evidenceSetRevision: number;
+  policyVersion: number;
+  result: VerificationResult;
+  status: VerificationStatus;
+  reasonCodes: string[];
+  evidenceIds: string[];
+  finalAnswer: unknown | null;
+  canonicalDigest: Uint8Array;
+  refreshStatus: RefreshStatus;
+  refreshRevision: number;
   completedAt: Date;
 };
 

@@ -7,10 +7,7 @@ import type {
   VerificationRepository,
 } from "./verification-repository.ts";
 import type { VerificationResult } from "../../packages/contracts/src/core.ts";
-import type {
-  RefreshStatus,
-  VerificationStatus,
-} from "../../packages/contracts/src/lifecycle.ts";
+import type { RefreshStatus, VerificationStatus } from "../../packages/contracts/src/lifecycle.ts";
 
 type DateLike = Date | string;
 
@@ -118,12 +115,8 @@ function evidenceFromRow(row: EvidenceRow): VerificationEvidence {
     answerValue: row.answer_value,
     intentCoreHash: new Uint8Array(row.intent_core_hash),
     executionHash: new Uint8Array(row.execution_hash),
-    mediaSha256: row.media_sha256 === null
-      ? null
-      : new Uint8Array(row.media_sha256),
-    mediaSizeBytes: row.media_size_bytes === null
-      ? null
-      : Number(row.media_size_bytes),
+    mediaSha256: row.media_sha256 === null ? null : new Uint8Array(row.media_sha256),
+    mediaSizeBytes: row.media_size_bytes === null ? null : Number(row.media_size_bytes),
     mediaMime: row.media_mime,
     locationSampleCount: Number(row.location_sample_count),
     serverObservationEarliest: date(row.server_observation_earliest),
@@ -211,9 +204,7 @@ export class PostgresVerificationRepository implements VerificationRepository {
     const row = refreshRows[0] as unknown as RefreshRow;
 
     const evidenceRows = await this.sql.unsafe(EVIDENCE_SQL, [refreshId]);
-    const evidence = evidenceRows.map((item) =>
-      evidenceFromRow(item as unknown as EvidenceRow)
-    );
+    const evidence = evidenceRows.map((item) => evidenceFromRow(item as unknown as EvidenceRow));
 
     const verificationRows = await this.sql`
       select
@@ -243,9 +234,7 @@ export class PostgresVerificationRepository implements VerificationRepository {
       stateVersion: Number(row.state_version),
       stateType: row.state_type,
       intentCoreHash: new Uint8Array(row.intent_core_hash),
-      executionHash: row.execution_hash === null
-        ? null
-        : new Uint8Array(row.execution_hash),
+      executionHash: row.execution_hash === null ? null : new Uint8Array(row.execution_hash),
       proofPolicySnapshot: row.proof_policy_snapshot,
       evidence,
       existing: verificationRows[0]
@@ -289,9 +278,7 @@ export class PostgresVerificationRepository implements VerificationRepository {
       const refresh = refreshRows[0] as unknown as RefreshRow;
 
       const evidenceRows = await tx.unsafe(EVIDENCE_SQL, [input.refreshId]);
-      const evidence = evidenceRows.map((item) =>
-        evidenceFromRow(item as unknown as EvidenceRow)
-      );
+      const evidence = evidenceRows.map((item) => evidenceFromRow(item as unknown as EvidenceRow));
       const currentEvidenceIds = evidence.map((item) => item.evidenceId);
 
       const actorAuthorized = refresh.requester_actor_id === input.actorId ||
@@ -502,13 +489,15 @@ export class PostgresVerificationRepository implements VerificationRepository {
           ${input.actorId}::uuid,
           ${input.verificationResultId}::uuid,
           1,
-          ${JSON.stringify({
-            result: input.outcome.result,
-            status: input.outcome.status,
-            evidence_set_revision: input.evidenceSetRevision,
-            policy_version: input.policyVersion,
-            evidence_ids: input.evidenceIds,
-          })}::jsonb,
+          ${
+        JSON.stringify({
+          result: input.outcome.result,
+          status: input.outcome.status,
+          evidence_set_revision: input.evidenceSetRevision,
+          policy_version: input.policyVersion,
+          evidence_ids: input.evidenceIds,
+        })
+      }::jsonb,
           ${input.observedAt}
         ), (
           ${crypto.randomUUID()}::uuid,
@@ -518,11 +507,13 @@ export class PostgresVerificationRepository implements VerificationRepository {
           ${input.actorId}::uuid,
           ${input.verificationResultId}::uuid,
           ${refreshRevision},
-          ${JSON.stringify({
-            status: finalStatus,
-            verification_result_id: input.verificationResultId,
-            result: input.outcome.result,
-          })}::jsonb,
+          ${
+        JSON.stringify({
+          status: finalStatus,
+          verification_result_id: input.verificationResultId,
+          result: input.outcome.result,
+        })
+      }::jsonb,
           ${input.observedAt}
         )
       `;

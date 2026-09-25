@@ -829,13 +829,12 @@ export class PostgresClaimRepository implements ClaimRepository {
           )
       `;
       const confirmedClaims = Number(confirmedRows[0].confirmed_claims);
-      const refreshStatus =
-        refresh.status === "ADDITIONAL_VERIFICATION"
-          ? "CLAIMED"
-          : refresh.status === "AVAILABLE" &&
-              confirmedClaims >= refresh.requiredWitnesses
-          ? "CLAIMED"
-          : refresh.status;
+      const refreshStatus = refresh.status === "ADDITIONAL_VERIFICATION"
+        ? "CLAIMED"
+        : refresh.status === "AVAILABLE" &&
+            confirmedClaims >= refresh.requiredWitnesses
+        ? "CLAIMED"
+        : refresh.status;
 
       const updatedRefresh = await tx`
         update app.refresh_requests
