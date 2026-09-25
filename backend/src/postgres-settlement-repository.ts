@@ -776,6 +776,41 @@ export class PostgresSettlementRepository implements SettlementRepository {
     });
   }
 
+  async defer(
+    input: Parameters<SettlementRepository["defer"]>[0],
+  ): Promise<SettlementMutationResult> {
+    return await this.sql.begin(async (tx) => {
+      const rows = await tx.unsafe(
+        `${SELECT_OPERATION} where settlement_id = $1::uuid limit 1 for update`,
+        [input.settlementId],
+      );
+      if (!rows[0]) return { kind: "not_found" } as const;
+      const current = operationFromRow(rows[0] as unknown as OperationRow);
+      if (["FINALIZED", "FAILED"].includes(current.status)) {
+        return { kind: "authority_conflict" } as const;
+      }
+
+      await tx`
+        update app.settlement_operations
+        set
+          next_reconcile_at = ${input.nextReconcileAt},
+          last_error_code = ${input.errorCode},
+          last_chain_observed_at = ${input.observedAt},
+          updated_at = ${input.observedAt}
+        where settlement_id = ${input.settlementId}::uuid
+      `;
+
+      const updatedRows = await tx.unsafe(
+        `${SELECT_OPERATION} where settlement_id = $1::uuid limit 1`,
+        [input.settlementId],
+      );
+      return {
+        kind: "updated",
+        operation: operationFromRow(updatedRows[0] as unknown as OperationRow),
+      } as const;
+    });
+  }
+
   async markAuthorityConflict(
     input: Parameters<SettlementRepository["markAuthorityConflict"]>[0],
   ): Promise<SettlementMutationResult> {
