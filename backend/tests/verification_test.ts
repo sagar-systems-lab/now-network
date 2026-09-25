@@ -152,6 +152,7 @@ Deno.test("verification exposes conflicting numeric reports", async () => {
   const value = context({
     proofPolicySnapshot: {
       ...context().proofPolicySnapshot,
+      verification_class: "CORROBORATED",
       required_witnesses: 2,
     },
     evidence: [
@@ -181,6 +182,7 @@ Deno.test("verification requests more evidence when policy witness count is unme
   const value = context({
     proofPolicySnapshot: {
       ...context().proofPolicySnapshot,
+      verification_class: "CORROBORATED",
       required_witnesses: 2,
     },
   });

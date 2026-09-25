@@ -69,10 +69,8 @@ export type VerificationOutcome = {
   conflictSummary: Record<string, unknown> | null;
 };
 
-export type PersistVerificationResult =
-  | {
-    kind: "recorded" | "replayed";
-    verificationResultId: string;
+type PersistedVerificationRecord = {
+  verificationResultId: string;
     refreshId: string;
     evidenceSetRevision: number;
     policyVersion: number;
@@ -84,8 +82,12 @@ export type PersistVerificationResult =
     canonicalDigest: Uint8Array;
     refreshStatus: RefreshStatus;
     refreshRevision: number;
-    completedAt: Date;
-  }
+  completedAt: Date;
+};
+
+export type PersistVerificationResult =
+  | ({ kind: "recorded" } & PersistedVerificationRecord)
+  | ({ kind: "replayed" } & PersistedVerificationRecord)
   | { kind: "not_found" }
   | { kind: "actor_mismatch" }
   | { kind: "not_eligible" }
