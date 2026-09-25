@@ -33,6 +33,7 @@ const expectedMigrations = [
   "20260924_018_state_read_queries.sql",
   "20260924_019_refresh_coordination.sql",
   "20260925_020_opportunity_queries.sql",
+  "20260925_021_claim_orchestration.sql",
 ] as const;
 
 async function readMigration(name: string): Promise<string> {
@@ -183,6 +184,9 @@ Deno.test("database indexes cover geospatial and recovery paths", async () => {
       "refresh_requests_funding_operation_idx",
       "refresh_contributions_chain_signature_idx",
       "refresh_requests_requester_status_idx",
+      "refresh_acceptances_claim_duration_seconds_bounds",
+      "refresh_acceptances_chain_signature_uq",
+      "refresh_acceptances_active_reservation_idx",
     ]
   ) {
     assertIncludes(sql, indexName);

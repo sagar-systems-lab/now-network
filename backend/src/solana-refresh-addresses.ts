@@ -160,3 +160,48 @@ export async function deriveRefreshChainAddresses(input: {
     vaultTokenAccount: bs58.encode(vault),
   };
 }
+
+export type ClaimChainAddresses = {
+  configAddress: string;
+  refreshAddress: string;
+  claimantRewardTokenAccount: string;
+};
+
+export async function deriveClaimChainAddresses(input: {
+  programId: string;
+  rewardMint: string;
+  claimantWallet: string;
+  chainRefreshId: Uint8Array;
+}): Promise<ClaimChainAddresses> {
+  if (input.chainRefreshId.length !== 32) {
+    throw new RangeError("chainRefreshId must be 32 bytes");
+  }
+
+  const program = decodePublicKey(input.programId, "programId");
+  const rewardMint = decodePublicKey(input.rewardMint, "rewardMint");
+  const claimant = decodePublicKey(input.claimantWallet, "claimantWallet");
+  const tokenProgram = decodePublicKey(TOKEN_PROGRAM_ID, "tokenProgram");
+  const associatedTokenProgram = decodePublicKey(
+    ASSOCIATED_TOKEN_PROGRAM_ID,
+    "associatedTokenProgram",
+  );
+
+  const config = await findProgramAddress(
+    [textEncoder.encode("config")],
+    program,
+  );
+  const refresh = await findProgramAddress(
+    [textEncoder.encode("refresh"), input.chainRefreshId],
+    program,
+  );
+  const claimantRewardTokenAccount = await findProgramAddress(
+    [claimant, tokenProgram, rewardMint],
+    associatedTokenProgram,
+  );
+
+  return {
+    configAddress: bs58.encode(config),
+    refreshAddress: bs58.encode(refresh),
+    claimantRewardTokenAccount: bs58.encode(claimantRewardTokenAccount),
+  };
+}

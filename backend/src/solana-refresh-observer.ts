@@ -153,6 +153,107 @@ function invokesFundingProgram(
   return false;
 }
 
+export type ChainClaimInspection =
+  | { kind: "pending" }
+  | { kind: "failed" }
+  | {
+    kind: "confirmed";
+    commitment: "confirmed" | "finalized";
+    claimSlot: number;
+    claimedAt: Date;
+    claimDeadline: Date;
+    totalFundedAtomic: bigint;
+    lockedRewardAtomic: bigint;
+    observedAt: Date;
+  };
+
+export interface ClaimChainObserver {
+  inspectClaim(input: {
+    signature: string;
+    refreshAddress: string;
+    configAddress: string;
+    claimantWallet: string;
+    claimantRewardTokenAccount: string;
+    expectedRewardMint: string;
+    expectedCreatorWallet: string;
+    expectedChainRefreshId: Uint8Array;
+    expectedStateIdDigest: Uint8Array;
+    expectedIntentCoreHash: Uint8Array;
+    expectedRefreshExpiresAt: Date;
+    expectedMaxWitnesses: number;
+    claimDurationSeconds: number;
+  }): Promise<ChainClaimInspection>;
+}
+
+function u32(data: Uint8Array, offset: number): number {
+  return new DataView(data.buffer, data.byteOffset, data.byteLength)
+    .getUint32(offset, true);
+}
+
+async function invokesClaimInstruction(
+  transaction: Record<string, unknown>,
+  programId: string,
+  input: Parameters<ClaimChainObserver["inspectClaim"]>[0],
+): Promise<boolean> {
+  const tx = transaction.transaction as Record<string, unknown> | undefined;
+  const message = tx?.message as Record<string, unknown> | undefined;
+  const keys = accountKeys(transaction);
+  const instructions = Array.isArray(message?.instructions) ? message.instructions : [];
+  const expectedAccounts = [
+    input.claimantWallet,
+    input.configAddress,
+    input.refreshAddress,
+    input.expectedRewardMint,
+    input.claimantRewardTokenAccount,
+  ];
+  const expectedDiscriminator = await discriminator("global:claim_witness");
+
+  for (const instruction of instructions) {
+    if (!instruction || typeof instruction !== "object") continue;
+    const record = instruction as Record<string, unknown>;
+
+    let instructionProgram: string | undefined;
+    let instructionAccounts: string[] = [];
+    if (typeof record.programId === "string") {
+      instructionProgram = record.programId;
+      instructionAccounts = Array.isArray(record.accounts)
+        ? record.accounts.filter((value): value is string => typeof value === "string")
+        : [];
+    } else if (
+      typeof record.programIdIndex === "number" &&
+      Array.isArray(record.accounts)
+    ) {
+      instructionProgram = keys[record.programIdIndex];
+      instructionAccounts = record.accounts
+        .filter((value): value is number => typeof value === "number")
+        .map((index) => keys[index]);
+    }
+
+    if (instructionProgram !== programId) continue;
+    if (
+      instructionAccounts.length !== expectedAccounts.length ||
+      !expectedAccounts.every((value, index) => instructionAccounts[index] === value)
+    ) {
+      continue;
+    }
+    if (typeof record.data !== "string") continue;
+
+    let data: Uint8Array;
+    try {
+      data = Uint8Array.from(bs58.decode(record.data));
+    } catch {
+      continue;
+    }
+    if (data.length !== 44) continue;
+    if (!bytesEqual(data.slice(0, 8), expectedDiscriminator)) continue;
+    if (!bytesEqual(data.slice(8, 40), input.expectedChainRefreshId)) continue;
+    if (u32(data, 40) !== input.claimDurationSeconds) continue;
+    return true;
+  }
+
+  return false;
+}
+
 function verificationCode(value: "FAST" | "CORROBORATED" | "STRICT"): number {
   switch (value) {
     case "FAST":
@@ -168,7 +269,7 @@ function payoutCode(value: RefreshPayoutRule): number {
   return value === "SINGLE_WINNER_ALL" ? 0 : 1;
 }
 
-export class SolanaRpcRefreshChainObserver implements RefreshChainObserver {
+export class SolanaRpcRefreshChainObserver implements RefreshChainObserver, ClaimChainObserver {
   constructor(
     private readonly rpcUrl: string,
     private readonly programId = NOW_SETTLEMENT_PROGRAM_ID,
@@ -335,4 +436,134 @@ export class SolanaRpcRefreshChainObserver implements RefreshChainObserver {
       observedAt: new Date(),
     };
   }
+
+
+  async inspectClaim(
+    input: Parameters<ClaimChainObserver["inspectClaim"]>[0],
+  ): Promise<ChainClaimInspection> {
+    if (
+      !Number.isSafeInteger(input.claimDurationSeconds) ||
+      input.claimDurationSeconds <= 0 ||
+      input.claimDurationSeconds > 4_294_967_295 ||
+      !Number.isSafeInteger(input.expectedMaxWitnesses) ||
+      input.expectedMaxWitnesses < 1 ||
+      input.expectedMaxWitnesses > 3
+    ) {
+      return { kind: "failed" };
+    }
+
+    const statusResult = await this.rpc("getSignatureStatuses", [
+      [input.signature],
+      { searchTransactionHistory: true },
+    ]) as Record<string, unknown>;
+    const statusValues = statusResult.value;
+    const status = Array.isArray(statusValues) ? statusValues[0] : null;
+    if (!status || typeof status !== "object") return { kind: "pending" };
+
+    const statusRecord = status as Record<string, unknown>;
+    if (statusRecord.err != null) return { kind: "failed" };
+    const confirmation = statusRecord.confirmationStatus;
+    if (confirmation !== "confirmed" && confirmation !== "finalized") {
+      return { kind: "pending" };
+    }
+
+    const transaction = await this.rpc("getTransaction", [
+      input.signature,
+      {
+        encoding: "json",
+        commitment: confirmation,
+        maxSupportedTransactionVersion: 0,
+      },
+    ]);
+    if (!transaction || typeof transaction !== "object") return { kind: "pending" };
+    const transactionRecord = transaction as Record<string, unknown>;
+    const meta = transactionRecord.meta as Record<string, unknown> | undefined;
+    if (!meta || meta.err != null) return { kind: "failed" };
+    if (!await invokesClaimInstruction(transactionRecord, this.programId, input)) {
+      return { kind: "failed" };
+    }
+
+    const accountResult = await this.rpc("getAccountInfo", [
+      input.refreshAddress,
+      { encoding: "base64", commitment: confirmation },
+    ]) as Record<string, unknown>;
+    const value = accountResult.value;
+    if (!value || typeof value !== "object") return { kind: "pending" };
+    const account = value as Record<string, unknown>;
+    if (account.owner !== this.programId) return { kind: "failed" };
+    const encoded = account.data;
+    if (!Array.isArray(encoded) || typeof encoded[0] !== "string") {
+      return { kind: "failed" };
+    }
+
+    const refresh = decodeBase64(encoded[0]);
+    if (refresh.length !== 500) return { kind: "failed" };
+    const refreshDiscriminator = await discriminator("account:RefreshEscrow");
+    if (!bytesEqual(refresh.slice(0, 8), refreshDiscriminator)) {
+      return { kind: "failed" };
+    }
+    if (
+      u16(refresh, 8) !== 1 ||
+      !bytesEqual(refresh.slice(10, 42), input.expectedChainRefreshId) ||
+      !bytesEqual(refresh.slice(42, 74), input.expectedStateIdDigest) ||
+      !bytesEqual(refresh.slice(74, 106), input.expectedIntentCoreHash) ||
+      !bytesEqual(refresh.slice(106, 138), bs58.decode(input.expectedCreatorWallet)) ||
+      !bytesEqual(refresh.slice(138, 170), bs58.decode(input.expectedRewardMint)) ||
+      i64(refresh, 242) !== BigInt(Math.floor(input.expectedRefreshExpiresAt.getTime() / 1000)) ||
+      refresh[252] !== input.expectedMaxWitnesses ||
+      refresh[254] !== 1 ||
+      refresh[271] !== 1
+    ) {
+      return { kind: "failed" };
+    }
+
+    const totalFundedAtomic = u64(refresh, 255);
+    const lockedRewardAtomic = u64(refresh, 263);
+    if (totalFundedAtomic === 0n || lockedRewardAtomic !== totalFundedAtomic) {
+      return { kind: "failed" };
+    }
+
+    const claimant = Uint8Array.from(bs58.decode(input.claimantWallet));
+    let claimSlot = -1;
+    for (let slot = 0; slot < input.expectedMaxWitnesses; slot += 1) {
+      const claimantOffset = 272 + slot * 32;
+      const statusOffset = 416 + slot;
+      if (
+        refresh[statusOffset] === 1 &&
+        bytesEqual(refresh.slice(claimantOffset, claimantOffset + 32), claimant)
+      ) {
+        if (claimSlot !== -1) return { kind: "failed" };
+        claimSlot = slot;
+      }
+    }
+    if (claimSlot === -1) return { kind: "failed" };
+
+    const claimedAtUnix = i64(refresh, 368 + claimSlot * 8);
+    const claimDeadlineUnix = i64(refresh, 392 + claimSlot * 8);
+    if (
+      claimedAtUnix <= 0n ||
+      claimDeadlineUnix <= claimedAtUnix ||
+      claimDeadlineUnix - claimedAtUnix !== BigInt(input.claimDurationSeconds) ||
+      claimDeadlineUnix > BigInt(Math.floor(input.expectedRefreshExpiresAt.getTime() / 1000))
+    ) {
+      return { kind: "failed" };
+    }
+
+    const blockTime = transactionRecord.blockTime;
+    const observedAt = typeof blockTime === "number" && Number.isFinite(blockTime)
+      ? new Date(blockTime * 1000)
+      : new Date();
+
+    return {
+      kind: "confirmed",
+      commitment: confirmation,
+      claimSlot,
+      claimedAt: new Date(Number(claimedAtUnix) * 1000),
+      claimDeadline: new Date(Number(claimDeadlineUnix) * 1000),
+      totalFundedAtomic,
+      lockedRewardAtomic,
+      observedAt,
+    };
+  }
+
 }
