@@ -8,10 +8,7 @@ import type {
   SettlementOperation,
   SettlementRepository,
 } from "./settlement-repository.ts";
-import type {
-  RefreshStatus,
-  SettlementStatus,
-} from "../../packages/contracts/src/lifecycle.ts";
+import type { RefreshStatus, SettlementStatus } from "../../packages/contracts/src/lifecycle.ts";
 
 type DateLike = Date | string;
 
@@ -532,13 +529,15 @@ export class PostgresSettlementRepository implements SettlementRepository {
           'SETTLEMENT_ELIGIBLE',
           ${input.operationId}::uuid,
           1,
-          ${JSON.stringify({
-            refresh_id: locked.refreshId,
-            verification_result_id: locked.verificationResultId,
-            recipient_mask: input.recipientMask,
-            recipient_wallets: wallets,
-            locked_reward_atomic: locked.lockedRewardAtomic.toString(),
-          })}::jsonb,
+          ${
+        JSON.stringify({
+          refresh_id: locked.refreshId,
+          verification_result_id: locked.verificationResultId,
+          recipient_mask: input.recipientMask,
+          recipient_wallets: wallets,
+          locked_reward_atomic: locked.lockedRewardAtomic.toString(),
+        })
+      }::jsonb,
           ${input.observedAt}
         ), (
           ${crypto.randomUUID()}::uuid,
@@ -644,11 +643,13 @@ export class PostgresSettlementRepository implements SettlementRepository {
           ${current.settlementId}::uuid,
           'SETTLEMENT_ATTEMPT_RESERVED',
           ${current.operationId}::uuid,
-          ${JSON.stringify({
-            chain_signature: input.chainSignature,
-            last_valid_block_height: input.lastValidBlockHeight,
-            attempt: current.attemptCount + 1,
-          })}::jsonb,
+          ${
+        JSON.stringify({
+          chain_signature: input.chainSignature,
+          last_valid_block_height: input.lastValidBlockHeight,
+          attempt: current.attemptCount + 1,
+        })
+      }::jsonb,
           ${input.observedAt}
         )
       `;
@@ -735,14 +736,14 @@ export class PostgresSettlementRepository implements SettlementRepository {
           ${crypto.randomUUID()}::uuid,
           'settlement',
           ${current.settlementId}::uuid,
-          ${input.ambiguous
-            ? "SETTLEMENT_BROADCAST_AMBIGUOUS"
-            : "SETTLEMENT_SUBMITTED"},
+          ${input.ambiguous ? "SETTLEMENT_BROADCAST_AMBIGUOUS" : "SETTLEMENT_SUBMITTED"},
           ${current.operationId}::uuid,
-          ${JSON.stringify({
-            chain_signature: input.chainSignature,
-            attempt: current.attemptCount,
-          })}::jsonb,
+          ${
+        JSON.stringify({
+          chain_signature: input.chainSignature,
+          attempt: current.attemptCount,
+        })
+      }::jsonb,
           ${input.observedAt}
         )
       `;
@@ -832,10 +833,12 @@ export class PostgresSettlementRepository implements SettlementRepository {
           ${current.settlementId}::uuid,
           ${finalized ? "SETTLEMENT_FINALIZED" : "SETTLEMENT_CONFIRMED"},
           ${current.operationId}::uuid,
-          ${JSON.stringify({
-            chain_signature: input.chainSignature,
-            commitment: input.commitment,
-          })}::jsonb,
+          ${
+        JSON.stringify({
+          chain_signature: input.chainSignature,
+          commitment: input.commitment,
+        })
+      }::jsonb,
           ${input.observedAt}
         )
       `;
@@ -905,10 +908,12 @@ export class PostgresSettlementRepository implements SettlementRepository {
           ${current.settlementId}::uuid,
           'SETTLEMENT_RECONCILED_ABSENT',
           ${current.operationId}::uuid,
-          ${JSON.stringify({
-            chain_signature: current.chainSignature,
-            attempt: current.attemptCount,
-          })}::jsonb,
+          ${
+        JSON.stringify({
+          chain_signature: current.chainSignature,
+          attempt: current.attemptCount,
+        })
+      }::jsonb,
           ${input.observedAt}
         )
       `;

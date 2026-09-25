@@ -5,10 +5,8 @@ use now_settlement::{config_pda, contribution_pda, refresh_pda, ID};
 use serde_json::Value;
 
 fn vector() -> Value {
-    serde_json::from_str(include_str!(
-        "../../../test-vectors/solana-pda-v1.json"
-    ))
-    .expect("valid PDA vector JSON")
+    serde_json::from_str(include_str!("../../../test-vectors/solana-pda-v1.json"))
+        .expect("valid PDA vector JSON")
 }
 
 fn encode_hex(bytes: &[u8]) -> String {
@@ -25,8 +23,7 @@ fn bytes32(hex: &str) -> [u8; 32] {
     assert_eq!(hex.len(), 64);
     let mut out = [0u8; 32];
     for (index, byte) in out.iter_mut().enumerate() {
-        *byte = u8::from_str_radix(&hex[index * 2..index * 2 + 2], 16)
-            .expect("valid hex byte");
+        *byte = u8::from_str_radix(&hex[index * 2..index * 2 + 2], 16).expect("valid hex byte");
     }
     out
 }
@@ -40,7 +37,10 @@ fn pda_derivations_match_repository_vector() {
     assert_eq!(vector["program_id"].as_str(), Some(program_id.as_str()));
 
     let (config, config_bump) = config_pda(&ID);
-    assert_eq!(config.to_string(), vector["config"]["pda"].as_str().unwrap());
+    assert_eq!(
+        config.to_string(),
+        vector["config"]["pda"].as_str().unwrap()
+    );
     assert_eq!(
         encode_hex(&config.to_bytes()),
         vector["config"]["pda_hex"].as_str().unwrap()
@@ -52,7 +52,10 @@ fn pda_derivations_match_repository_vector() {
 
     let refresh_id = bytes32(vector["refresh"]["refresh_id_hex"].as_str().unwrap());
     let (refresh, refresh_bump) = refresh_pda(&ID, &refresh_id);
-    assert_eq!(refresh.to_string(), vector["refresh"]["pda"].as_str().unwrap());
+    assert_eq!(
+        refresh.to_string(),
+        vector["refresh"]["pda"].as_str().unwrap()
+    );
     assert_eq!(
         encode_hex(&refresh.to_bytes()),
         vector["refresh"]["pda_hex"].as_str().unwrap()
@@ -62,10 +65,8 @@ fn pda_derivations_match_repository_vector() {
         vector["refresh"]["bump"].as_u64().unwrap()
     );
 
-    let funder = Pubkey::from_str(
-        vector["contribution"]["funder_pubkey"].as_str().unwrap(),
-    )
-    .expect("valid funder pubkey");
+    let funder = Pubkey::from_str(vector["contribution"]["funder_pubkey"].as_str().unwrap())
+        .expect("valid funder pubkey");
     let (contribution, contribution_bump) = contribution_pda(&ID, &refresh, &funder);
     assert_eq!(
         contribution.to_string(),
@@ -80,7 +81,6 @@ fn pda_derivations_match_repository_vector() {
         vector["contribution"]["bump"].as_u64().unwrap()
     );
 }
-
 
 #[test]
 fn hostile_seed_and_program_substitution_changes_protocol_addresses() {
@@ -98,10 +98,8 @@ fn hostile_seed_and_program_substitution_changes_protocol_addresses() {
     assert_ne!(refresh, foreign_program_refresh);
 
     let (contribution, _) = contribution_pda(&ID, &refresh, &funder);
-    let (other_funder_contribution, _) =
-        contribution_pda(&ID, &refresh, &other_funder);
-    let (other_refresh_contribution, _) =
-        contribution_pda(&ID, &other_refresh, &funder);
+    let (other_funder_contribution, _) = contribution_pda(&ID, &refresh, &other_funder);
+    let (other_refresh_contribution, _) = contribution_pda(&ID, &other_refresh, &funder);
 
     assert_ne!(contribution, other_funder_contribution);
     assert_ne!(contribution, other_refresh_contribution);

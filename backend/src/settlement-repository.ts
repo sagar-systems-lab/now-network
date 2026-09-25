@@ -1,7 +1,4 @@
-import type {
-  RefreshStatus,
-  SettlementStatus,
-} from "../../packages/contracts/src/lifecycle.ts";
+import type { RefreshStatus, SettlementStatus } from "../../packages/contracts/src/lifecycle.ts";
 
 export type SettlementBeneficiary = {
   evidenceId: string;

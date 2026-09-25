@@ -1,7 +1,6 @@
 const encoder = new TextEncoder();
 const DOMAIN = encoder.encode("NOW_SETTLEMENT_OPERATION_V1\0");
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 
 function concat(parts: readonly Uint8Array[]): Uint8Array {
   const size = parts.reduce((sum, part) => sum + part.length, 0);

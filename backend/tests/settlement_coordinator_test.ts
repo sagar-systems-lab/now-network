@@ -137,9 +137,7 @@ class MemorySettlementRepository implements SettlementRepository {
       verificationDigest: input.eligibility.verificationDigest,
       executionHash: input.eligibility.executionHash,
       recipientMask: input.recipientMask,
-      recipientWallets: input.eligibility.beneficiaries.map((item) =>
-        item.walletAddress
-      ),
+      recipientWallets: input.eligibility.beneficiaries.map((item) => item.walletAddress),
       chainRefreshId: input.eligibility.chainRefreshId,
       rewardMint: input.eligibility.rewardMint,
       lockedRewardAtomic: input.eligibility.lockedRewardAtomic,

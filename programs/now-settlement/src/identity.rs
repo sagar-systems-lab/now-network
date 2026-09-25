@@ -81,11 +81,7 @@ pub fn refresh_pda(program_id: &Pubkey, refresh_id: &RefreshId) -> (Pubkey, u8) 
     Pubkey::find_program_address(&[REFRESH_SEED, refresh_id], program_id)
 }
 
-pub fn contribution_pda(
-    program_id: &Pubkey,
-    refresh: &Pubkey,
-    funder: &Pubkey,
-) -> (Pubkey, u8) {
+pub fn contribution_pda(program_id: &Pubkey, refresh: &Pubkey, funder: &Pubkey) -> (Pubkey, u8) {
     Pubkey::find_program_address(
         &[CONTRIBUTION_SEED, refresh.as_ref(), funder.as_ref()],
         program_id,
@@ -150,7 +146,10 @@ mod tests {
         let baseline = execution_hash(&intent_hash, 1_000_000, &refresh);
 
         assert_ne!(baseline, execution_hash(&intent_hash, 1_000_001, &refresh));
-        assert_ne!(baseline, execution_hash(&intent_hash, 1_000_000, &other_refresh));
+        assert_ne!(
+            baseline,
+            execution_hash(&intent_hash, 1_000_000, &other_refresh)
+        );
     }
 
     #[test]
@@ -180,11 +179,13 @@ mod tests {
 
         let (config, config_bump) = config_pda(&crate::ID);
         let (refresh, refresh_bump) = refresh_pda(&crate::ID, &refresh_id);
-        let (contribution, contribution_bump) =
-            contribution_pda(&crate::ID, &refresh, &funder);
+        let (contribution, contribution_bump) = contribution_pda(&crate::ID, &refresh, &funder);
 
         assert_eq!((config, config_bump), config_pda(&crate::ID));
-        assert_eq!((refresh, refresh_bump), refresh_pda(&crate::ID, &refresh_id));
+        assert_eq!(
+            (refresh, refresh_bump),
+            refresh_pda(&crate::ID, &refresh_id)
+        );
         assert_eq!(
             (contribution, contribution_bump),
             contribution_pda(&crate::ID, &refresh, &funder),

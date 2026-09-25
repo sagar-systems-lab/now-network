@@ -1,19 +1,11 @@
-import {
-  transitionPayment,
-} from "../../packages/domain/src/payment-machine.ts";
+import { transitionPayment } from "../../packages/domain/src/payment-machine.ts";
 import { transitionRefresh } from "../../packages/domain/src/refresh-machine.ts";
+import { bytesToHex, deriveSettlementOperationHashV1 } from "./settlement-identity.ts";
+import type { SettlementOperation, SettlementRepository } from "./settlement-repository.ts";
 import {
-  bytesToHex,
-  deriveSettlementOperationHashV1,
-} from "./settlement-identity.ts";
-import type {
-  SettlementOperation,
-  SettlementRepository,
-} from "./settlement-repository.ts";
-import {
-  SettlementChainError,
   type PreparedSettlementAttempt,
   type SettlementChainClient,
+  SettlementChainError,
   type SettlementInspection,
 } from "./solana-settlement-client.ts";
 
@@ -180,9 +172,7 @@ export class SettlementCoordinator {
       }
       await this.defer(
         operation,
-        error instanceof SettlementChainError
-          ? error.code
-          : "SETTLEMENT_PREPARATION_UNAVAILABLE",
+        error instanceof SettlementChainError ? error.code : "SETTLEMENT_PREPARATION_UNAVAILABLE",
         summary,
       );
       return null;
@@ -232,9 +222,7 @@ export class SettlementCoordinator {
       }
       await this.defer(
         operation,
-        error instanceof SettlementChainError
-          ? error.code
-          : "SETTLEMENT_BROADCAST_UNAVAILABLE",
+        error instanceof SettlementChainError ? error.code : "SETTLEMENT_BROADCAST_UNAVAILABLE",
         summary,
       );
       return;

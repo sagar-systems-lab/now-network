@@ -37,14 +37,18 @@ Deno.test("settlement operation hash binds verification and execution authority"
     recipientMask: 1,
   };
   const baseline = bytesToHex(await deriveSettlementOperationHashV1(base));
-  const executionDrift = bytesToHex(await deriveSettlementOperationHashV1({
-    ...base,
-    executionHash: new Uint8Array(32).fill(9),
-  }));
-  const verificationDrift = bytesToHex(await deriveSettlementOperationHashV1({
-    ...base,
-    verificationDigest: new Uint8Array(32).fill(8),
-  }));
+  const executionDrift = bytesToHex(
+    await deriveSettlementOperationHashV1({
+      ...base,
+      executionHash: new Uint8Array(32).fill(9),
+    }),
+  );
+  const verificationDrift = bytesToHex(
+    await deriveSettlementOperationHashV1({
+      ...base,
+      verificationDigest: new Uint8Array(32).fill(8),
+    }),
+  );
 
   if (baseline === executionDrift || baseline === verificationDrift) {
     throw new Error("settlement operation authority was not fully bound");

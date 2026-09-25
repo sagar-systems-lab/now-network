@@ -32,11 +32,7 @@ pub struct ClaimWitness<'info> {
     pub claimant_reward_token_account: UncheckedAccount<'info>,
 }
 
-fn claim_deadline(
-    now: i64,
-    refresh_expires_at: i64,
-    claim_duration_seconds: u32,
-) -> Result<i64> {
+fn claim_deadline(now: i64, refresh_expires_at: i64, claim_duration_seconds: u32) -> Result<i64> {
     if now >= refresh_expires_at {
         return err!(ProtocolError::RefreshExpired);
     }
@@ -126,7 +122,8 @@ pub fn handler(
     claim_duration_seconds: u32,
 ) -> Result<()> {
     let config = &ctx.accounts.config;
-    if config.version != PROTOCOL_VERSION_V1 || ctx.accounts.refresh.version != PROTOCOL_VERSION_V1 {
+    if config.version != PROTOCOL_VERSION_V1 || ctx.accounts.refresh.version != PROTOCOL_VERSION_V1
+    {
         return err!(ProtocolError::InvalidProtocolVersion);
     }
     if config.paused {

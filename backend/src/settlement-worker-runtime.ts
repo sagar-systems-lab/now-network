@@ -1,9 +1,6 @@
 import { PostgresSettlementRepository } from "./postgres-settlement-repository.ts";
 import { SettlementCoordinator } from "./settlement-coordinator.ts";
-import {
-  settlementVerifierFromJson,
-  SolanaSettlementClient,
-} from "./solana-settlement-client.ts";
+import { settlementVerifierFromJson, SolanaSettlementClient } from "./solana-settlement-client.ts";
 import { createSettlementWorkerHandler } from "./settlement-worker.ts";
 
 function requiredEnv(name: string): string {

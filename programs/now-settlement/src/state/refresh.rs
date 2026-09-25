@@ -43,8 +43,7 @@ pub struct RefreshEscrow {
 }
 
 impl RefreshEscrow {
-    pub const BODY_LEN: usize =
-        2 + // version
+    pub const BODY_LEN: usize = 2 + // version
         32 + // refresh_id
         32 + // state_id_digest
         32 + // intent_core_hash
