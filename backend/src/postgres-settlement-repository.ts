@@ -201,10 +201,10 @@ const SELECT_ELIGIBILITY = String.raw`
   join app.verification_results vr
     on vr.refresh_id = rr.refresh_id
    and vr.status = 'VERIFIED'
-  join app.live_states ls
-    on ls.state_id = rr.state_id
-   and ls.latest_refresh_id = rr.refresh_id
-   and ls.latest_verification_result_id = vr.verification_result_id
+  join app.state_history sh
+    on sh.state_id = rr.state_id
+   and sh.refresh_id = rr.refresh_id
+   and sh.verification_result_id = vr.verification_result_id
   left join app.settlement_operations so
     on so.refresh_id = rr.refresh_id
   where rr.status = 'VERIFIED'
@@ -241,10 +241,10 @@ const SELECT_LOCKED_ELIGIBILITY = String.raw`
   join app.verification_results vr
     on vr.refresh_id = rr.refresh_id
    and vr.status = 'VERIFIED'
-  join app.live_states ls
-    on ls.state_id = rr.state_id
-   and ls.latest_refresh_id = rr.refresh_id
-   and ls.latest_verification_result_id = vr.verification_result_id
+  join app.state_history sh
+    on sh.state_id = rr.state_id
+   and sh.refresh_id = rr.refresh_id
+   and sh.verification_result_id = vr.verification_result_id
   left join app.settlement_operations so
     on so.refresh_id = rr.refresh_id
   where rr.refresh_id = $1::uuid
