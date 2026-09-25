@@ -114,8 +114,7 @@ function challengeable(context: EvidenceChallengeContext): boolean {
   );
 }
 
-export class PostgresEvidenceChallengeRepository
-  implements EvidenceChallengeRepository {
+export class PostgresEvidenceChallengeRepository implements EvidenceChallengeRepository {
   private readonly sql: ReturnType<typeof postgres>;
 
   constructor(connectionString: string) {

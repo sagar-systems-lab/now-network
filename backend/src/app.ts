@@ -412,10 +412,6 @@ function matchClaimRoute(
   }
   return {
     acceptanceId: match[1],
-    action: match[2] === "observe"
-      ? "observe"
-      : match[2] === "challenge"
-      ? "challenge"
-      : "detail",
+    action: match[2] === "observe" ? "observe" : match[2] === "challenge" ? "challenge" : "detail",
   };
 }
