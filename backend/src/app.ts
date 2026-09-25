@@ -12,6 +12,12 @@ import {
   UUID_PATTERN,
 } from "./http.ts";
 import type { IdentityRepository } from "./identity-repository.ts";
+import {
+  DEFAULT_OPPORTUNITY_LIMIT,
+  MAX_OPPORTUNITY_LIMIT,
+  MAX_OPPORTUNITY_RADIUS_M,
+  OpportunityMatcher,
+} from "./opportunity-matcher.ts";
 import type { RefreshCoordinator } from "./refresh-coordinator.ts";
 import type { StateRepository } from "./state-repository.ts";
 import {
@@ -30,6 +36,7 @@ export type AppDependencies = {
   identityRepository: IdentityRepository;
   stateRepository?: StateRepository;
   refreshCoordinator?: RefreshCoordinator;
+  opportunityMatcher?: OpportunityMatcher;
   now?: () => Date;
 };
 
@@ -63,6 +70,19 @@ export function createApp(dependencies: AppDependencies): (request: Request) => 
       );
     }
     return dependencies.refreshCoordinator;
+  }
+
+  function requireOpportunityMatcher(): OpportunityMatcher {
+    if (!dependencies.opportunityMatcher) {
+      throw new ApiFault(
+        503,
+        "OPPORTUNITY_MATCHER_UNAVAILABLE",
+        "Opportunity discovery is temporarily unavailable.",
+        true,
+        1_000,
+      );
+    }
+    return dependencies.opportunityMatcher;
   }
 
   return async (request: Request): Promise<Response> => {
@@ -112,6 +132,41 @@ export function createApp(dependencies: AppDependencies): (request: Request) => 
         principal.authUserId,
         principal.principalType,
       );
+
+      if (
+        request.method === "GET" &&
+        routeMatches(url.pathname, "/v1/opportunities/nearby")
+      ) {
+        const data = await requireOpportunityMatcher().nearby(actor, {
+          lat: requiredQueryNumber(url, "lat", -90, 90),
+          lng: requiredQueryNumber(url, "lng", -180, 180),
+          radiusM: requiredQueryNumber(
+            url,
+            "radius_m",
+            1,
+            MAX_OPPORTUNITY_RADIUS_M,
+            true,
+          ),
+          limit: optionalQueryInteger(
+            url,
+            "limit",
+            DEFAULT_OPPORTUNITY_LIMIT,
+            1,
+            MAX_OPPORTUNITY_LIMIT,
+          ),
+          cursor: url.searchParams.get("cursor"),
+        });
+        return successResponse(id, data);
+      }
+
+      const opportunityRoute = matchOpportunityRoute(url.pathname);
+      if (request.method === "GET" && opportunityRoute !== null) {
+        const data = await requireOpportunityMatcher().detail(
+          actor,
+          opportunityRoute.refreshId,
+        );
+        return successResponse(id, data);
+      }
 
       if (request.method === "POST" && routeMatches(url.pathname, "/v1/refreshes")) {
         const body = await readJsonObject(request);
@@ -259,4 +314,13 @@ function matchRefreshRoute(
       ? "funding-observe"
       : "detail",
   };
+}
+
+function matchOpportunityRoute(pathname: string): { refreshId: string } | null {
+  const match = pathname.match(/(?:^|\/)v1\/opportunities\/([^/]+)$/u);
+  if (!match || match[1] === "nearby") return null;
+  if (!UUID_PATTERN.test(match[1])) {
+    throw new ApiFault(400, "INVALID_REQUEST", "Invalid refresh_id.");
+  }
+  return { refreshId: match[1] };
 }

@@ -1,6 +1,8 @@
 import { createApp } from "./app.ts";
 import { SupabaseAuthVerifier } from "./auth.ts";
 import { PostgresIdentityRepository } from "./postgres-identity-repository.ts";
+import { OpportunityMatcher } from "./opportunity-matcher.ts";
+import { PostgresOpportunityRepository } from "./postgres-opportunity-repository.ts";
 import { PostgresRefreshRepository } from "./postgres-refresh-repository.ts";
 import { PostgresStateRepository } from "./postgres-state-repository.ts";
 import { RefreshCoordinator } from "./refresh-coordinator.ts";
@@ -30,6 +32,8 @@ export function createProductionHandler(): (request: Request) => Promise<Respons
   const identityRepository = new PostgresIdentityRepository(connectionString);
   const stateRepository = new PostgresStateRepository(connectionString);
   const refreshRepository = new PostgresRefreshRepository(connectionString);
+  const opportunityRepository = new PostgresOpportunityRepository(connectionString);
+  const opportunityMatcher = new OpportunityMatcher(opportunityRepository);
   const chainObserver = new SolanaRpcRefreshChainObserver(
     requiredEnv("NOW_SOLANA_RPC_URL"),
   );
@@ -54,5 +58,6 @@ export function createProductionHandler(): (request: Request) => Promise<Respons
     identityRepository,
     stateRepository,
     refreshCoordinator,
+    opportunityMatcher,
   });
 }
