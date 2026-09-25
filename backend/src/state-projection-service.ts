@@ -4,10 +4,7 @@ import type {
   StateProjectionRepository,
   StateProjectionResult,
 } from "./state-projection-repository.ts";
-import {
-  canonicalJson,
-  parsePolicyTemplate,
-} from "../../packages/policy/src/index.ts";
+import { canonicalJson, parsePolicyTemplate } from "../../packages/policy/src/index.ts";
 import { sha256Bytes } from "../../packages/contracts/src/refresh-intent.ts";
 import type { PolicyTemplateV1 } from "../../packages/policy/src/types.ts";
 import { deriveFreshness } from "../../packages/domain/src/freshness.ts";
@@ -279,13 +276,11 @@ export class StateProjectionService {
       projected: result.kind === "projected",
       replayed: result.kind === "replayed",
       superseded: result.kind === "superseded",
-      freshness: result.kind === "superseded"
-        ? null
-        : deriveFreshness(now.getTime(), {
-          observedAtMs: result.observedAt.getTime(),
-          agingAtMs: result.agingAt.getTime(),
-          freshUntilMs: result.freshUntil.getTime(),
-        }),
+      freshness: result.kind === "superseded" ? null : deriveFreshness(now.getTime(), {
+        observedAtMs: result.observedAt.getTime(),
+        agingAtMs: result.agingAt.getTime(),
+        freshUntilMs: result.freshUntil.getTime(),
+      }),
     };
   }
 }

@@ -149,8 +149,7 @@ function historyResult(
   };
 }
 
-export class PostgresStateProjectionRepository
-  implements StateProjectionRepository {
+export class PostgresStateProjectionRepository implements StateProjectionRepository {
   private readonly sql: ReturnType<typeof postgres>;
 
   constructor(connectionString: string) {
@@ -170,9 +169,7 @@ export class PostgresStateProjectionRepository
       refreshId,
       verificationResultId,
     ]);
-    return rows[0]
-      ? contextFromRow(rows[0] as unknown as ProjectionContextRow)
-      : null;
+    return rows[0] ? contextFromRow(rows[0] as unknown as ProjectionContextRow) : null;
   }
 
   async project(
@@ -254,9 +251,7 @@ export class PostgresStateProjectionRepository
         where state_id = ${input.stateId}::uuid
         for update
       `;
-      const live = liveRows[0]
-        ? liveRows[0] as unknown as LiveStateRow
-        : null;
+      const live = liveRows[0] ? liveRows[0] as unknown as LiveStateRow : null;
 
       if (historyRows[0]) {
         const history = historyRows[0] as unknown as HistoryRow;
@@ -324,12 +319,14 @@ export class PostgresStateProjectionRepository
             'STATE_HISTORY_RECORDED',
             ${input.verificationResultId}::uuid,
             1,
-            ${JSON.stringify({
-              state_id: input.stateId,
-              refresh_id: input.refreshId,
-              verification_result_id: input.verificationResultId,
-              superseded: true,
-            })}::jsonb,
+            ${
+          JSON.stringify({
+            state_id: input.stateId,
+            refresh_id: input.refreshId,
+            verification_result_id: input.verificationResultId,
+            superseded: true,
+          })
+        }::jsonb,
             ${input.observedAt}
           )
         `;
@@ -430,14 +427,16 @@ export class PostgresStateProjectionRepository
           'STATE_PROJECTED',
           ${input.verificationResultId}::uuid,
           ${stateRevision},
-          ${JSON.stringify({
-            refresh_id: input.refreshId,
-            verification_result_id: input.verificationResultId,
-            observed_at: input.observedAt.toISOString(),
-            aging_at: input.agingAt.toISOString(),
-            fresh_until: input.freshUntil.toISOString(),
-            conflict_active: false,
-          })}::jsonb,
+          ${
+        JSON.stringify({
+          refresh_id: input.refreshId,
+          verification_result_id: input.verificationResultId,
+          observed_at: input.observedAt.toISOString(),
+          aging_at: input.agingAt.toISOString(),
+          fresh_until: input.freshUntil.toISOString(),
+          conflict_active: false,
+        })
+      }::jsonb,
           ${input.observedAt}
         )
       `;

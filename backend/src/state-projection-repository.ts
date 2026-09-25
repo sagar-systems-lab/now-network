@@ -1,8 +1,5 @@
 import type { VerificationClass } from "../../packages/contracts/src/core.ts";
-import type {
-  RefreshStatus,
-  StateType,
-} from "../../packages/contracts/src/lifecycle.ts";
+import type { RefreshStatus, StateType } from "../../packages/contracts/src/lifecycle.ts";
 import type { PolicyTemplateV1 } from "../../packages/policy/src/types.ts";
 
 export type StateProjectionContext = {
@@ -27,15 +24,15 @@ export type StateProjectionContext = {
 };
 
 type StateProjectionRecord = {
-    stateId: string;
-    refreshId: string;
-    verificationResultId: string;
-    historyId: string;
-    stateRevision: number;
-    observedAt: Date;
-    agingAt: Date;
-    freshUntil: Date;
-    currentValue: unknown;
+  stateId: string;
+  refreshId: string;
+  verificationResultId: string;
+  historyId: string;
+  stateRevision: number;
+  observedAt: Date;
+  agingAt: Date;
+  freshUntil: Date;
+  currentValue: unknown;
 };
 
 export type StateProjectionResult =
