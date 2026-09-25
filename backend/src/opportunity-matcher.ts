@@ -72,11 +72,6 @@ function decodeCursor(value: string | null): OpportunityCursor | null {
   };
 }
 
-function rewardShare(record: OpportunityRecord): bigint {
-  if (record.payoutRule === "SINGLE_WINNER_ALL") return record.rewardAtomic;
-  return record.rewardAtomic / BigInt(record.requiredWitnesses);
-}
-
 function payload(record: OpportunityRecord): Record<string, unknown> {
   return {
     refresh_id: record.refreshId,
@@ -95,7 +90,6 @@ function payload(record: OpportunityRecord): Record<string, unknown> {
     reward: {
       mint: record.rewardMint,
       pool_atomic: record.rewardAtomic.toString(),
-      estimated_share_atomic: rewardShare(record).toString(),
       payout_rule: record.payoutRule,
     },
     distance_m: record.distanceM,
