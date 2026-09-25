@@ -12,8 +12,7 @@ Deno.test("Supabase storage signer uses the private bucket upload-sign endpoint 
       seenInit = init;
       return Promise.resolve(
         Response.json({
-          url:
-            "/object/upload/sign/evidence-private/evidence/r/a/c/file?token=signed-token",
+          url: "/object/upload/sign/evidence-private/evidence/r/a/c/file?token=signed-token",
         }),
       );
     }) as typeof fetch,

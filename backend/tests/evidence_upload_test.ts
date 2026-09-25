@@ -135,8 +135,7 @@ class MemoryStorage implements EvidenceObjectStorage {
     this.calls.push(objectKey);
     if (this.fail) return Promise.reject(new Error("storage unavailable"));
     return Promise.resolve({
-      signedUrl:
-        `https://storage.invalid/object/upload/sign/private/${objectKey}?token=test`,
+      signedUrl: `https://storage.invalid/object/upload/sign/private/${objectKey}?token=test`,
     });
   }
 }
@@ -273,8 +272,7 @@ Deno.test("signed upload rejects expired, consumed, and cross-actor challenges",
 Deno.test("signed upload rejects metadata drift after reservation", async () => {
   const repository = new MemoryUploadRepository(
     await context({
-      objectKey:
-        `evidence/${REFRESH_ID}/${ACCEPTANCE_ID}/${CHALLENGE_ID}/stable`,
+      objectKey: `evidence/${REFRESH_ID}/${ACCEPTANCE_ID}/${CHALLENGE_ID}/stable`,
       mediaMime: "image/jpeg",
     }),
   );

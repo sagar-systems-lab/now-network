@@ -55,9 +55,7 @@ export class SupabaseEvidenceObjectStorage implements EvidenceObjectStorage {
       objectKey.startsWith("/") ||
       objectKey.endsWith("/") ||
       objectKey.includes("\\") ||
-      objectKey.split("/").some((segment) =>
-        segment === "" || segment === "." || segment === ".."
-      )
+      objectKey.split("/").some((segment) => segment === "" || segment === "." || segment === "..")
     ) {
       throw new Error("invalid evidence object key");
     }
@@ -84,11 +82,9 @@ export class SupabaseEvidenceObjectStorage implements EvidenceObjectStorage {
       throw new Error("storage signed-upload response is missing url");
     }
 
-    const signedUrl = /^https?:\/\//u.test(payload.url)
-      ? new URL(payload.url).toString()
-      : new URL(
-        this.storageBaseUrl + (payload.url.startsWith("/") ? payload.url : `/${payload.url}`),
-      ).toString();
+    const signedUrl = /^https?:\/\//u.test(payload.url) ? new URL(payload.url).toString() : new URL(
+      this.storageBaseUrl + (payload.url.startsWith("/") ? payload.url : `/${payload.url}`),
+    ).toString();
 
     if (!new URL(signedUrl).searchParams.get("token")) {
       throw new Error("storage signed-upload response is missing token");

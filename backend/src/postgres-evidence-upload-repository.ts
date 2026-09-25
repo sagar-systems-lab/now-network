@@ -179,10 +179,12 @@ export class PostgresEvidenceUploadRepository implements EvidenceUploadRepositor
           'EVIDENCE_UPLOAD_AUTHORIZED',
           ${input.actorId}::uuid,
           ${input.challengeId}::uuid,
-          ${JSON.stringify({
-            object_key: input.objectKey,
-            media_mime: input.mediaMime,
-          })}::jsonb,
+          ${
+        JSON.stringify({
+          object_key: input.objectKey,
+          media_mime: input.mediaMime,
+        })
+      }::jsonb,
           ${input.observedAt}
         )
       `;
