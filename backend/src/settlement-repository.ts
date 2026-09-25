@@ -109,6 +109,13 @@ export interface SettlementRepository {
     observedAt: Date;
   }): Promise<SettlementMutationResult>;
 
+  defer(input: {
+    settlementId: string;
+    nextReconcileAt: Date;
+    errorCode: string;
+    observedAt: Date;
+  }): Promise<SettlementMutationResult>;
+
   markAuthorityConflict(input: {
     settlementId: string;
     errorCode: string;
