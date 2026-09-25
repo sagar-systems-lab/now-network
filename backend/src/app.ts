@@ -1,6 +1,7 @@
 import type { AuthVerifier } from "./auth.ts";
 import type { ClaimCoordinator } from "./claim-coordinator.ts";
 import type { EvidenceChallengeService } from "./evidence-challenge-service.ts";
+import type { EvidenceUploadService } from "./evidence-upload-service.ts";
 import { ApiFault } from "./errors.ts";
 import {
   faultResponse,
@@ -41,6 +42,7 @@ export type AppDependencies = {
   opportunityMatcher?: OpportunityMatcher;
   claimCoordinator?: ClaimCoordinator;
   evidenceChallengeService?: EvidenceChallengeService;
+  evidenceUploadService?: EvidenceUploadService;
   now?: () => Date;
 };
 
@@ -100,6 +102,19 @@ export function createApp(dependencies: AppDependencies): (request: Request) => 
       );
     }
     return dependencies.evidenceChallengeService;
+  }
+
+  function requireEvidenceUploadService(): EvidenceUploadService {
+    if (!dependencies.evidenceUploadService) {
+      throw new ApiFault(
+        503,
+        "EVIDENCE_UPLOAD_UNAVAILABLE",
+        "Evidence upload authorization is temporarily unavailable.",
+        true,
+        1_000,
+      );
+    }
+    return dependencies.evidenceUploadService;
   }
 
   function requireOpportunityMatcher(): OpportunityMatcher {
@@ -223,6 +238,22 @@ export function createApp(dependencies: AppDependencies): (request: Request) => 
           );
           return successResponse(id, data, 201);
         }
+      }
+
+      const evidenceChallengeRoute = matchEvidenceChallengeRoute(url.pathname);
+      if (
+        request.method === "POST" &&
+        evidenceChallengeRoute !== null &&
+        evidenceChallengeRoute.action === "upload"
+      ) {
+        const body = await readJsonObject(request);
+        const data = await requireEvidenceUploadService().authorize({
+          actor,
+          challengeId: evidenceChallengeRoute.challengeId,
+          nonce: requiredString(body, "nonce", 128),
+          mediaMime: requiredString(body, "media_mime", 128),
+        });
+        return successResponse(id, data, 201);
       }
 
       const opportunityRoute = matchOpportunityRoute(url.pathname);
@@ -414,4 +445,17 @@ function matchClaimRoute(
     acceptanceId: match[1],
     action: match[2] === "observe" ? "observe" : match[2] === "challenge" ? "challenge" : "detail",
   };
+}
+
+function matchEvidenceChallengeRoute(
+  pathname: string,
+): { challengeId: string; action: "upload" } | null {
+  const match = pathname.match(
+    /(?:^|\/)v1\/evidence-challenges\/([^/]+)\/(upload)$/u,
+  );
+  if (!match) return null;
+  if (!UUID_PATTERN.test(match[1])) {
+    throw new ApiFault(400, "INVALID_REQUEST", "Invalid challenge_id.");
+  }
+  return { challengeId: match[1], action: "upload" };
 }
