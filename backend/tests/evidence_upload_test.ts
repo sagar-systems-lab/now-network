@@ -286,8 +286,7 @@ Deno.test("signed upload rejects metadata drift after reservation", async () => 
   const repository = new MemoryUploadRepository(
     await context({
       evidenceId: "b4000000-0000-4000-8000-000000000001",
-      objectKey:
-        `refreshes/${REFRESH_ID}/evidence/b4000000-0000-4000-8000-000000000001/original`,
+      objectKey: `refreshes/${REFRESH_ID}/evidence/b4000000-0000-4000-8000-000000000001/original`,
       mediaMime: "image/jpeg",
     }),
   );

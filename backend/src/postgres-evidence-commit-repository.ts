@@ -169,9 +169,7 @@ function contextFromRow(row: ContextRow): EvidenceCommitContext {
     stateVersion: Number(row.state_version),
     stateType: row.state_type,
     intentCoreHash: new Uint8Array(row.intent_core_hash),
-    executionHash: row.execution_hash === null
-      ? null
-      : new Uint8Array(row.execution_hash),
+    executionHash: row.execution_hash === null ? null : new Uint8Array(row.execution_hash),
     chainLockedRewardAtomic: row.chain_locked_reward === null
       ? null
       : BigInt(row.chain_locked_reward),
@@ -236,8 +234,7 @@ export class PostgresEvidenceCommitRepository implements EvidenceCommitRepositor
     input: Parameters<EvidenceCommitRepository["commitEvidence"]>[0],
   ): Promise<CommitEvidenceResult> {
     return await this.sql.begin(async (tx) => {
-      const storedKey =
-        `${input.actorId}:evidence:commit:v1:${input.idempotencyKey}`;
+      const storedKey = `${input.actorId}:evidence:commit:v1:${input.idempotencyKey}`;
       await tx`
         select pg_advisory_xact_lock(
           hashtextextended(${storedKey}, 41)
@@ -594,11 +591,13 @@ export class PostgresEvidenceCommitRepository implements EvidenceCommitRepositor
           ${input.actorId}::uuid,
           ${input.evidenceId}::uuid,
           ${refreshRevision},
-          ${JSON.stringify({
-            status: refreshStatus,
-            committed_evidence: committedCount,
-            required_witnesses: context.requiredWitnesses,
-          })}::jsonb,
+          ${
+        JSON.stringify({
+          status: refreshStatus,
+          committed_evidence: committedCount,
+          required_witnesses: context.requiredWitnesses,
+        })
+      }::jsonb,
           ${input.observedAt}
         )
       `;

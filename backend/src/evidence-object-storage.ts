@@ -115,9 +115,7 @@ export class SupabaseEvidenceObjectStorage implements EvidenceObjectStorage {
       objectKey.startsWith("/") ||
       objectKey.endsWith("/") ||
       objectKey.includes("\\") ||
-      objectKey.split("/").some((segment) =>
-        segment === "" || segment === "." || segment === ".."
-      )
+      objectKey.split("/").some((segment) => segment === "" || segment === "." || segment === "..")
     ) {
       throw new Error("invalid evidence object key");
     }

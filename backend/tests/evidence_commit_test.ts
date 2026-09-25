@@ -55,8 +55,7 @@ async function context(
     challengeStatus: "ISSUED",
     challengeIssuedAt: new Date("2026-09-25T11:59:00.000Z"),
     challengeExpiresAt: new Date("2026-09-25T12:02:00.000Z"),
-    reservedObjectKey:
-      `refreshes/${REFRESH_ID}/evidence/${EVIDENCE_ID}/original`,
+    reservedObjectKey: `refreshes/${REFRESH_ID}/evidence/${EVIDENCE_ID}/original`,
     reservedMediaMime: "image/jpeg",
     claimStatus: "CAPTURE_ACTIVE",
     claimDeadline: new Date("2026-09-25T12:03:00.000Z"),
