@@ -1,14 +1,28 @@
 alter table app.evidence_challenges
-  drop constraint evidence_challenges_upload_reservation_shape;
-
-alter table app.evidence_challenges
   add column reserved_evidence_id uuid;
 
 update app.evidence_challenges
 set reserved_evidence_id = split_part(upload_object_key, '/', 5)::uuid
 where upload_object_key is not null
   and reserved_evidence_id is null
-  and upload_object_key ~* '^evidence/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}
+  and upload_object_key ~* '^evidence/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
+
+do $$
+begin
+  if exists (
+    select 1
+    from app.evidence_challenges
+    where upload_object_key is not null
+      and reserved_evidence_id is null
+  ) then
+    raise exception 'existing evidence upload reservation cannot be assigned an evidence id';
+  end if;
+end
+$$;
+
+alter table app.evidence_challenges
+  add constraint evidence_challenges_reserved_evidence_shape
+    check (
       (
         reserved_evidence_id is null
         and upload_object_key is null

@@ -160,6 +160,7 @@ Deno.test("database constraints encode critical correctness boundaries", async (
       "evidence_challenges_nonce_hash_sha256",
       "evidence_challenges_status_timestamps",
       "evidence_challenges_upload_reservation_shape",
+      "evidence_challenges_reserved_evidence_shape",
       "evidence_packets_digest_lengths",
       "funding_target_atomic > 0",
       "funding_target_atomic <= 18446744073709551615",

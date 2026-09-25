@@ -13,13 +13,13 @@ begin
   into reservation_constraint
   from pg_constraint
   where conrelid = 'app.evidence_challenges'::regclass
-    and conname = 'evidence_challenges_upload_reservation_shape';
+    and conname = 'evidence_challenges_reserved_evidence_shape';
 
   if reservation_constraint is null
      or position('reserved_evidence_id' in lower(reservation_constraint)) = 0
      or position('upload_object_key' in lower(reservation_constraint)) = 0
      or position('upload_issued_at' in lower(reservation_constraint)) = 0 then
-    raise exception 'evidence reservation identity guard missing: %', reservation_constraint;
+    raise exception 'reserved evidence identity guard missing: %', reservation_constraint;
   end if;
 
   select pg_get_constraintdef(oid)
