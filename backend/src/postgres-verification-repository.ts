@@ -186,7 +186,7 @@ export class PostgresVerificationRepository implements VerificationRepository {
   }
 
   async getContext(refreshId: string): Promise<VerificationContext | null> {
-    const refreshRows = await this.sql<RefreshRow[]>`
+    const refreshRows = await this.sql`
       select
         rr.refresh_id,
         rr.requester_actor_id,
@@ -208,14 +208,14 @@ export class PostgresVerificationRepository implements VerificationRepository {
       limit 1
     `;
     if (!refreshRows[0]) return null;
-    const row = refreshRows[0];
+    const row = refreshRows[0] as unknown as RefreshRow;
 
     const evidenceRows = await this.sql.unsafe(EVIDENCE_SQL, [refreshId]);
     const evidence = evidenceRows.map((item) =>
       evidenceFromRow(item as unknown as EvidenceRow)
     );
 
-    const verificationRows = await this.sql<VerificationRow[]>`
+    const verificationRows = await this.sql`
       select
         verification_result_id,
         evidence_set_revision,
@@ -249,7 +249,7 @@ export class PostgresVerificationRepository implements VerificationRepository {
       proofPolicySnapshot: row.proof_policy_snapshot,
       evidence,
       existing: verificationRows[0]
-        ? existingFromRow(verificationRows[0])
+        ? existingFromRow(verificationRows[0] as unknown as VerificationRow)
         : null,
     };
   }
@@ -264,7 +264,7 @@ export class PostgresVerificationRepository implements VerificationRepository {
         )
       `;
 
-      const refreshRows = await tx<RefreshRow[]>`
+      const refreshRows = await tx`
         select
           rr.refresh_id,
           rr.requester_actor_id,
@@ -286,7 +286,7 @@ export class PostgresVerificationRepository implements VerificationRepository {
         for update of rr
       `;
       if (!refreshRows[0]) return { kind: "not_found" } as const;
-      const refresh = refreshRows[0];
+      const refresh = refreshRows[0] as unknown as RefreshRow;
 
       const evidenceRows = await tx.unsafe(EVIDENCE_SQL, [input.refreshId]);
       const evidence = evidenceRows.map((item) =>
@@ -298,7 +298,7 @@ export class PostgresVerificationRepository implements VerificationRepository {
         evidence.some((item) => item.actorId === input.actorId);
       if (!actorAuthorized) return { kind: "actor_mismatch" } as const;
 
-      const existingRows = await tx<VerificationRow[]>`
+      const existingRows = await tx`
         select
           verification_result_id,
           evidence_set_revision,
@@ -316,7 +316,9 @@ export class PostgresVerificationRepository implements VerificationRepository {
         limit 1
       `;
       if (existingRows[0]) {
-        const existing = existingFromRow(existingRows[0]);
+        const existing = existingFromRow(
+          existingRows[0] as unknown as VerificationRow,
+        );
         if (
           existing.completedAt === null ||
           !["VERIFIED", "CONFLICT", "WAITING_FOR_MORE_EVIDENCE", "REJECTED"].includes(
