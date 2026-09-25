@@ -299,10 +299,10 @@ export class SolanaSettlementClient implements SettlementChainClient {
       u16(configData, 8) !== 1 ||
       !bytesEqual(
         configData.slice(42, 74),
-        this.verifier.publicKey.toBytes(),
+        this.verifier.publicKey.toBuffer(),
       ) ||
-      !bytesEqual(configData.slice(74, 106), rewardMint.toBytes()) ||
-      !bytesEqual(configData.slice(106, 138), TOKEN_PROGRAM_ID.toBytes()) ||
+      !bytesEqual(configData.slice(74, 106), rewardMint.toBuffer()) ||
+      !bytesEqual(configData.slice(106, 138), TOKEN_PROGRAM_ID.toBuffer()) ||
       configData[138] !== 0
     ) {
       throw new SettlementChainError(
@@ -318,14 +318,16 @@ export class SolanaSettlementClient implements SettlementChainClient {
       !bytesEqual(refreshData.slice(0, 8), refreshDisc) ||
       u16(refreshData, 8) !== 1 ||
       !bytesEqual(refreshData.slice(10, 42), operation.chainRefreshId) ||
-      !bytesEqual(refreshData.slice(138, 170), rewardMint.toBytes()) ||
-      !bytesEqual(refreshData.slice(170, 202), vault.toBytes()) ||
+      !bytesEqual(refreshData.slice(138, 170), rewardMint.toBuffer()) ||
+      !bytesEqual(refreshData.slice(170, 202), vault.toBuffer()) ||
       !bytesEqual(
         refreshData.slice(202, 234),
-        this.verifier.publicKey.toBytes(),
+        this.verifier.publicKey.toBuffer(),
       ) ||
+      refreshData[254] !== 1 ||
       u64(refreshData, 263) !== operation.lockedRewardAtomic ||
-      refreshData[271] !== 1
+      refreshData[271] !== 1 ||
+      !refreshData.slice(467, 499).every((byte) => byte === 0)
     ) {
       throw new SettlementChainError(
         "SETTLEMENT_CHAIN_AUTHORITY_DRIFT",

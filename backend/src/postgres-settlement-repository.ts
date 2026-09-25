@@ -200,6 +200,7 @@ const SELECT_ELIGIBILITY = String.raw`
   left join app.settlement_operations so
     on so.refresh_id = rr.refresh_id
   where rr.status = 'VERIFIED'
+    and rr.refresh_expires_at > now()
     and so.settlement_id is null
   order by vr.completed_at asc, rr.refresh_id asc
   limit 1
@@ -357,7 +358,7 @@ export class PostgresSettlementRepository implements SettlementRepository {
           "left join app.settlement_operations so\n    on so.refresh_id = rr.refresh_id",
           "left join app.settlement_operations so\n    on so.refresh_id = rr.refresh_id",
         ).replace(
-          "where rr.status = 'VERIFIED'\n    and so.settlement_id is null",
+          "where rr.status = 'VERIFIED'\n    and rr.refresh_expires_at > now()\n    and so.settlement_id is null",
           "where rr.refresh_id = $1::uuid\n    and vr.verification_result_id = $2::uuid\n    and rr.status = 'VERIFIED'\n    and so.settlement_id is null",
         ).replace(
           "order by vr.completed_at asc, rr.refresh_id asc\n  limit 1",
