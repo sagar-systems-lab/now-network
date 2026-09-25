@@ -761,7 +761,8 @@ export class PostgresClaimRepository implements ClaimRepository {
         input.lockedRewardAtomic !== input.totalFundedAtomic ||
         input.totalFundedAtomic < refresh.chainTotalFunded ||
         (refresh.chainLockedReward !== null &&
-          refresh.chainLockedReward !== input.lockedRewardAtomic)
+          refresh.chainLockedReward !== input.lockedRewardAtomic) ||
+        input.executionHash.length !== 32
       ) {
         return { kind: "authority_conflict" } as const;
       }
@@ -835,6 +836,7 @@ export class PostgresClaimRepository implements ClaimRepository {
           chain_status = ${input.chainCommitment},
           chain_total_funded = ${input.totalFundedAtomic.toString()}::numeric,
           chain_locked_reward = ${input.lockedRewardAtomic.toString()}::numeric,
+          execution_hash = ${input.executionHash},
           chain_observed_at = ${input.observedAt},
           updated_at = ${input.observedAt},
           revision = revision + 1
@@ -885,6 +887,9 @@ export class PostgresClaimRepository implements ClaimRepository {
           confirmed_claims: confirmedClaims,
           required_witnesses: refresh.requiredWitnesses,
           locked_reward_atomic: input.lockedRewardAtomic.toString(),
+          execution_hash: [...input.executionHash]
+            .map((byte) => byte.toString(16).padStart(2, "0"))
+            .join(""),
         })
       }::jsonb,
           ${input.observedAt}

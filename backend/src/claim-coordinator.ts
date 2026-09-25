@@ -373,6 +373,12 @@ export class ClaimCoordinator {
       });
     }
 
+    const executionHash = await deriveExecutionHashV1({
+      intentCoreHash: record.refresh.intentCoreHash,
+      lockedRewardAtomic: observation.lockedRewardAtomic,
+      refreshAddress,
+    });
+
     const confirmed = this.unwrapObservation(
       await this.claimRepository.confirmClaim({
         acceptanceId: input.acceptanceId,
@@ -385,6 +391,7 @@ export class ClaimCoordinator {
         claimDeadline: observation.claimDeadline,
         totalFundedAtomic: observation.totalFundedAtomic,
         lockedRewardAtomic: observation.lockedRewardAtomic,
+        executionHash,
         observedAt: observation.observedAt,
       }),
     );
