@@ -65,3 +65,41 @@ Deno.test("Supabase storage signer rejects traversal keys before network access"
     }
   }
 });
+
+Deno.test("Supabase storage inspector hashes the exact private object bytes", async () => {
+  const bytes = new Uint8Array([1, 2, 3, 4]);
+  const signer = new SupabaseEvidenceObjectStorage(
+    "https://project.supabase.co",
+    "service-role-secret",
+    "evidence-private",
+    ((input: string | URL | Request, init?: RequestInit) => {
+      if (
+        String(input) !==
+          "https://project.supabase.co/storage/v1/object/evidence-private/refreshes/r/evidence/e/original" ||
+        init?.method !== "GET"
+      ) {
+        throw new Error("unexpected evidence inspection request");
+      }
+      return Promise.resolve(
+        new Response(bytes, {
+          headers: {
+            "content-length": String(bytes.length),
+            "content-type": "image/jpeg",
+          },
+        }),
+      );
+    }) as typeof fetch,
+  );
+
+  const inspected = await signer.inspectUploadedObject(
+    "refreshes/r/evidence/e/original",
+    1024,
+  );
+  if (
+    inspected.sizeBytes !== 4 ||
+    inspected.mediaMime !== "image/jpeg" ||
+    inspected.sha256.length !== 32
+  ) {
+    throw new Error("evidence object integrity was not derived");
+  }
+});

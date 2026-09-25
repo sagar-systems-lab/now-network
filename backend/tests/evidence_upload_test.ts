@@ -62,6 +62,7 @@ async function context(
     challengeExpiresAt: new Date("2026-09-25T12:02:00.000Z"),
     claimStatus: "CAPTURE_ACTIVE",
     refreshStatus: "CAPTURE_IN_PROGRESS",
+    evidenceId: null,
     objectKey: null,
     mediaMime: null,
     ...overrides,
@@ -103,11 +104,16 @@ class MemoryUploadRepository implements EvidenceUploadRepository {
       return Promise.resolve({ kind: "claim_not_active" });
     }
     if (this.value.objectKey !== null) {
-      if (this.value.mediaMime !== input.mediaMime) {
+      if (
+        this.value.evidenceId === null ||
+        this.value.evidenceId !== input.evidenceId ||
+        this.value.mediaMime !== input.mediaMime
+      ) {
         return Promise.resolve({ kind: "upload_conflict" });
       }
       return Promise.resolve({
         kind: "ready",
+        evidenceId: this.value.evidenceId,
         objectKey: this.value.objectKey,
         mediaMime: this.value.mediaMime,
         challengeExpiresAt: this.value.challengeExpiresAt,
@@ -115,10 +121,12 @@ class MemoryUploadRepository implements EvidenceUploadRepository {
       });
     }
 
+    this.value.evidenceId = input.evidenceId;
     this.value.objectKey = input.objectKey;
     this.value.mediaMime = input.mediaMime;
     return Promise.resolve({
       kind: "ready",
+      evidenceId: input.evidenceId,
       objectKey: input.objectKey,
       mediaMime: input.mediaMime,
       challengeExpiresAt: this.value.challengeExpiresAt,
@@ -137,6 +145,10 @@ class MemoryStorage implements EvidenceObjectStorage {
     return Promise.resolve({
       signedUrl: `https://storage.invalid/object/upload/sign/private/${objectKey}?token=test`,
     });
+  }
+
+  inspectUploadedObject(): Promise<never> {
+    return Promise.reject(new Error("not used by upload authorization tests"));
   }
 }
 
@@ -157,10 +169,10 @@ Deno.test("signed upload is challenge-bound and uses a system-generated immutabl
   });
 
   if (
+    typeof result.evidence_id !== "string" ||
     typeof result.object_key !== "string" ||
-    !result.object_key.startsWith(
-      `evidence/${REFRESH_ID}/${ACCEPTANCE_ID}/${CHALLENGE_ID}/`,
-    ) ||
+    result.object_key !==
+      `refreshes/${REFRESH_ID}/evidence/${result.evidence_id}/original` ||
     result.media_mime !== "image/jpeg" ||
     result.application_deadline !== "2026-09-25T12:02:00.000Z" ||
     result.replayed !== false
@@ -197,6 +209,7 @@ Deno.test("signed upload retry reuses the same object key", async () => {
   });
 
   if (
+    first.evidence_id !== second.evidence_id ||
     first.object_key !== second.object_key ||
     second.replayed !== true ||
     storage.calls[0] !== storage.calls[1]
@@ -272,7 +285,9 @@ Deno.test("signed upload rejects expired, consumed, and cross-actor challenges",
 Deno.test("signed upload rejects metadata drift after reservation", async () => {
   const repository = new MemoryUploadRepository(
     await context({
-      objectKey: `evidence/${REFRESH_ID}/${ACCEPTANCE_ID}/${CHALLENGE_ID}/stable`,
+      evidenceId: "b4000000-0000-4000-8000-000000000001",
+      objectKey:
+        `refreshes/${REFRESH_ID}/evidence/b4000000-0000-4000-8000-000000000001/original`,
       mediaMime: "image/jpeg",
     }),
   );
