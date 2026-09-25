@@ -24,6 +24,7 @@ import {
 } from "./opportunity-matcher.ts";
 import type { RefreshCoordinator } from "./refresh-coordinator.ts";
 import type { StateRepository } from "./state-repository.ts";
+import type { StateProjectionService } from "./state-projection-service.ts";
 import type { VerificationService } from "./verification-service.ts";
 import {
   DEFAULT_HISTORY_LIMIT,
@@ -47,6 +48,7 @@ export type AppDependencies = {
   evidenceCommitService?: EvidenceCommitService;
   evidenceUploadService?: EvidenceUploadService;
   verificationService?: VerificationService;
+  stateProjectionService?: StateProjectionService;
   now?: () => Date;
 };
 
@@ -145,6 +147,19 @@ export function createApp(dependencies: AppDependencies): (request: Request) => 
       );
     }
     return dependencies.verificationService;
+  }
+
+  function requireStateProjectionService(): StateProjectionService {
+    if (!dependencies.stateProjectionService) {
+      throw new ApiFault(
+        503,
+        "STATE_PROJECTION_UNAVAILABLE",
+        "State projection is temporarily unavailable.",
+        true,
+        1_000,
+      );
+    }
+    return dependencies.stateProjectionService;
   }
 
   function requireOpportunityMatcher(): OpportunityMatcher {
@@ -355,7 +370,26 @@ export function createApp(dependencies: AppDependencies): (request: Request) => 
             actor,
             refreshRoute.refreshId,
           );
-          return successResponse(id, result.data, result.status);
+          if (result.data.result !== "VERIFIED") {
+            return successResponse(id, result.data, result.status);
+          }
+
+          const verificationResultId = result.data.verification_result_id;
+          if (
+            typeof verificationResultId !== "string" ||
+            !UUID_PATTERN.test(verificationResultId)
+          ) {
+            throw new Error("verification result did not expose a valid identity");
+          }
+          const projection = await requireStateProjectionService().project(
+            refreshRoute.refreshId,
+            verificationResultId,
+          );
+          return successResponse(
+            id,
+            { ...result.data, state_projection: projection },
+            result.status,
+          );
         }
       }
 

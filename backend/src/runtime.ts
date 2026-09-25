@@ -14,10 +14,12 @@ import { OpportunityMatcher } from "./opportunity-matcher.ts";
 import { PostgresOpportunityRepository } from "./postgres-opportunity-repository.ts";
 import { PostgresRefreshRepository } from "./postgres-refresh-repository.ts";
 import { PostgresStateRepository } from "./postgres-state-repository.ts";
+import { PostgresStateProjectionRepository } from "./postgres-state-projection-repository.ts";
 import { RefreshCoordinator } from "./refresh-coordinator.ts";
 import { SolanaRpcRefreshChainObserver } from "./solana-refresh-observer.ts";
 import { PostgresVerificationRepository } from "./postgres-verification-repository.ts";
 import { VerificationService } from "./verification-service.ts";
+import { StateProjectionService } from "./state-projection-service.ts";
 
 function requiredEnv(name: string): string {
   const value = Deno.env.get(name)?.trim();
@@ -65,6 +67,9 @@ export function createProductionHandler(): (request: Request) => Promise<Respons
     connectionString,
   );
   const verificationRepository = new PostgresVerificationRepository(
+    connectionString,
+  );
+  const stateProjectionRepository = new PostgresStateProjectionRepository(
     connectionString,
   );
   const opportunityRepository = new PostgresOpportunityRepository(connectionString);
@@ -121,6 +126,9 @@ export function createProductionHandler(): (request: Request) => Promise<Respons
   const verificationService = new VerificationService(
     verificationRepository,
   );
+  const stateProjectionService = new StateProjectionService(
+    stateProjectionRepository,
+  );
   return createApp({
     authVerifier,
     identityRepository,
@@ -132,5 +140,6 @@ export function createProductionHandler(): (request: Request) => Promise<Respons
     evidenceCommitService,
     evidenceUploadService,
     verificationService,
+    stateProjectionService,
   });
 }
