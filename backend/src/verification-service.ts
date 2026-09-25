@@ -547,9 +547,15 @@ export class VerificationService {
         });
         for (const evidence of context.evidence) {
           if (evidence.status === "COMMITTED") {
-            transitionEvidence("VERIFYING", "PASS", {
-              verificationResult: "VERIFIED",
-            });
+            if (matchingEvidenceIds.includes(evidence.evidenceId)) {
+              transitionEvidence("VERIFYING", "PASS", {
+                verificationResult: "VERIFIED",
+              });
+            } else {
+              transitionEvidence("VERIFYING", "CONFLICT", {
+                verificationResult: "CONFLICT",
+              });
+            }
           }
         }
         break;

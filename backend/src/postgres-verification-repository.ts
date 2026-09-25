@@ -439,8 +439,20 @@ export class PostgresVerificationRepository implements VerificationRepository {
             updated_at = ${input.observedAt},
             revision = revision + 1
           where refresh_id = ${input.refreshId}::uuid
+            and evidence_id = any(${input.outcome.matchingEvidenceIds}::uuid[])
+            and status in ('COMMITTED', 'CONFLICT')
+        `;
+
+        await tx`
+          update app.evidence_packets
+          set
+            status = 'CONFLICT',
+            updated_at = ${input.observedAt},
+            revision = revision + 1
+          where refresh_id = ${input.refreshId}::uuid
             and evidence_id = any(${input.evidenceIds}::uuid[])
-            and status = 'COMMITTED'
+            and not (evidence_id = any(${input.outcome.matchingEvidenceIds}::uuid[]))
+            and status in ('COMMITTED', 'VERIFIED')
         `;
       } else if (input.outcome.result === "CONFLICT") {
         await tx`
