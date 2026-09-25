@@ -82,11 +82,13 @@ class MemoryClaimRepository implements ClaimRepository {
   replay = false;
   prepareKind: PrepareClaimResult["kind"] = "prepared";
 
-  async lookupPrepareReplay(): Promise<
+  lookupPrepareReplay(): Promise<
     Awaited<ReturnType<ClaimRepository["lookupPrepareReplay"]>>
   > {
-    if (this.replay && this.record) return { kind: "replayed", ...structuredClone(this.record) };
-    return { kind: "none" };
+    if (this.replay && this.record) {
+      return Promise.resolve({ kind: "replayed", ...structuredClone(this.record) });
+    }
+    return Promise.resolve({ kind: "none" });
   }
 
   async prepareClaim(): Promise<PrepareClaimResult> {
