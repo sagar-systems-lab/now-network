@@ -2,8 +2,18 @@ export type SignedUploadAuthorization = {
   signedUrl: string;
 };
 
+export type EvidenceObjectIntegrity = {
+  sha256: Uint8Array;
+  sizeBytes: number;
+  mediaMime: string;
+};
+
 export interface EvidenceObjectStorage {
   createSignedUpload(objectKey: string): Promise<SignedUploadAuthorization>;
+  inspectUploadedObject(
+    objectKey: string,
+    maxBytes: number,
+  ): Promise<EvidenceObjectIntegrity>;
 }
 
 const BUCKET_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$/;
@@ -91,5 +101,65 @@ export class SupabaseEvidenceObjectStorage implements EvidenceObjectStorage {
     }
 
     return { signedUrl };
+  }
+
+  async inspectUploadedObject(
+    objectKey: string,
+    maxBytes: number,
+  ): Promise<EvidenceObjectIntegrity> {
+    if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) {
+      throw new RangeError("maxBytes must be a positive safe integer");
+    }
+    if (
+      !objectKey ||
+      objectKey.startsWith("/") ||
+      objectKey.endsWith("/") ||
+      objectKey.includes("\\") ||
+      objectKey.split("/").some((segment) => segment === "" || segment === "." || segment === "..")
+    ) {
+      throw new Error("invalid evidence object key");
+    }
+
+    const response = await this.fetchImpl(
+      `${this.storageBaseUrl}/object/${pathForUrl(this.bucket, objectKey)}`,
+      {
+        method: "GET",
+        headers: {
+          apikey: this.serviceRoleKey,
+          authorization: `Bearer ${this.serviceRoleKey}`,
+        },
+      },
+    );
+    if (!response.ok) {
+      throw storageFault(response.status, await response.text());
+    }
+
+    const declaredLength = response.headers.get("content-length");
+    if (declaredLength !== null) {
+      const length = Number(declaredLength);
+      if (!Number.isSafeInteger(length) || length < 0 || length > maxBytes) {
+        throw new Error("evidence object exceeds configured size limit");
+      }
+    }
+
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (bytes.length === 0 || bytes.length > maxBytes) {
+      throw new Error("evidence object is empty or exceeds configured size limit");
+    }
+
+    const mediaMime = (response.headers.get("content-type") ?? "")
+      .split(";", 1)[0]
+      .trim()
+      .toLowerCase();
+    if (!mediaMime) {
+      throw new Error("evidence object is missing content type");
+    }
+
+    const copy = new Uint8Array(bytes.length);
+    copy.set(bytes);
+    const sha256 = new Uint8Array(
+      await crypto.subtle.digest("SHA-256", copy.buffer),
+    );
+    return { sha256, sizeBytes: bytes.length, mediaMime };
   }
 }

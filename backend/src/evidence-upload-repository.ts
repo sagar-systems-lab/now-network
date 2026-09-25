@@ -14,6 +14,7 @@ export type EvidenceUploadContext = {
   challengeExpiresAt: Date;
   claimStatus: string;
   refreshStatus: string;
+  evidenceId: string | null;
   objectKey: string | null;
   mediaMime: string | null;
 };
@@ -21,6 +22,7 @@ export type EvidenceUploadContext = {
 export type ReserveEvidenceUploadResult =
   | {
     kind: "ready";
+    evidenceId: string;
     objectKey: string;
     mediaMime: string;
     challengeExpiresAt: Date;
@@ -41,6 +43,7 @@ export interface EvidenceUploadRepository {
     challengeId: string;
     actorId: string;
     nonceHash: Uint8Array;
+    evidenceId: string;
     objectKey: string;
     mediaMime: string;
     observedAt: Date;

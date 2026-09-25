@@ -1,11 +1,13 @@
 import { createApp } from "./app.ts";
 import { ClaimCoordinator } from "./claim-coordinator.ts";
 import { EvidenceChallengeService } from "./evidence-challenge-service.ts";
+import { EvidenceCommitService } from "./evidence-commit-service.ts";
 import { SupabaseEvidenceObjectStorage } from "./evidence-object-storage.ts";
 import { EvidenceUploadService } from "./evidence-upload-service.ts";
 import { SupabaseAuthVerifier } from "./auth.ts";
 import { PostgresClaimRepository } from "./postgres-claim-repository.ts";
 import { PostgresEvidenceChallengeRepository } from "./postgres-evidence-challenge-repository.ts";
+import { PostgresEvidenceCommitRepository } from "./postgres-evidence-commit-repository.ts";
 import { PostgresEvidenceUploadRepository } from "./postgres-evidence-upload-repository.ts";
 import { PostgresIdentityRepository } from "./postgres-identity-repository.ts";
 import { OpportunityMatcher } from "./opportunity-matcher.ts";
@@ -14,6 +16,8 @@ import { PostgresRefreshRepository } from "./postgres-refresh-repository.ts";
 import { PostgresStateRepository } from "./postgres-state-repository.ts";
 import { RefreshCoordinator } from "./refresh-coordinator.ts";
 import { SolanaRpcRefreshChainObserver } from "./solana-refresh-observer.ts";
+import { PostgresVerificationRepository } from "./postgres-verification-repository.ts";
+import { VerificationService } from "./verification-service.ts";
 
 function requiredEnv(name: string): string {
   const value = Deno.env.get(name)?.trim();
@@ -57,6 +61,12 @@ export function createProductionHandler(): (request: Request) => Promise<Respons
   const evidenceUploadRepository = new PostgresEvidenceUploadRepository(
     connectionString,
   );
+  const evidenceCommitRepository = new PostgresEvidenceCommitRepository(
+    connectionString,
+  );
+  const verificationRepository = new PostgresVerificationRepository(
+    connectionString,
+  );
   const opportunityRepository = new PostgresOpportunityRepository(connectionString);
   const opportunityMatcher = new OpportunityMatcher(opportunityRepository);
   const chainObserver = new SolanaRpcRefreshChainObserver(
@@ -94,13 +104,22 @@ export function createProductionHandler(): (request: Request) => Promise<Respons
   const evidenceChallengeService = new EvidenceChallengeService(
     evidenceChallengeRepository,
   );
+  const evidenceObjectStorage = new SupabaseEvidenceObjectStorage(
+    supabaseUrl,
+    requiredEnv("SUPABASE_SERVICE_ROLE_KEY"),
+    requiredEnv("NOW_EVIDENCE_STORAGE_BUCKET"),
+  );
   const evidenceUploadService = new EvidenceUploadService(
     evidenceUploadRepository,
-    new SupabaseEvidenceObjectStorage(
-      supabaseUrl,
-      requiredEnv("SUPABASE_SERVICE_ROLE_KEY"),
-      requiredEnv("NOW_EVIDENCE_STORAGE_BUCKET"),
-    ),
+    evidenceObjectStorage,
+  );
+  const evidenceCommitService = new EvidenceCommitService(
+    evidenceCommitRepository,
+    evidenceObjectStorage,
+    optionalPositiveIntegerEnv("NOW_EVIDENCE_MAX_BYTES", 10_485_760),
+  );
+  const verificationService = new VerificationService(
+    verificationRepository,
   );
   return createApp({
     authVerifier,
@@ -110,6 +129,8 @@ export function createProductionHandler(): (request: Request) => Promise<Respons
     opportunityMatcher,
     claimCoordinator,
     evidenceChallengeService,
+    evidenceCommitService,
     evidenceUploadService,
+    verificationService,
   });
 }

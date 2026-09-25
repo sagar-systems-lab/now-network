@@ -112,6 +112,7 @@ export interface ClaimRepository {
     claimDeadline: Date;
     totalFundedAtomic: bigint;
     lockedRewardAtomic: bigint;
+    executionHash: Uint8Array;
     observedAt: Date;
   }): Promise<ClaimObservationResult>;
 }

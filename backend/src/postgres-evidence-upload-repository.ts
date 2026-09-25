@@ -17,6 +17,7 @@ type UploadRow = {
   challenge_expires_at: DateLike;
   claim_status: string;
   refresh_status: string;
+  reserved_evidence_id: string | null;
   upload_object_key: string | null;
   upload_mime: string | null;
 };
@@ -32,6 +33,7 @@ const SELECT_CONTEXT = String.raw`
     ec.expires_at as challenge_expires_at,
     ra.status as claim_status,
     rr.status as refresh_status,
+    ec.reserved_evidence_id,
     ec.upload_object_key,
     ec.upload_mime
   from app.evidence_challenges ec
@@ -57,6 +59,7 @@ function fromRow(row: UploadRow): EvidenceUploadContext {
     challengeExpiresAt: date(row.challenge_expires_at),
     claimStatus: row.claim_status,
     refreshStatus: row.refresh_status,
+    evidenceId: row.reserved_evidence_id,
     objectKey: row.upload_object_key,
     mediaMime: row.upload_mime,
   };
@@ -136,11 +139,16 @@ export class PostgresEvidenceUploadRepository implements EvidenceUploadRepositor
       }
 
       if (context.objectKey !== null) {
-        if (context.mediaMime !== input.mediaMime) {
+        if (
+          context.evidenceId === null ||
+          context.evidenceId !== input.evidenceId ||
+          context.mediaMime !== input.mediaMime
+        ) {
           return { kind: "upload_conflict" } as const;
         }
         return {
           kind: "ready",
+          evidenceId: context.evidenceId,
           objectKey: context.objectKey,
           mediaMime: context.mediaMime,
           challengeExpiresAt: context.challengeExpiresAt,
@@ -151,14 +159,16 @@ export class PostgresEvidenceUploadRepository implements EvidenceUploadRepositor
       const updated = await tx`
         update app.evidence_challenges
         set
+          reserved_evidence_id = ${input.evidenceId}::uuid,
           upload_object_key = ${input.objectKey},
           upload_mime = ${input.mediaMime},
           upload_issued_at = ${input.observedAt}
         where challenge_id = ${input.challengeId}::uuid
           and actor_id = ${input.actorId}::uuid
           and status = 'ISSUED'
+          and reserved_evidence_id is null
           and upload_object_key is null
-        returning upload_object_key, upload_mime
+        returning reserved_evidence_id, upload_object_key, upload_mime
       `;
       if (!updated[0]) return { kind: "upload_conflict" } as const;
 
@@ -191,6 +201,7 @@ export class PostgresEvidenceUploadRepository implements EvidenceUploadRepositor
 
       return {
         kind: "ready",
+        evidenceId: input.evidenceId,
         objectKey: input.objectKey,
         mediaMime: input.mediaMime,
         challengeExpiresAt: context.challengeExpiresAt,

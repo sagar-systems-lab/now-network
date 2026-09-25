@@ -66,14 +66,8 @@ function normalizedMime(value: string): string {
   return mime;
 }
 
-function objectKey(context: EvidenceUploadContext): string {
-  return [
-    "evidence",
-    context.refreshId,
-    context.acceptanceId,
-    context.challengeId,
-    crypto.randomUUID(),
-  ].join("/");
+function objectKey(context: EvidenceUploadContext, evidenceId: string): string {
+  return `refreshes/${context.refreshId}/evidence/${evidenceId}/original`;
 }
 
 function reserveFault(
@@ -141,11 +135,13 @@ export class EvidenceUploadService {
     }
 
     const nonceHash = await sha256(decodeBase64Url(input.nonce));
+    const evidenceId = context.evidenceId ?? crypto.randomUUID();
     const reserved = await this.repository.reserveUpload({
       challengeId: input.challengeId,
       actorId: input.actor.actorId,
       nonceHash,
-      objectKey: context.objectKey ?? objectKey(context),
+      evidenceId,
+      objectKey: context.objectKey ?? objectKey(context, evidenceId),
       mediaMime,
       observedAt,
     });
@@ -166,6 +162,7 @@ export class EvidenceUploadService {
     }
 
     return {
+      evidence_id: reserved.evidenceId,
       challenge_id: input.challengeId,
       object_key: reserved.objectKey,
       media_mime: reserved.mediaMime,

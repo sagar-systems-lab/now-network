@@ -1,6 +1,7 @@
 import type { AuthVerifier } from "./auth.ts";
 import type { ClaimCoordinator } from "./claim-coordinator.ts";
 import type { EvidenceChallengeService } from "./evidence-challenge-service.ts";
+import type { EvidenceCommitService } from "./evidence-commit-service.ts";
 import type { EvidenceUploadService } from "./evidence-upload-service.ts";
 import { ApiFault } from "./errors.ts";
 import {
@@ -23,6 +24,7 @@ import {
 } from "./opportunity-matcher.ts";
 import type { RefreshCoordinator } from "./refresh-coordinator.ts";
 import type { StateRepository } from "./state-repository.ts";
+import type { VerificationService } from "./verification-service.ts";
 import {
   DEFAULT_HISTORY_LIMIT,
   DEFAULT_NEARBY_LIMIT,
@@ -42,7 +44,9 @@ export type AppDependencies = {
   opportunityMatcher?: OpportunityMatcher;
   claimCoordinator?: ClaimCoordinator;
   evidenceChallengeService?: EvidenceChallengeService;
+  evidenceCommitService?: EvidenceCommitService;
   evidenceUploadService?: EvidenceUploadService;
+  verificationService?: VerificationService;
   now?: () => Date;
 };
 
@@ -104,6 +108,19 @@ export function createApp(dependencies: AppDependencies): (request: Request) => 
     return dependencies.evidenceChallengeService;
   }
 
+  function requireEvidenceCommitService(): EvidenceCommitService {
+    if (!dependencies.evidenceCommitService) {
+      throw new ApiFault(
+        503,
+        "EVIDENCE_COMMIT_UNAVAILABLE",
+        "Evidence commit is temporarily unavailable.",
+        true,
+        1_000,
+      );
+    }
+    return dependencies.evidenceCommitService;
+  }
+
   function requireEvidenceUploadService(): EvidenceUploadService {
     if (!dependencies.evidenceUploadService) {
       throw new ApiFault(
@@ -115,6 +132,19 @@ export function createApp(dependencies: AppDependencies): (request: Request) => 
       );
     }
     return dependencies.evidenceUploadService;
+  }
+
+  function requireVerificationService(): VerificationService {
+    if (!dependencies.verificationService) {
+      throw new ApiFault(
+        503,
+        "VERIFICATION_UNAVAILABLE",
+        "Verification is temporarily unavailable.",
+        true,
+        1_000,
+      );
+    }
+    return dependencies.verificationService;
   }
 
   function requireOpportunityMatcher(): OpportunityMatcher {
@@ -256,6 +286,22 @@ export function createApp(dependencies: AppDependencies): (request: Request) => 
         return successResponse(id, data, 201);
       }
 
+      const evidenceRoute = matchEvidenceRoute(url.pathname);
+      if (
+        request.method === "POST" &&
+        evidenceRoute !== null &&
+        evidenceRoute.action === "commit"
+      ) {
+        const body = await readJsonObject(request);
+        const result = await requireEvidenceCommitService().commit({
+          actor,
+          evidenceId: evidenceRoute.evidenceId,
+          body,
+          idempotencyKey: request.headers.get("idempotency-key")?.trim() ?? "",
+        });
+        return successResponse(id, result.data, result.status);
+      }
+
       const opportunityRoute = matchOpportunityRoute(url.pathname);
       if (request.method === "GET" && opportunityRoute !== null) {
         const data = await requireOpportunityMatcher().detail(
@@ -302,6 +348,14 @@ export function createApp(dependencies: AppDependencies): (request: Request) => 
             idempotencyKey: request.headers.get("idempotency-key")?.trim() ?? "",
           });
           return successResponse(id, data);
+        }
+
+        if (request.method === "POST" && refreshRoute.action === "verify") {
+          const result = await requireVerificationService().verify(
+            actor,
+            refreshRoute.refreshId,
+          );
+          return successResponse(id, result.data, result.status);
         }
       }
 
@@ -394,10 +448,10 @@ function matchRefreshRoute(
   pathname: string,
 ): {
   refreshId: string;
-  action: "detail" | "funding-intent" | "funding-observe";
+  action: "detail" | "funding-intent" | "funding-observe" | "verify";
 } | null {
   const match = pathname.match(
-    /(?:^|\/)v1\/refreshes\/([^/]+)(?:\/(funding-intent|funding-observe))?$/u,
+    /(?:^|\/)v1\/refreshes\/([^/]+)(?:\/(funding-intent|funding-observe|verify))?$/u,
   );
   if (!match) return null;
   if (!UUID_PATTERN.test(match[1])) {
@@ -409,6 +463,8 @@ function matchRefreshRoute(
       ? "funding-intent"
       : match[2] === "funding-observe"
       ? "funding-observe"
+      : match[2] === "verify"
+      ? "verify"
       : "detail",
   };
 }
@@ -445,6 +501,19 @@ function matchClaimRoute(
     acceptanceId: match[1],
     action: match[2] === "observe" ? "observe" : match[2] === "challenge" ? "challenge" : "detail",
   };
+}
+
+function matchEvidenceRoute(
+  pathname: string,
+): { evidenceId: string; action: "commit" } | null {
+  const match = pathname.match(
+    /(?:^|\/)v1\/evidence\/([^/]+)\/(commit)$/u,
+  );
+  if (!match) return null;
+  if (!UUID_PATTERN.test(match[1])) {
+    throw new ApiFault(400, "INVALID_REQUEST", "Invalid evidence_id.");
+  }
+  return { evidenceId: match[1], action: "commit" };
 }
 
 function matchEvidenceChallengeRoute(

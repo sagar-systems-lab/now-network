@@ -110,6 +110,34 @@ async function findProgramAddress(
   throw new Error("no viable PDA bump");
 }
 
+export async function deriveExecutionHashV1(input: {
+  intentCoreHash: Uint8Array;
+  lockedRewardAtomic: bigint;
+  refreshAddress: string;
+}): Promise<Uint8Array> {
+  if (input.intentCoreHash.length !== 32) {
+    throw new RangeError("intentCoreHash must be 32 bytes");
+  }
+  if (
+    input.lockedRewardAtomic < 0n ||
+    input.lockedRewardAtomic > 18_446_744_073_709_551_615n
+  ) {
+    throw new RangeError("lockedRewardAtomic must fit u64");
+  }
+
+  const amount = new Uint8Array(8);
+  new DataView(amount.buffer).setBigUint64(
+    0,
+    input.lockedRewardAtomic,
+    true,
+  );
+  return await sha256([
+    input.intentCoreHash,
+    amount,
+    decodePublicKey(input.refreshAddress, "refreshAddress"),
+  ]);
+}
+
 export type RefreshChainAddresses = {
   configAddress: string;
   refreshAddress: string;
