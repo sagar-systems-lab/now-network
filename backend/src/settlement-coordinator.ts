@@ -229,9 +229,7 @@ export class SettlementCoordinator {
     }
 
     const ambiguous = broadcast.kind === "ambiguous";
-    const errorCode = broadcast.kind === "ambiguous"
-      ? broadcast.errorCode
-      : null;
+    const errorCode = broadcast.kind === "ambiguous" ? broadcast.errorCode : null;
     if (ambiguous) {
       transitionPayment("PENDING", "OUTCOME_AMBIGUOUS");
     }
