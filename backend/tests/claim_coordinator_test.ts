@@ -10,9 +10,9 @@ import type {
 } from "../src/claim-repository.ts";
 import { deriveClaimChainAddresses } from "../src/solana-refresh-addresses.ts";
 import {
-  NOW_SETTLEMENT_PROGRAM_ID,
   type ChainClaimInspection,
   type ClaimChainObserver,
+  NOW_SETTLEMENT_PROGRAM_ID,
 } from "../src/solana-refresh-observer.ts";
 
 const ACTOR_ID = "90000000-0000-4000-8000-000000000001";
@@ -82,7 +82,9 @@ class MemoryClaimRepository implements ClaimRepository {
   replay = false;
   prepareKind: PrepareClaimResult["kind"] = "prepared";
 
-  async lookupPrepareReplay(): Promise<Awaited<ReturnType<ClaimRepository["lookupPrepareReplay"]>>> {
+  async lookupPrepareReplay(): Promise<
+    Awaited<ReturnType<ClaimRepository["lookupPrepareReplay"]>>
+  > {
     if (this.replay && this.record) return { kind: "replayed", ...structuredClone(this.record) };
     return { kind: "none" };
   }
@@ -100,7 +102,9 @@ class MemoryClaimRepository implements ClaimRepository {
     return Promise.resolve(this.record ? structuredClone(this.record) : null);
   }
 
-  markClaimPending(input: Parameters<ClaimRepository["markClaimPending"]>[0]): Promise<ClaimObservationResult> {
+  markClaimPending(
+    input: Parameters<ClaimRepository["markClaimPending"]>[0],
+  ): Promise<ClaimObservationResult> {
     if (!this.record) return Promise.resolve({ kind: "not_found" });
     this.record.claim.status = input.chainStatus;
     this.record.claim.chainSignature = input.chainSignature;
@@ -119,7 +123,9 @@ class MemoryClaimRepository implements ClaimRepository {
     return Promise.resolve({ kind: "updated", ...structuredClone(this.record) });
   }
 
-  confirmClaim(input: Parameters<ClaimRepository["confirmClaim"]>[0]): Promise<ClaimObservationResult> {
+  confirmClaim(
+    input: Parameters<ClaimRepository["confirmClaim"]>[0],
+  ): Promise<ClaimObservationResult> {
     if (!this.record) return Promise.resolve({ kind: "not_found" });
     this.record.claim.status = "CLAIMED";
     this.record.claim.claimSlot = input.claimSlot;
@@ -141,16 +147,19 @@ class MemoryObserver implements ClaimChainObserver {
 
 function identity(bindings = true): IdentityRepository {
   return {
-    listWalletBindings: () => Promise.resolve(bindings
-      ? [{
-        walletBindingId: BINDING_ID,
-        actorId: ACTOR_ID,
-        walletAddress: CLAIMANT,
-        cluster: "devnet",
-        status: "ACTIVE" as const,
-        revision: 1,
-      }]
-      : []),
+    listWalletBindings: () =>
+      Promise.resolve(
+        bindings
+          ? [{
+            walletBindingId: BINDING_ID,
+            actorId: ACTOR_ID,
+            walletAddress: CLAIMANT,
+            cluster: "devnet",
+            status: "ACTIVE" as const,
+            revision: 1,
+          }]
+          : [],
+      ),
   } as unknown as IdentityRepository;
 }
 
@@ -283,10 +292,12 @@ Deno.test("definitively failed claim releases the local reservation", async () =
 });
 
 Deno.test("claim prepare maps capacity and self-claim failures without leaking authority", async () => {
-  for (const [kind, expected] of [
-    ["self_claim", "CLAIM_NOT_AVAILABLE"],
-    ["capacity_full", "CLAIM_CAPACITY_FULL"],
-  ] as const) {
+  for (
+    const [kind, expected] of [
+      ["self_claim", "CLAIM_NOT_AVAILABLE"],
+      ["capacity_full", "CLAIM_CAPACITY_FULL"],
+    ] as const
+  ) {
     const repository = new MemoryClaimRepository();
     repository.prepareKind = kind;
     const coordinator = new ClaimCoordinator(

@@ -167,8 +167,7 @@ function refreshFromRow(row: ClaimRow | RefreshRow): ClaimRefreshContext {
     intentCoreHash: new Uint8Array(row.intent_core_hash),
     chainRefreshAddress: row.chain_refresh_address,
     chainTotalFunded: BigInt(row.chain_total_funded),
-    chainLockedReward:
-      row.chain_locked_reward === null ? null : BigInt(row.chain_locked_reward),
+    chainLockedReward: row.chain_locked_reward === null ? null : BigInt(row.chain_locked_reward),
     revision: Number(row.refresh_revision),
   };
 }
@@ -180,8 +179,9 @@ function claimFromRow(row: ClaimRow): ClaimRecord {
     actorId: row.actor_id,
     walletAddress: row.wallet_address,
     claimSlot: row.claim_slot === null ? null : Number(row.claim_slot),
-    claimDurationSeconds:
-      row.claim_duration_seconds === null ? null : Number(row.claim_duration_seconds),
+    claimDurationSeconds: row.claim_duration_seconds === null
+      ? null
+      : Number(row.claim_duration_seconds),
     claimDeadline: optionalDate(row.claim_deadline),
     chainSignature: row.chain_signature,
     chainStatus: row.chain_status,
@@ -500,11 +500,13 @@ export class PostgresClaimRepository implements ClaimRepository {
           ${input.actorId}::uuid,
           ${acceptanceId}::uuid,
           ${claimRevision},
-          ${JSON.stringify({
-            refresh_id: input.refreshId,
-            status: "WALLET_PENDING",
-            claim_duration_seconds: input.claimDurationSeconds,
-          })}::jsonb,
+          ${
+        JSON.stringify({
+          refresh_id: input.refreshId,
+          status: "WALLET_PENDING",
+          claim_duration_seconds: input.claimDurationSeconds,
+        })
+      }::jsonb,
           ${input.observedAt}
         )
       `;
@@ -860,12 +862,14 @@ export class PostgresClaimRepository implements ClaimRepository {
           ${input.actorId}::uuid,
           ${input.acceptanceId}::uuid,
           ${claimRevision},
-          ${JSON.stringify({
-            refresh_id: refreshId,
-            claim_slot: input.claimSlot,
-            chain_signature: input.chainSignature,
-            claim_deadline: input.claimDeadline.toISOString(),
-          })}::jsonb,
+          ${
+        JSON.stringify({
+          refresh_id: refreshId,
+          claim_slot: input.claimSlot,
+          chain_signature: input.chainSignature,
+          claim_deadline: input.claimDeadline.toISOString(),
+        })
+      }::jsonb,
           ${input.observedAt}
         ), (
           ${crypto.randomUUID()}::uuid,
@@ -875,12 +879,14 @@ export class PostgresClaimRepository implements ClaimRepository {
           ${input.actorId}::uuid,
           ${input.acceptanceId}::uuid,
           ${refreshRevision},
-          ${JSON.stringify({
-            status: refreshStatus,
-            confirmed_claims: confirmedClaims,
-            required_witnesses: refresh.requiredWitnesses,
-            locked_reward_atomic: input.lockedRewardAtomic.toString(),
-          })}::jsonb,
+          ${
+        JSON.stringify({
+          status: refreshStatus,
+          confirmed_claims: confirmedClaims,
+          required_witnesses: refresh.requiredWitnesses,
+          locked_reward_atomic: input.lockedRewardAtomic.toString(),
+        })
+      }::jsonb,
           ${input.observedAt}
         )
       `;

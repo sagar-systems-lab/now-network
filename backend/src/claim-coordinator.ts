@@ -1,23 +1,18 @@
 import bs58 from "npm:bs58@6.0.0";
 import { ApiFault } from "./errors.ts";
-import type { ActorRecord, IdentityRepository, WalletBindingRecord } from "./identity-repository.ts";
+import type {
+  ActorRecord,
+  IdentityRepository,
+  WalletBindingRecord,
+} from "./identity-repository.ts";
+import { type ClaimChainAddresses, deriveClaimChainAddresses } from "./solana-refresh-addresses.ts";
 import {
-  deriveClaimChainAddresses,
-  type ClaimChainAddresses,
-} from "./solana-refresh-addresses.ts";
-import {
-  NOW_SETTLEMENT_PROGRAM_ID,
   type ChainClaimInspection,
   type ClaimChainObserver,
+  NOW_SETTLEMENT_PROGRAM_ID,
 } from "./solana-refresh-observer.ts";
-import type {
-  ClaimRepository,
-  ClaimWithRefresh,
-} from "./claim-repository.ts";
-import {
-  bytesToHex,
-  sha256Bytes,
-} from "../../packages/contracts/src/refresh-intent.ts";
+import type { ClaimRepository, ClaimWithRefresh } from "./claim-repository.ts";
+import { bytesToHex, sha256Bytes } from "../../packages/contracts/src/refresh-intent.ts";
 import { transitionClaim } from "../../packages/domain/src/claim-machine.ts";
 import { canonicalJson } from "../../packages/policy/src/template.ts";
 
@@ -264,30 +259,36 @@ export class ClaimCoordinator {
         transactionSubmitted: true,
       });
       transitionClaim("SUBMITTED", "CONFIRMATION_STARTED");
-      record = this.unwrapObservation(await this.claimRepository.markClaimPending({
-        acceptanceId: input.acceptanceId,
-        actorId: input.actor.actorId,
-        chainSignature: input.signature,
-        chainStatus: "CONFIRMING",
-        observedAt: this.now(),
-      }));
+      record = this.unwrapObservation(
+        await this.claimRepository.markClaimPending({
+          acceptanceId: input.acceptanceId,
+          actorId: input.actor.actorId,
+          chainSignature: input.signature,
+          chainStatus: "CONFIRMING",
+          observedAt: this.now(),
+        }),
+      );
     } else if (record.claim.status === "SUBMITTED") {
       transitionClaim("SUBMITTED", "CONFIRMATION_STARTED");
-      record = this.unwrapObservation(await this.claimRepository.markClaimPending({
-        acceptanceId: input.acceptanceId,
-        actorId: input.actor.actorId,
-        chainSignature: input.signature,
-        chainStatus: "CONFIRMING",
-        observedAt: this.now(),
-      }));
+      record = this.unwrapObservation(
+        await this.claimRepository.markClaimPending({
+          acceptanceId: input.acceptanceId,
+          actorId: input.actor.actorId,
+          chainSignature: input.signature,
+          chainStatus: "CONFIRMING",
+          observedAt: this.now(),
+        }),
+      );
     } else if (record.claim.status === "CONFIRMING") {
-      record = this.unwrapObservation(await this.claimRepository.markClaimPending({
-        acceptanceId: input.acceptanceId,
-        actorId: input.actor.actorId,
-        chainSignature: input.signature,
-        chainStatus: "CONFIRMING",
-        observedAt: this.now(),
-      }));
+      record = this.unwrapObservation(
+        await this.claimRepository.markClaimPending({
+          acceptanceId: input.acceptanceId,
+          actorId: input.actor.actorId,
+          chainSignature: input.signature,
+          chainStatus: "CONFIRMING",
+          observedAt: this.now(),
+        }),
+      );
     }
 
     let observation: ChainClaimInspection;
@@ -310,13 +311,15 @@ export class ClaimCoordinator {
     } catch {
       if (record.claim.status !== "UNKNOWN") {
         transitionClaim("CONFIRMING", "OUTCOME_UNKNOWN");
-        this.unwrapObservation(await this.claimRepository.markClaimPending({
-          acceptanceId: input.acceptanceId,
-          actorId: input.actor.actorId,
-          chainSignature: input.signature,
-          chainStatus: "UNKNOWN",
-          observedAt: this.now(),
-        }));
+        this.unwrapObservation(
+          await this.claimRepository.markClaimPending({
+            acceptanceId: input.acceptanceId,
+            actorId: input.actor.actorId,
+            chainSignature: input.signature,
+            chainStatus: "UNKNOWN",
+            observedAt: this.now(),
+          }),
+        );
       }
       throw new ApiFault(
         409,
@@ -344,12 +347,14 @@ export class ClaimCoordinator {
       transitionClaim("UNKNOWN", "RECONCILED_ABSENT", {
         claimDefinitivelyAbsent: true,
       });
-      this.unwrapObservation(await this.claimRepository.resetClaimAbsent({
-        acceptanceId: input.acceptanceId,
-        actorId: input.actor.actorId,
-        chainSignature: input.signature,
-        observedAt: this.now(),
-      }));
+      this.unwrapObservation(
+        await this.claimRepository.resetClaimAbsent({
+          acceptanceId: input.acceptanceId,
+          actorId: input.actor.actorId,
+          chainSignature: input.signature,
+          observedAt: this.now(),
+        }),
+      );
       throw new ApiFault(409, "CLAIM_REJECTED", "Claim transaction was not accepted.");
     }
 
@@ -365,19 +370,21 @@ export class ClaimCoordinator {
       });
     }
 
-    const confirmed = this.unwrapObservation(await this.claimRepository.confirmClaim({
-      acceptanceId: input.acceptanceId,
-      actorId: input.actor.actorId,
-      walletAddress: record.claim.walletAddress,
-      chainSignature: input.signature,
-      chainCommitment: observation.commitment,
-      claimSlot: observation.claimSlot,
-      claimedAt: observation.claimedAt,
-      claimDeadline: observation.claimDeadline,
-      totalFundedAtomic: observation.totalFundedAtomic,
-      lockedRewardAtomic: observation.lockedRewardAtomic,
-      observedAt: observation.observedAt,
-    }));
+    const confirmed = this.unwrapObservation(
+      await this.claimRepository.confirmClaim({
+        acceptanceId: input.acceptanceId,
+        actorId: input.actor.actorId,
+        walletAddress: record.claim.walletAddress,
+        chainSignature: input.signature,
+        chainCommitment: observation.commitment,
+        claimSlot: observation.claimSlot,
+        claimedAt: observation.claimedAt,
+        claimDeadline: observation.claimDeadline,
+        totalFundedAtomic: observation.totalFundedAtomic,
+        lockedRewardAtomic: observation.lockedRewardAtomic,
+        observedAt: observation.observedAt,
+      }),
+    );
 
     return privatePayload(confirmed);
   }
@@ -427,7 +434,11 @@ export class ClaimCoordinator {
       wallet_address: record.claim.walletAddress,
       reward_mint: record.refresh.rewardMint,
       chain_refresh_id_hex: bytesToHex(record.refresh.chainRefreshId),
-      accounts: this.claimAccounts(addresses, record.claim.walletAddress, record.refresh.rewardMint),
+      accounts: this.claimAccounts(
+        addresses,
+        record.claim.walletAddress,
+        record.refresh.rewardMint,
+      ),
       instruction: {
         name: "claim_witness",
         refresh_id_hex: bytesToHex(record.refresh.chainRefreshId),

@@ -437,7 +437,6 @@ export class SolanaRpcRefreshChainObserver implements RefreshChainObserver, Clai
     };
   }
 
-
   async inspectClaim(
     input: Parameters<ClaimChainObserver["inspectClaim"]>[0],
   ): Promise<ChainClaimInspection> {
@@ -565,5 +564,4 @@ export class SolanaRpcRefreshChainObserver implements RefreshChainObserver, Clai
       observedAt,
     };
   }
-
 }
