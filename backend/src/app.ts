@@ -1,4 +1,5 @@
 import type { AuthVerifier } from "./auth.ts";
+import type { ClaimCoordinator } from "./claim-coordinator.ts";
 import { ApiFault } from "./errors.ts";
 import {
   faultResponse,
@@ -37,6 +38,7 @@ export type AppDependencies = {
   stateRepository?: StateRepository;
   refreshCoordinator?: RefreshCoordinator;
   opportunityMatcher?: OpportunityMatcher;
+  claimCoordinator?: ClaimCoordinator;
   now?: () => Date;
 };
 
@@ -70,6 +72,19 @@ export function createApp(dependencies: AppDependencies): (request: Request) => 
       );
     }
     return dependencies.refreshCoordinator;
+  }
+
+  function requireClaimCoordinator(): ClaimCoordinator {
+    if (!dependencies.claimCoordinator) {
+      throw new ApiFault(
+        503,
+        "CLAIM_COORDINATOR_UNAVAILABLE",
+        "Claim coordination is temporarily unavailable.",
+        true,
+        1_000,
+      );
+    }
+    return dependencies.claimCoordinator;
   }
 
   function requireOpportunityMatcher(): OpportunityMatcher {
@@ -157,6 +172,35 @@ export function createApp(dependencies: AppDependencies): (request: Request) => 
           cursor: url.searchParams.get("cursor"),
         });
         return successResponse(id, data);
+      }
+
+      const opportunityClaimRoute = matchOpportunityClaimRoute(url.pathname);
+      if (request.method === "POST" && opportunityClaimRoute !== null) {
+        const body = await readJsonObject(request);
+        const result = await requireClaimCoordinator().prepare({
+          actor,
+          refreshId: opportunityClaimRoute.refreshId,
+          walletBindingId: requiredUuid(body, "wallet_binding_id"),
+          idempotencyKey: request.headers.get("idempotency-key")?.trim() ?? "",
+        });
+        return successResponse(id, result.data, result.status);
+      }
+
+      const claimRoute = matchClaimRoute(url.pathname);
+      if (claimRoute !== null) {
+        if (request.method === "GET" && claimRoute.action === "detail") {
+          const data = await requireClaimCoordinator().get(actor, claimRoute.acceptanceId);
+          return successResponse(id, data);
+        }
+        if (request.method === "POST" && claimRoute.action === "observe") {
+          const body = await readJsonObject(request);
+          const data = await requireClaimCoordinator().observe({
+            actor,
+            acceptanceId: claimRoute.acceptanceId,
+            signature: requiredString(body, "signature", 128),
+          });
+          return successResponse(id, data);
+        }
       }
 
       const opportunityRoute = matchOpportunityRoute(url.pathname);
@@ -323,4 +367,27 @@ function matchOpportunityRoute(pathname: string): { refreshId: string } | null {
     throw new ApiFault(400, "INVALID_REQUEST", "Invalid refresh_id.");
   }
   return { refreshId: match[1] };
+}
+
+function matchOpportunityClaimRoute(pathname: string): { refreshId: string } | null {
+  const match = pathname.match(/(?:^|\/)v1\/opportunities\/([^/]+)\/claim$/u);
+  if (!match) return null;
+  if (!UUID_PATTERN.test(match[1])) {
+    throw new ApiFault(400, "INVALID_REQUEST", "Invalid refresh_id.");
+  }
+  return { refreshId: match[1] };
+}
+
+function matchClaimRoute(
+  pathname: string,
+): { acceptanceId: string; action: "detail" | "observe" } | null {
+  const match = pathname.match(/(?:^|\/)v1\/claims\/([^/]+)(?:\/(observe))?$/u);
+  if (!match) return null;
+  if (!UUID_PATTERN.test(match[1])) {
+    throw new ApiFault(400, "INVALID_REQUEST", "Invalid acceptance_id.");
+  }
+  return {
+    acceptanceId: match[1],
+    action: match[2] === "observe" ? "observe" : "detail",
+  };
 }
