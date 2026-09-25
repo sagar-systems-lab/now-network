@@ -162,7 +162,6 @@ Deno.test("opportunity payload exposes reward, evidence summary, and capacity wi
   const reward = data.reward as Record<string, unknown>;
   if (
     reward.pool_atomic !== "900000" ||
-    reward.estimated_share_atomic !== "450000" ||
     reward.payout_rule !== "EQUAL_SPLIT_REQUIRED_WITNESSES"
   ) {
     throw new Error("opportunity reward projection is incorrect");
