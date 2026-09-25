@@ -10,10 +10,11 @@ use crate::{
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct SettlementPlan {
     amounts: [u64; MAX_WITNESSES_V1],
+    recipient_slots: [u8; MAX_WITNESSES_V1],
     recipient_count: usize,
 }
 
-fn settlement_plan(refresh: &RefreshEscrow) -> Result<SettlementPlan> {
+fn settlement_plan(refresh: &RefreshEscrow, recipient_mask: u8) -> Result<SettlementPlan> {
     if !witness_policy_is_valid(
         refresh.verification_class,
         refresh.required_witnesses,
@@ -24,16 +25,30 @@ fn settlement_plan(refresh: &RefreshEscrow) -> Result<SettlementPlan> {
     }
 
     let required = usize::from(refresh.required_witnesses);
-    if required == 0 || required > MAX_WITNESSES_V1 {
+    let max_witnesses = usize::from(refresh.max_witnesses);
+    if required == 0 || required > MAX_WITNESSES_V1 || max_witnesses > MAX_WITNESSES_V1 {
         return err!(ProtocolError::InvalidWitnessConfiguration);
     }
+    if recipient_mask == 0 || (recipient_mask >> max_witnesses) != 0 {
+        return err!(ProtocolError::InvalidSettlementWitnessMask);
+    }
 
-    for index in 0..required {
-        if refresh.claim_statuses[index] != ClaimStatus::Claimed
-            || refresh.claimants[index] == Pubkey::default()
+    let mut recipient_slots = [0u8; MAX_WITNESSES_V1];
+    let mut recipient_count = 0usize;
+    for slot in 0..max_witnesses {
+        if recipient_mask & (1u8 << slot) == 0 {
+            continue;
+        }
+        if refresh.claim_statuses[slot] != ClaimStatus::Claimed
+            || refresh.claimants[slot] == Pubkey::default()
         {
             return err!(ProtocolError::InsufficientSettlementWitnesses);
         }
+        recipient_slots[recipient_count] = slot as u8;
+        recipient_count += 1;
+    }
+    if recipient_count != required {
+        return err!(ProtocolError::InvalidSettlementWitnessMask);
     }
 
     let mut amounts = [0u64; MAX_WITNESSES_V1];
@@ -43,7 +58,8 @@ fn settlement_plan(refresh: &RefreshEscrow) -> Result<SettlementPlan> {
             if required != 1 {
                 return err!(ProtocolError::InvalidPayoutRule);
             }
-            amounts[0] = refresh.locked_reward_amount;
+            let slot = usize::from(recipient_slots[0]);
+            amounts[slot] = refresh.locked_reward_amount;
         }
         PayoutRule::EqualSplitRequiredWitnesses => {
             if required != 2 && required != 3 {
@@ -54,18 +70,22 @@ fn settlement_plan(refresh: &RefreshEscrow) -> Result<SettlementPlan> {
             let base = refresh.locked_reward_amount / divisor;
             let remainder = refresh.locked_reward_amount % divisor;
 
-            amounts[0] = match base.checked_add(remainder) {
-                Some(value) => value,
-                None => return err!(ProtocolError::ArithmeticOverflow),
-            };
-            for amount in amounts.iter_mut().take(required).skip(1) {
-                *amount = base;
+            for recipient_index in 0..recipient_count {
+                let slot = usize::from(recipient_slots[recipient_index]);
+                amounts[slot] = if recipient_index == 0 {
+                    match base.checked_add(remainder) {
+                        Some(value) => value,
+                        None => return err!(ProtocolError::ArithmeticOverflow),
+                    }
+                } else {
+                    base
+                };
             }
         }
     }
 
     let mut total = 0u64;
-    for amount in amounts.iter().take(required) {
+    for amount in amounts.iter() {
         total = match total.checked_add(*amount) {
             Some(value) => value,
             None => return err!(ProtocolError::ArithmeticOverflow),
@@ -77,7 +97,8 @@ fn settlement_plan(refresh: &RefreshEscrow) -> Result<SettlementPlan> {
 
     Ok(SettlementPlan {
         amounts,
-        recipient_count: required,
+        recipient_slots,
+        recipient_count,
     })
 }
 
@@ -161,6 +182,7 @@ pub fn handler<'info>(
     refresh_id: [u8; 32],
     settlement_operation_hash: [u8; 32],
     verification_result_digest: [u8; 32],
+    recipient_mask: u8,
 ) -> Result<()> {
     let config = &ctx.accounts.config;
     if config.version != PROTOCOL_VERSION_V1 || ctx.accounts.refresh.version != PROTOCOL_VERSION_V1 {
@@ -192,7 +214,7 @@ pub fn handler<'info>(
     )?;
     validate_verification_result_digest(&verification_result_digest)?;
 
-    let plan = settlement_plan(&ctx.accounts.refresh)?;
+    let plan = settlement_plan(&ctx.accounts.refresh, recipient_mask)?;
     if ctx.remaining_accounts.len() != plan.recipient_count {
         return err!(ProtocolError::InvalidRecipientCount);
     }
@@ -215,9 +237,10 @@ pub fn handler<'info>(
         return err!(ProtocolError::VaultBalanceInvariant);
     }
 
-    for index in 0..plan.recipient_count {
-        let claimant = ctx.accounts.refresh.claimants[index];
-        let destination = &ctx.remaining_accounts[index];
+    for recipient_index in 0..plan.recipient_count {
+        let slot = usize::from(plan.recipient_slots[recipient_index]);
+        let claimant = ctx.accounts.refresh.claimants[slot];
+        let destination = &ctx.remaining_accounts[recipient_index];
         let expected_destination = associated_token_address(&claimant, &config.reward_mint);
 
         if destination.key() != expected_destination {
@@ -230,14 +253,15 @@ pub fn handler<'info>(
     let signer_seeds: &[&[u8]] = &[REFRESH_SEED, refresh_id.as_ref(), bump.as_ref()];
     let signer = &[signer_seeds];
 
-    for index in 0..plan.recipient_count {
+    for recipient_index in 0..plan.recipient_count {
+        let slot = usize::from(plan.recipient_slots[recipient_index]);
         transfer_checked_signed(
             &ctx.accounts.token_program.to_account_info(),
             &ctx.accounts.vault_token_account.to_account_info(),
             &ctx.accounts.reward_mint.to_account_info(),
-            &ctx.remaining_accounts[index],
+            &ctx.remaining_accounts[recipient_index],
             &ctx.accounts.refresh.to_account_info(),
-            plan.amounts[index],
+            plan.amounts[slot],
             decimals,
             signer,
         )?;
@@ -255,6 +279,7 @@ pub fn handler<'info>(
         refresh: refresh_key,
         settlement_operation_hash,
         locked_reward_amount,
+        recipient_mask,
         settled_at: now,
     });
 
@@ -321,7 +346,7 @@ mod tests {
     #[test]
     fn single_winner_receives_entire_locked_reward() {
         let refresh = refresh(PayoutRule::SingleWinnerAll, 1, 1, 725);
-        let plan = settlement_plan(&refresh).unwrap();
+        let plan = settlement_plan(&refresh, 0b001).unwrap();
 
         assert_eq!(plan.recipient_count, 1);
         assert_eq!(plan.amounts, [725, 0, 0]);
@@ -329,13 +354,16 @@ mod tests {
 
     #[test]
     fn equal_split_assigns_entire_remainder_to_slot_zero() {
-        let two = refresh(PayoutRule::EqualSplitRequiredWitnesses, 2, 2, 101);
-        let two_plan = settlement_plan(&two).unwrap();
+        let mut two = refresh(PayoutRule::EqualSplitRequiredWitnesses, 2, 3, 101);
+        two.claimants[2] = Pubkey::new_from_array([3; 32]);
+        two.claim_statuses[2] = ClaimStatus::Claimed;
+        let two_plan = settlement_plan(&two, 0b101).unwrap();
         assert_eq!(two_plan.recipient_count, 2);
-        assert_eq!(two_plan.amounts, [51, 50, 0]);
+        assert_eq!(two_plan.recipient_slots[..2], [0, 2]);
+        assert_eq!(two_plan.amounts, [51, 0, 50]);
 
         let three = refresh(PayoutRule::EqualSplitRequiredWitnesses, 3, 3, 100);
-        let three_plan = settlement_plan(&three).unwrap();
+        let three_plan = settlement_plan(&three, 0b111).unwrap();
         assert_eq!(three_plan.recipient_count, 3);
         assert_eq!(three_plan.amounts, [34, 33, 33]);
     }
@@ -345,13 +373,26 @@ mod tests {
         let mut refresh = refresh(PayoutRule::EqualSplitRequiredWitnesses, 2, 2, 100);
         refresh.claim_statuses[1] = ClaimStatus::Released;
 
-        assert!(settlement_plan(&refresh).is_err());
+        assert!(settlement_plan(&refresh, 0b011).is_err());
     }
 
     #[test]
     fn settlement_rejects_invalid_witness_configuration() {
         let refresh = refresh(PayoutRule::SingleWinnerAll, 2, 2, 100);
-        assert!(settlement_plan(&refresh).is_err());
+        assert!(settlement_plan(&refresh, 0b011).is_err());
+    }
+
+    #[test]
+    fn settlement_rejects_unverified_or_out_of_range_recipient_masks() {
+        let mut refresh = refresh(PayoutRule::EqualSplitRequiredWitnesses, 2, 3, 100);
+        refresh.claimants[2] = Pubkey::new_from_array([3; 32]);
+        refresh.claim_statuses[2] = ClaimStatus::Claimed;
+
+        assert!(settlement_plan(&refresh, 0b001).is_err());
+        assert!(settlement_plan(&refresh, 0b1000).is_err());
+
+        refresh.claim_statuses[2] = ClaimStatus::Released;
+        assert!(settlement_plan(&refresh, 0b101).is_err());
     }
 
     #[test]
