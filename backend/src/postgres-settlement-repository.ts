@@ -22,6 +22,7 @@ type EligibilityRow = {
   max_witnesses: number | string;
   chain_refresh_id: Uint8Array | null;
   chain_refresh_address: string | null;
+  refresh_expires_at: DateLike;
   reward_mint: string;
   chain_locked_reward: number | string | null;
   refresh_execution_hash: Uint8Array | null;
@@ -210,6 +211,47 @@ const SELECT_ELIGIBILITY = String.raw`
   limit 1
 `;
 
+const SELECT_LOCKED_ELIGIBILITY = String.raw`
+  select
+    rr.refresh_id,
+    rr.status as refresh_status,
+    rr.required_witnesses,
+    rr.max_witnesses,
+    rr.chain_refresh_id,
+    rr.chain_refresh_address,
+    rr.refresh_expires_at,
+    rr.reward_mint,
+    rr.chain_locked_reward,
+    rr.execution_hash as refresh_execution_hash,
+    vr.verification_result_id,
+    vr.canonical_digest as verification_digest,
+    vr.execution_hash as verification_execution_hash,
+    coalesce(
+      array(
+        select jsonb_array_elements_text(
+          coalesce(vr.verification_trace -> 'matching_evidence_ids', '[]'::jsonb)
+        )
+      ),
+      array[]::text[]
+    ) as matching_evidence_ids
+  from app.refresh_requests rr
+  join app.verification_results vr
+    on vr.refresh_id = rr.refresh_id
+   and vr.status = 'VERIFIED'
+  join app.live_states ls
+    on ls.state_id = rr.state_id
+   and ls.latest_refresh_id = rr.refresh_id
+   and ls.latest_verification_result_id = vr.verification_result_id
+  left join app.settlement_operations so
+    on so.refresh_id = rr.refresh_id
+  where rr.refresh_id = $1::uuid
+    and vr.verification_result_id = $2::uuid
+    and rr.status = 'VERIFIED'
+    and rr.refresh_expires_at > now()
+    and so.settlement_id is null
+  limit 1
+`;
+
 const SELECT_BENEFICIARIES = String.raw`
   select
     ep.evidence_id,
@@ -359,16 +401,7 @@ export class PostgresSettlementRepository implements SettlementRepository {
       }
 
       const authorityRows = await tx.unsafe(
-        `${SELECT_ELIGIBILITY.replace(
-          "left join app.settlement_operations so\n    on so.refresh_id = rr.refresh_id",
-          "left join app.settlement_operations so\n    on so.refresh_id = rr.refresh_id",
-        ).replace(
-          "where rr.status = 'VERIFIED'\n    and rr.refresh_expires_at > now()\n    and so.settlement_id is null",
-          "where rr.refresh_id = $1::uuid\n    and vr.verification_result_id = $2::uuid\n    and rr.status = 'VERIFIED'\n    and so.settlement_id is null",
-        ).replace(
-          "order by vr.completed_at asc, rr.refresh_id asc\n  limit 1",
-          "limit 1",
-        )} for update of rr, vr`,
+        `${SELECT_LOCKED_ELIGIBILITY} for update of rr, vr`,
         [
           input.eligibility.refreshId,
           input.eligibility.verificationResultId,
