@@ -24,6 +24,7 @@ import {
 } from "./opportunity-matcher.ts";
 import type { RefreshCoordinator } from "./refresh-coordinator.ts";
 import type { StateRepository } from "./state-repository.ts";
+import type { VerificationService } from "./verification-service.ts";
 import {
   DEFAULT_HISTORY_LIMIT,
   DEFAULT_NEARBY_LIMIT,
@@ -45,6 +46,7 @@ export type AppDependencies = {
   evidenceChallengeService?: EvidenceChallengeService;
   evidenceCommitService?: EvidenceCommitService;
   evidenceUploadService?: EvidenceUploadService;
+  verificationService?: VerificationService;
   now?: () => Date;
 };
 
@@ -130,6 +132,19 @@ export function createApp(dependencies: AppDependencies): (request: Request) => 
       );
     }
     return dependencies.evidenceUploadService;
+  }
+
+  function requireVerificationService(): VerificationService {
+    if (!dependencies.verificationService) {
+      throw new ApiFault(
+        503,
+        "VERIFICATION_UNAVAILABLE",
+        "Verification is temporarily unavailable.",
+        true,
+        1_000,
+      );
+    }
+    return dependencies.verificationService;
   }
 
   function requireOpportunityMatcher(): OpportunityMatcher {
@@ -334,6 +349,14 @@ export function createApp(dependencies: AppDependencies): (request: Request) => 
           });
           return successResponse(id, data);
         }
+
+        if (request.method === "POST" && refreshRoute.action === "verify") {
+          const result = await requireVerificationService().verify(
+            actor,
+            refreshRoute.refreshId,
+          );
+          return successResponse(id, result.data, result.status);
+        }
       }
 
       if (request.method === "GET" && routeMatches(url.pathname, "/v1/me")) {
@@ -425,10 +448,10 @@ function matchRefreshRoute(
   pathname: string,
 ): {
   refreshId: string;
-  action: "detail" | "funding-intent" | "funding-observe";
+  action: "detail" | "funding-intent" | "funding-observe" | "verify";
 } | null {
   const match = pathname.match(
-    /(?:^|\/)v1\/refreshes\/([^/]+)(?:\/(funding-intent|funding-observe))?$/u,
+    /(?:^|\/)v1\/refreshes\/([^/]+)(?:\/(funding-intent|funding-observe|verify))?$/u,
   );
   if (!match) return null;
   if (!UUID_PATTERN.test(match[1])) {
@@ -440,6 +463,8 @@ function matchRefreshRoute(
       ? "funding-intent"
       : match[2] === "funding-observe"
       ? "funding-observe"
+      : match[2] === "verify"
+      ? "verify"
       : "detail",
   };
 }

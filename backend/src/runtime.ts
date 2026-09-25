@@ -16,6 +16,8 @@ import { PostgresRefreshRepository } from "./postgres-refresh-repository.ts";
 import { PostgresStateRepository } from "./postgres-state-repository.ts";
 import { RefreshCoordinator } from "./refresh-coordinator.ts";
 import { SolanaRpcRefreshChainObserver } from "./solana-refresh-observer.ts";
+import { PostgresVerificationRepository } from "./postgres-verification-repository.ts";
+import { VerificationService } from "./verification-service.ts";
 
 function requiredEnv(name: string): string {
   const value = Deno.env.get(name)?.trim();
@@ -60,6 +62,9 @@ export function createProductionHandler(): (request: Request) => Promise<Respons
     connectionString,
   );
   const evidenceCommitRepository = new PostgresEvidenceCommitRepository(
+    connectionString,
+  );
+  const verificationRepository = new PostgresVerificationRepository(
     connectionString,
   );
   const opportunityRepository = new PostgresOpportunityRepository(connectionString);
@@ -113,6 +118,9 @@ export function createProductionHandler(): (request: Request) => Promise<Respons
     evidenceObjectStorage,
     optionalPositiveIntegerEnv("NOW_EVIDENCE_MAX_BYTES", 10_485_760),
   );
+  const verificationService = new VerificationService(
+    verificationRepository,
+  );
   return createApp({
     authVerifier,
     identityRepository,
@@ -123,5 +131,6 @@ export function createProductionHandler(): (request: Request) => Promise<Respons
     evidenceChallengeService,
     evidenceCommitService,
     evidenceUploadService,
+    verificationService,
   });
 }
