@@ -308,3 +308,39 @@ Deno.test("verification fails closed when policy state type drifts", async () =>
     throw new Error("verification persisted after policy state-type drift");
   }
 });
+
+Deno.test("verification resolves two-of-three numeric majority without averaging", async () => {
+  const value = context({
+    proofPolicySnapshot: {
+      ...context().proofPolicySnapshot,
+      verification_class: "CORROBORATED",
+      required_witnesses: 2,
+      numeric: {
+        scale: 0,
+        min: 0,
+        conflict_tolerance: 1,
+        allow_two_of_three: true,
+      },
+    },
+    evidence: [
+      evidence(EVIDENCE_ID, 2),
+      evidence(EVIDENCE_ID_2, 2, 1_000),
+      evidence("d2000000-0000-4000-8000-000000000003", 7, 2_000),
+    ],
+  });
+  const repository = new MemoryVerificationRepository(value);
+  const service = new VerificationService(
+    repository,
+    "verification-test-v1",
+    () => NOW,
+  );
+
+  const result = await service.verify(actor(), REFRESH_ID);
+  if (
+    result.data.result !== "VERIFIED" ||
+    result.data.final_answer !== 2 ||
+    result.data.refresh_status !== "VERIFIED"
+  ) {
+    throw new Error("two-of-three numeric majority did not resolve deterministically");
+  }
+});
