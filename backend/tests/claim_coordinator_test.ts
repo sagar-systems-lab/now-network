@@ -8,7 +8,10 @@ import type {
   ClaimWithRefresh,
   PrepareClaimResult,
 } from "../src/claim-repository.ts";
-import { deriveClaimChainAddresses } from "../src/solana-refresh-addresses.ts";
+import {
+  deriveClaimChainAddresses,
+  deriveExecutionHashV1,
+} from "../src/solana-refresh-addresses.ts";
 import {
   type ChainClaimInspection,
   type ClaimChainObserver,
@@ -320,5 +323,22 @@ Deno.test("claim prepare maps capacity and self-claim failures without leaking a
     } catch (error) {
       if (faultCode(error) !== expected) throw error;
     }
+  }
+});
+
+Deno.test("execution hash matches the on-chain byte contract", async () => {
+  const actual = await deriveExecutionHashV1({
+    intentCoreHash: new Uint8Array(32).fill(0x33),
+    lockedRewardAtomic: 1_000_000n,
+    refreshAddress: "11111111111111111111111111111111",
+  });
+  const actualHex = [...actual]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+  if (
+    actualHex !==
+      "ce3589588aaf3346888847fa217d107d68c41362fce27cb09c2710f3d7e627ad"
+  ) {
+    throw new Error("execution hash drifted from the on-chain byte contract");
   }
 });
