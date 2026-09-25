@@ -1,10 +1,7 @@
 import { ApiFault } from "../src/errors.ts";
 import type { ActorRecord } from "../src/identity-repository.ts";
 import { OpportunityMatcher } from "../src/opportunity-matcher.ts";
-import type {
-  OpportunityRecord,
-  OpportunityRepository,
-} from "../src/opportunity-repository.ts";
+import type { OpportunityRecord, OpportunityRepository } from "../src/opportunity-repository.ts";
 
 const ACTOR_ID = "70000000-0000-4000-8000-000000000001";
 const REFRESH_A = "71000000-0000-4000-8000-000000000001";
@@ -186,12 +183,14 @@ Deno.test("opportunity payload exposes reward, evidence summary, and capacity wi
   }
 
   const serialized = JSON.stringify(data);
-  for (const forbidden of [
-    "requester_actor_id",
-    "creator_wallet_address",
-    "proof_policy_snapshot",
-    "intent_core_hash",
-  ]) {
+  for (
+    const forbidden of [
+      "requester_actor_id",
+      "creator_wallet_address",
+      "proof_policy_snapshot",
+      "intent_core_hash",
+    ]
+  ) {
     if (serialized.includes(forbidden)) {
       throw new Error(`private/internal field leaked: ${forbidden}`);
     }

@@ -316,7 +316,6 @@ function matchRefreshRoute(
   };
 }
 
-
 function matchOpportunityRoute(pathname: string): { refreshId: string } | null {
   const match = pathname.match(/(?:^|\/)v1\/opportunities\/([^/]+)$/u);
   if (!match || match[1] === "nearby") return null;

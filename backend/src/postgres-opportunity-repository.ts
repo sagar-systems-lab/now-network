@@ -1,8 +1,5 @@
 import postgres from "npm:postgres@3.4.7";
-import type {
-  OpportunityRecord,
-  OpportunityRepository,
-} from "./opportunity-repository.ts";
+import type { OpportunityRecord, OpportunityRepository } from "./opportunity-repository.ts";
 
 type DateLike = Date | string;
 
