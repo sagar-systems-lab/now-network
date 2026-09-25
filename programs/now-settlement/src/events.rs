@@ -20,6 +20,7 @@ pub struct RefreshSettled {
     pub refresh: Pubkey,
     pub settlement_operation_hash: [u8; 32],
     pub locked_reward_amount: u64,
+    pub recipient_mask: u8,
     pub settled_at: i64,
 }
 

@@ -82,6 +82,8 @@ pub enum ProtocolError {
     InvalidWitnessConfiguration,
     #[msg("Required witness slots are not populated")]
     InsufficientSettlementWitnesses,
+    #[msg("Verified settlement witness selection is invalid")]
+    InvalidSettlementWitnessMask,
     #[msg("Settlement recipient account is invalid")]
     InvalidRecipient,
     #[msg("Settlement recipient account count is invalid")]

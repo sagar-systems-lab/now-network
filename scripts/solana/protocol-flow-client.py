@@ -321,12 +321,15 @@ def refund_data(refresh_id):
     return discriminator("refund_contribution") + refresh_id
 
 
-def settle_data(refresh_id, operation_hash, result_digest):
+def settle_data(refresh_id, operation_hash, result_digest, recipient_mask):
+    if recipient_mask <= 0 or recipient_mask > 0b111:
+        raise RuntimeError("invalid settlement recipient mask")
     return (
         discriminator("settle_refresh")
         + refresh_id
         + operation_hash
         + result_digest
+        + bytes([recipient_mask])
     )
 
 
@@ -536,6 +539,7 @@ def exercise():
         SETTLEMENT_REFRESH_ID,
         operation_hash,
         result_digest,
+        0b001,
     )
     unauthorized_settle_metas = [
         meta(claimant["address"], True),

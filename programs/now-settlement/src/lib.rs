@@ -91,12 +91,14 @@ pub mod now_settlement {
         refresh_id: [u8; 32],
         settlement_operation_hash: [u8; 32],
         verification_result_digest: [u8; 32],
+        recipient_mask: u8,
     ) -> Result<()> {
         instructions::settlement::handler(
             ctx,
             refresh_id,
             settlement_operation_hash,
             verification_result_digest,
+            recipient_mask,
         )
     }
 }

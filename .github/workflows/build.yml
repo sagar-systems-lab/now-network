@@ -154,8 +154,8 @@ jobs:
       - name: Checks
         shell: bash
         run: |
-          deno fmt --check backend packages/contracts packages/domain packages/policy supabase/functions/now-api tests scripts/solana/local-validator-client.ts
-          deno lint backend packages/contracts packages/domain packages/policy supabase/functions/now-api tests scripts/solana/local-validator-client.ts
+          deno fmt --check backend packages/contracts packages/domain packages/policy supabase/functions/now-api supabase/functions/now-worker tests scripts/solana/local-validator-client.ts
+          deno lint backend packages/contracts packages/domain packages/policy supabase/functions/now-api supabase/functions/now-worker tests scripts/solana/local-validator-client.ts
           cd backend
           deno task check
           deno task test
@@ -322,6 +322,14 @@ jobs:
         run: |
           set -Eeuo pipefail
           docker exec -i "$DB_CONTAINER" psql -X -U postgres -d now_test -v ON_ERROR_STOP=1 < tests/database/state_projection_guards.sql
+
+      - name: Verify settlement guards
+        shell: bash
+        env:
+          DB_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          set -Eeuo pipefail
+          docker exec -i "$DB_CONTAINER" psql -X -U postgres -d now_test -v ON_ERROR_STOP=1 < tests/database/settlement_guards.sql
 
       - name: Verify database security baseline
         shell: bash
