@@ -345,7 +345,7 @@ update app.refresh_requests
 set status = 'ADDITIONAL_VERIFICATION'
 where refresh_id = '83000000-0000-4000-8000-000000000002'::uuid;
 
-do $
+do $$
 declare
   additional_count integer;
 begin
@@ -364,7 +364,7 @@ begin
     raise exception 'additional-verification opportunity was not discoverable';
   end if;
 end
-$;
+$$;
 
 insert into app.refresh_acceptances(
   acceptance_id,
