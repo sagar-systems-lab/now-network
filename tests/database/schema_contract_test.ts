@@ -39,6 +39,7 @@ const expectedMigrations = [
   "20260925_024_evidence_commit.sql",
   "20260925_025_verification_hardening.sql",
   "20260925_026_state_projection_hardening.sql",
+  "20260925_027_settlement_orchestration.sql",
 ] as const;
 
 async function readMigration(name: string): Promise<string> {
@@ -168,6 +169,12 @@ Deno.test("database constraints encode critical correctness boundaries", async (
       "verification_results_terminal_timestamps",
       "live_states_value_digest_length",
       "state_history_value_digest_length",
+      "settlement_operations_execution_hash_32_ck",
+      "settlement_operations_recipient_mask_ck",
+      "settlement_operations_recipient_wallets_ck",
+      "settlement_operations_chain_refresh_id_32_ck",
+      "settlement_operations_locked_reward_ck",
+      "settlement_operations_attempt_shape_ck",
       "funding_target_atomic > 0",
       "funding_target_atomic <= 18446744073709551615",
       "octet_length(intent_core_hash) = 32",
@@ -209,6 +216,9 @@ Deno.test("database indexes cover geospatial and recovery paths", async () => {
       "evidence_packets_commit_request_actor_uq",
       "verification_results_canonical_digest_uq",
       "state_history_verification_result_uq",
+      "settlement_operations_verification_result_uq",
+      "settlement_operations_reconcile_idx",
+      "settlement_operations_chain_signature_uq",
     ]
   ) {
     assertIncludes(sql, indexName);
