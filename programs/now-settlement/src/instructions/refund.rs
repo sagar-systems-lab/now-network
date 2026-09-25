@@ -71,7 +71,10 @@ pub struct CancelUnclaimedRefresh<'info> {
     pub refresh: Account<'info, RefreshEscrow>,
 }
 
-pub fn cancel_handler(ctx: Context<CancelUnclaimedRefresh>, refresh_id: [u8; 32]) -> Result<()> {
+pub fn cancel_handler(
+    ctx: Context<CancelUnclaimedRefresh>,
+    refresh_id: [u8; 32],
+) -> Result<()> {
     if ctx.accounts.refresh.refresh_id != refresh_id {
         return err!(ProtocolError::InvalidRefreshIdentity);
     }
@@ -135,9 +138,13 @@ pub struct RefundContribution<'info> {
     pub token_program: UncheckedAccount<'info>,
 }
 
-pub fn refund_handler(ctx: Context<RefundContribution>, refresh_id: [u8; 32]) -> Result<()> {
+pub fn refund_handler(
+    ctx: Context<RefundContribution>,
+    refresh_id: [u8; 32],
+) -> Result<()> {
     let config = &ctx.accounts.config;
-    if config.version != PROTOCOL_VERSION_V1 || ctx.accounts.refresh.version != PROTOCOL_VERSION_V1
+    if config.version != PROTOCOL_VERSION_V1
+        || ctx.accounts.refresh.version != PROTOCOL_VERSION_V1
     {
         return err!(ProtocolError::InvalidProtocolVersion);
     }
@@ -171,7 +178,11 @@ pub fn refund_handler(ctx: Context<RefundContribution>, refresh_id: [u8; 32]) ->
 
     let refresh_key = ctx.accounts.refresh.key();
     let funder_key = ctx.accounts.funder.key();
-    if !contribution_identity_matches(&ctx.accounts.contribution, &refresh_key, &funder_key) {
+    if !contribution_identity_matches(
+        &ctx.accounts.contribution,
+        &refresh_key,
+        &funder_key,
+    ) {
         return err!(ProtocolError::InvalidContributionIdentity);
     }
 
@@ -245,7 +256,9 @@ pub fn refund_handler(ctx: Context<RefundContribution>, refresh_id: [u8; 32]) ->
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ClaimStatus, PayoutRule, VerificationClass, MAX_WITNESSES_V1};
+    use crate::{
+        ClaimStatus, PayoutRule, VerificationClass, MAX_WITNESSES_V1,
+    };
 
     fn refresh(status: RefreshStatus) -> RefreshEscrow {
         RefreshEscrow {

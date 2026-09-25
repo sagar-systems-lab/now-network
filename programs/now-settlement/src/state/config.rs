@@ -13,7 +13,8 @@ pub struct ProtocolConfig {
 }
 
 impl ProtocolConfig {
-    pub const BODY_LEN: usize = 2 + // version
+    pub const BODY_LEN: usize =
+        2 + // version
         32 + // admin_authority
         32 + // current_verifier_authority
         32 + // reward_mint

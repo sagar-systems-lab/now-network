@@ -6,7 +6,9 @@ use anchor_lang::{
     },
 };
 
-use crate::{ProtocolError, ASSOCIATED_TOKEN_PROGRAM_ID, NATIVE_MINT_ID, SPL_TOKEN_PROGRAM_ID};
+use crate::{
+    ASSOCIATED_TOKEN_PROGRAM_ID, NATIVE_MINT_ID, ProtocolError, SPL_TOKEN_PROGRAM_ID,
+};
 
 const TOKEN_ACCOUNT_LEN: usize = 165;
 const TOKEN_ACCOUNT_STATE_OFFSET: usize = 108;
@@ -256,14 +258,8 @@ mod tests {
         assert_eq!(instruction.program_id, SPL_TOKEN_PROGRAM_ID);
         assert_eq!(instruction.accounts.len(), 4);
         assert_eq!(instruction.accounts[0], AccountMeta::new(source, false));
-        assert_eq!(
-            instruction.accounts[1],
-            AccountMeta::new_readonly(mint, false)
-        );
-        assert_eq!(
-            instruction.accounts[2],
-            AccountMeta::new(destination, false)
-        );
+        assert_eq!(instruction.accounts[1], AccountMeta::new_readonly(mint, false));
+        assert_eq!(instruction.accounts[2], AccountMeta::new(destination, false));
         assert_eq!(
             instruction.accounts[3],
             AccountMeta::new_readonly(authority, true)

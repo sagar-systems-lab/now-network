@@ -13,7 +13,8 @@ pub struct Contribution {
 }
 
 impl Contribution {
-    pub const BODY_LEN: usize = 2 + // version
+    pub const BODY_LEN: usize =
+        2 + // version
         32 + // refresh
         32 + // funder
         8 + // amount_contributed

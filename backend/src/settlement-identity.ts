@@ -53,7 +53,11 @@ export async function deriveSettlementOperationHashV1(input: {
     uuidBytes(input.operationId),
     Uint8Array.of(input.recipientMask),
   ]);
-  return new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+  const digestInput = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(digestInput).set(bytes);
+  return new Uint8Array(
+    await crypto.subtle.digest("SHA-256", digestInput),
+  );
 }
 
 export function bytesToHex(value: Uint8Array): string {

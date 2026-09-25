@@ -2,9 +2,9 @@ use anchor_lang::prelude::*;
 
 use crate::{
     associated_token_address, transfer_checked_signed, validate_active_token_account,
-    validate_reward_mint, validate_token_program, witness_policy_is_valid, ClaimStatus, PayoutRule,
-    ProtocolConfig, ProtocolError, RefreshEscrow, RefreshSettled, RefreshStatus, CONFIG_SEED,
-    MAX_WITNESSES_V1, PROTOCOL_VERSION_V1, REFRESH_SEED,
+    validate_reward_mint, validate_token_program, witness_policy_is_valid, ClaimStatus,
+    PayoutRule, ProtocolConfig, ProtocolError, RefreshEscrow, RefreshSettled, RefreshStatus,
+    CONFIG_SEED, MAX_WITNESSES_V1, PROTOCOL_VERSION_V1, REFRESH_SEED,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -126,7 +126,9 @@ fn validate_settlement_state(
     if verifier != &refresh.verifier_authority {
         return err!(ProtocolError::UnauthorizedVerifier);
     }
-    if settlement_operation_hash == &[0; 32] || refresh.settlement_operation_hash != [0; 32] {
+    if settlement_operation_hash == &[0; 32]
+        || refresh.settlement_operation_hash != [0; 32]
+    {
         return err!(ProtocolError::InvalidOperationHash);
     }
     if refresh.settled_amount != 0 || refresh.settled_at != 0 {
@@ -136,7 +138,9 @@ fn validate_settlement_state(
     Ok(())
 }
 
-fn validate_verification_result_digest(verification_result_digest: &[u8; 32]) -> Result<()> {
+fn validate_verification_result_digest(
+    verification_result_digest: &[u8; 32],
+) -> Result<()> {
     if verification_result_digest == &[0; 32] {
         return err!(ProtocolError::InvalidVerificationDigest);
     }
@@ -181,8 +185,7 @@ pub fn handler<'info>(
     recipient_mask: u8,
 ) -> Result<()> {
     let config = &ctx.accounts.config;
-    if config.version != PROTOCOL_VERSION_V1 || ctx.accounts.refresh.version != PROTOCOL_VERSION_V1
-    {
+    if config.version != PROTOCOL_VERSION_V1 || ctx.accounts.refresh.version != PROTOCOL_VERSION_V1 {
         return err!(ProtocolError::InvalidProtocolVersion);
     }
     if ctx.accounts.refresh.refresh_id != refresh_id {

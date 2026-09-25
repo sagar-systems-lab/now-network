@@ -97,10 +97,13 @@ pub struct Contribute<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn handler(ctx: Context<Contribute>, refresh_id: [u8; 32], amount_atomic: u64) -> Result<()> {
+pub fn handler(
+    ctx: Context<Contribute>,
+    refresh_id: [u8; 32],
+    amount_atomic: u64,
+) -> Result<()> {
     let config = &ctx.accounts.config;
-    if config.version != PROTOCOL_VERSION_V1 || ctx.accounts.refresh.version != PROTOCOL_VERSION_V1
-    {
+    if config.version != PROTOCOL_VERSION_V1 || ctx.accounts.refresh.version != PROTOCOL_VERSION_V1 {
         return err!(ProtocolError::InvalidProtocolVersion);
     }
     if ctx.accounts.refresh.refresh_id != refresh_id {
@@ -162,7 +165,11 @@ pub fn handler(ctx: Context<Contribute>, refresh_id: [u8; 32], amount_atomic: u6
     let current_contribution_amount = if is_new_contribution {
         0
     } else {
-        if !contribution_identity_matches(&ctx.accounts.contribution, &refresh_key, &funder_key) {
+        if !contribution_identity_matches(
+            &ctx.accounts.contribution,
+            &refresh_key,
+            &funder_key,
+        ) {
             return err!(ProtocolError::InvalidContributionIdentity);
         }
         ctx.accounts.contribution.amount_contributed

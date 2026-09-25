@@ -3,8 +3,8 @@ use anchor_lang::prelude::*;
 use crate::{
     associated_token_address, validate_active_token_account, validate_reward_mint,
     validate_token_program, witness_policy_is_valid, ClaimStatus, PayoutRule, ProtocolConfig,
-    ProtocolError, RefreshEscrow, RefreshStatus, VerificationClass, CONFIG_SEED, MAX_WITNESSES_V1,
-    PROTOCOL_VERSION_V1, REFRESH_SEED,
+    ProtocolError, RefreshEscrow, RefreshStatus, VerificationClass, CONFIG_SEED,
+    MAX_WITNESSES_V1, PROTOCOL_VERSION_V1, REFRESH_SEED,
 };
 
 #[derive(Accounts)]

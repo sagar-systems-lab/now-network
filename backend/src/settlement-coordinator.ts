@@ -229,6 +229,9 @@ export class SettlementCoordinator {
     }
 
     const ambiguous = broadcast.kind === "ambiguous";
+    const errorCode = broadcast.kind === "ambiguous"
+      ? broadcast.errorCode
+      : null;
     if (ambiguous) {
       transitionPayment("PENDING", "OUTCOME_AMBIGUOUS");
     }
@@ -237,7 +240,7 @@ export class SettlementCoordinator {
       chainSignature: persistedAttempt(operation).signature,
       ambiguous,
       nextReconcileAt: this.nextReconcileAt(observedAt),
-      errorCode: ambiguous ? broadcast.errorCode : null,
+      errorCode,
       observedAt,
     });
     if (

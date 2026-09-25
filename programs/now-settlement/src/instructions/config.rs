@@ -28,7 +28,10 @@ pub struct InitializeProtocol<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn handler(ctx: Context<InitializeProtocol>, current_verifier_authority: Pubkey) -> Result<()> {
+pub fn handler(
+    ctx: Context<InitializeProtocol>,
+    current_verifier_authority: Pubkey,
+) -> Result<()> {
     if current_verifier_authority == Pubkey::default() {
         return err!(ProtocolError::InvalidVerifierAuthority);
     }

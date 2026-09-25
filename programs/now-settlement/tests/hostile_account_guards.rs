@@ -41,7 +41,12 @@ fn mint_data(decimals: u8, initialized: bool) -> Vec<u8> {
     data
 }
 
-fn token_account_data(mint: Pubkey, authority: Pubkey, amount: u64, state: u8) -> Vec<u8> {
+fn token_account_data(
+    mint: Pubkey,
+    authority: Pubkey,
+    amount: u64,
+    state: u8,
+) -> Vec<u8> {
     let mut data = vec![0u8; TOKEN_ACCOUNT_LEN];
     data[0..32].copy_from_slice(mint.as_ref());
     data[32..64].copy_from_slice(authority.as_ref());
@@ -76,10 +81,24 @@ fn token_program_must_match_standard_program_and_be_executable() {
     );
     assert!(validate_token_program(wrong_program).is_err());
 
-    let non_executable = account_info(SPL_TOKEN_PROGRAM_ID, owner, vec![], false, false, false);
+    let non_executable = account_info(
+        SPL_TOKEN_PROGRAM_ID,
+        owner,
+        vec![],
+        false,
+        false,
+        false,
+    );
     assert!(validate_token_program(non_executable).is_err());
 
-    let valid = account_info(SPL_TOKEN_PROGRAM_ID, owner, vec![], false, false, true);
+    let valid = account_info(
+        SPL_TOKEN_PROGRAM_ID,
+        owner,
+        vec![],
+        false,
+        false,
+        true,
+    );
     assert!(validate_token_program(valid).is_ok());
 }
 
@@ -234,6 +253,12 @@ fn canonical_reward_account_changes_on_authority_or_mint_substitution() {
 
     let expected = associated_token_address(&authority, &mint);
 
-    assert_ne!(expected, associated_token_address(&wrong_authority, &mint),);
-    assert_ne!(expected, associated_token_address(&authority, &wrong_mint),);
+    assert_ne!(
+        expected,
+        associated_token_address(&wrong_authority, &mint),
+    );
+    assert_ne!(
+        expected,
+        associated_token_address(&authority, &wrong_mint),
+    );
 }
