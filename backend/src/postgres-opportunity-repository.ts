@@ -151,7 +151,7 @@ export class PostgresOpportunityRepository implements OpportunityRepository {
       ) claims on true
       where rr.refresh_id = ${input.refreshId}::uuid
         and rr.requester_actor_id <> ${input.actorId}::uuid
-        and rr.status = 'AVAILABLE'
+        and rr.status in ('AVAILABLE', 'ADDITIONAL_VERIFICATION')
         and rr.refresh_expires_at > now()
         and sd.status = 'ACTIVE'
         and coalesce(rr.chain_locked_reward, rr.chain_total_funded) > 0

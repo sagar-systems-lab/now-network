@@ -499,7 +499,7 @@ export class PostgresEvidenceCommitRepository implements EvidenceCommitRepositor
         select count(*)::integer as committed_count
         from app.evidence_packets
         where refresh_id = ${context.refreshId}::uuid
-          and status in ('COMMITTED', 'VERIFYING', 'VERIFIED')
+          and status in ('COMMITTED', 'VERIFYING', 'VERIFIED', 'CONFLICT')
       `;
       const committedCount = Number(committedRows[0].committed_count);
       const refreshStatus = committedCount >= context.requiredWitnesses

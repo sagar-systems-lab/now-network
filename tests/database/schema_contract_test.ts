@@ -37,6 +37,7 @@ const expectedMigrations = [
   "20260925_022_evidence_challenge_hardening.sql",
   "20260925_023_evidence_signed_upload.sql",
   "20260925_024_evidence_commit.sql",
+  "20260925_025_verification_hardening.sql",
 ] as const;
 
 async function readMigration(name: string): Promise<string> {
@@ -162,6 +163,8 @@ Deno.test("database constraints encode critical correctness boundaries", async (
       "evidence_challenges_upload_reservation_shape",
       "evidence_challenges_reserved_evidence_shape",
       "evidence_packets_digest_lengths",
+      "verification_results_digest_lengths",
+      "verification_results_terminal_timestamps",
       "funding_target_atomic > 0",
       "funding_target_atomic <= 18446744073709551615",
       "octet_length(intent_core_hash) = 32",
@@ -201,6 +204,7 @@ Deno.test("database indexes cover geospatial and recovery paths", async () => {
       "evidence_challenges_upload_issued_idx",
       "evidence_challenges_reserved_evidence_id_uq",
       "evidence_packets_commit_request_actor_uq",
+      "verification_results_canonical_digest_uq",
     ]
   ) {
     assertIncludes(sql, indexName);
@@ -228,6 +232,7 @@ Deno.test("nearby opportunity reads are PostGIS-backed and capacity-bounded", as
     const invariant of [
       "query_nearby_opportunities_v1",
       "rr.status = 'AVAILABLE'",
+      "rr.status in ('AVAILABLE', 'ADDITIONAL_VERIFICATION')",
       "rr.refresh_expires_at > now()",
       "rr.requester_actor_id <> p_actor_id",
       "coalesce(claims.active_claims, 0) < rr.max_witnesses",

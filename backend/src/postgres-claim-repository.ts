@@ -313,7 +313,8 @@ export class PostgresClaimRepository implements ClaimRepository {
         return { kind: "expired" } as const;
       }
       if (
-        refresh.status !== "AVAILABLE" ||
+        (refresh.status !== "AVAILABLE" &&
+          refresh.status !== "ADDITIONAL_VERIFICATION") ||
         refresh.chainRefreshAddress === null ||
         refresh.chainTotalFunded <= 0n
       ) {
@@ -747,7 +748,11 @@ export class PostgresClaimRepository implements ClaimRepository {
         !["WALLET_PENDING", "SUBMITTED", "CONFIRMING", "UNKNOWN"].includes(
           current.claim.status,
         ) ||
-        (refresh.status !== "AVAILABLE" && refresh.status !== "CLAIMED")
+        (
+          refresh.status !== "AVAILABLE" &&
+          refresh.status !== "CLAIMED" &&
+          refresh.status !== "ADDITIONAL_VERIFICATION"
+        )
       ) {
         return { kind: "authority_conflict" } as const;
       }
@@ -824,8 +829,10 @@ export class PostgresClaimRepository implements ClaimRepository {
           )
       `;
       const confirmedClaims = Number(confirmedRows[0].confirmed_claims);
-      const refreshStatus = refresh.status === "AVAILABLE" &&
-          confirmedClaims >= refresh.requiredWitnesses
+      const refreshStatus = refresh.status === "ADDITIONAL_VERIFICATION"
+        ? "CLAIMED"
+        : refresh.status === "AVAILABLE" &&
+            confirmedClaims >= refresh.requiredWitnesses
         ? "CLAIMED"
         : refresh.status;
 
