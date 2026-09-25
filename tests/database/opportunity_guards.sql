@@ -341,6 +341,31 @@ begin
 end
 $$;
 
+update app.refresh_requests
+set status = 'ADDITIONAL_VERIFICATION'
+where refresh_id = '83000000-0000-4000-8000-000000000002'::uuid;
+
+do $
+declare
+  additional_count integer;
+begin
+  select count(*)
+  into additional_count
+  from app.query_nearby_opportunities_v1(
+    '80000000-0000-4000-8000-000000000001',
+    29.4000,
+    76.9000,
+    1000,
+    10
+  )
+  where refresh_id = '83000000-0000-4000-8000-000000000002'::uuid;
+
+  if additional_count <> 1 then
+    raise exception 'additional-verification opportunity was not discoverable';
+  end if;
+end
+$;
+
 insert into app.refresh_acceptances(
   acceptance_id,
   refresh_id,

@@ -83,7 +83,7 @@ function terminalResult(status: VerificationStatus): VerificationResult {
     case "VERIFIED":
       return "VERIFIED";
     case "CONFLICT":
-      return "CONFLICT";
+      return "ADDITIONAL_VERIFICATION";
     case "WAITING_FOR_MORE_EVIDENCE":
       return "REQUIRES_ADDITIONAL_VERIFICATION";
     case "REJECTED":

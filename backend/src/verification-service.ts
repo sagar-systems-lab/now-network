@@ -558,6 +558,7 @@ export class VerificationService {
         transitionRefresh("VERIFYING", "CONFLICT_DETECTED", {
           verificationResult: "CONFLICT",
         });
+        transitionRefresh("CONFLICT", "REQUEST_ADDITIONAL_EVIDENCE");
         for (const evidence of context.evidence) {
           if (evidence.status === "COMMITTED") {
             transitionEvidence("VERIFYING", "CONFLICT", {

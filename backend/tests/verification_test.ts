@@ -96,7 +96,7 @@ class MemoryVerificationRepository implements VerificationRepository {
     const refreshStatus = input.outcome.result === "VERIFIED"
       ? "VERIFIED"
       : input.outcome.result === "CONFLICT"
-      ? "CONFLICT"
+      ? "ADDITIONAL_VERIFICATION"
       : input.outcome.result === "REQUIRES_ADDITIONAL_VERIFICATION"
       ? "ADDITIONAL_VERIFICATION"
       : input.outcome.result === "EXPIRED"
@@ -171,7 +171,7 @@ Deno.test("verification exposes conflicting numeric reports", async () => {
   if (
     result.data.result !== "CONFLICT" ||
     result.data.status !== "CONFLICT" ||
-    result.data.refresh_status !== "CONFLICT" ||
+    result.data.refresh_status !== "ADDITIONAL_VERIFICATION" ||
     result.data.next_step !== "ADDITIONAL_VERIFICATION"
   ) {
     throw new Error("conflicting evidence was not exposed as conflict");
@@ -281,5 +281,30 @@ Deno.test("verification replays the same frozen evidence result without mutation
     repository.persistCalls !== 0
   ) {
     throw new Error("verification replay mutated an accepted result");
+  }
+});
+
+Deno.test("verification fails closed when policy state type drifts", async () => {
+  const value = context({
+    proofPolicySnapshot: {
+      ...context().proofPolicySnapshot,
+      state_type: "BINARY",
+    },
+  });
+  const repository = new MemoryVerificationRepository(value);
+  const service = new VerificationService(
+    repository,
+    "verification-test-v1",
+    () => NOW,
+  );
+
+  try {
+    await service.verify(actor(), REFRESH_ID);
+    throw new Error("policy state-type drift unexpectedly verified");
+  } catch (error) {
+    if (faultCode(error) !== "VERIFICATION_NOT_ELIGIBLE") throw error;
+  }
+  if (repository.persistCalls !== 0) {
+    throw new Error("verification persisted after policy state-type drift");
   }
 });

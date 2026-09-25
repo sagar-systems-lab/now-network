@@ -232,6 +232,7 @@ Deno.test("nearby opportunity reads are PostGIS-backed and capacity-bounded", as
     const invariant of [
       "query_nearby_opportunities_v1",
       "rr.status = 'AVAILABLE'",
+      "rr.status in ('AVAILABLE', 'ADDITIONAL_VERIFICATION')",
       "rr.refresh_expires_at > now()",
       "rr.requester_actor_id <> p_actor_id",
       "coalesce(claims.active_claims, 0) < rr.max_witnesses",
