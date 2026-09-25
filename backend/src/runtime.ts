@@ -1,9 +1,12 @@
 import { createApp } from "./app.ts";
 import { ClaimCoordinator } from "./claim-coordinator.ts";
 import { EvidenceChallengeService } from "./evidence-challenge-service.ts";
+import { SupabaseEvidenceObjectStorage } from "./evidence-object-storage.ts";
+import { EvidenceUploadService } from "./evidence-upload-service.ts";
 import { SupabaseAuthVerifier } from "./auth.ts";
 import { PostgresClaimRepository } from "./postgres-claim-repository.ts";
 import { PostgresEvidenceChallengeRepository } from "./postgres-evidence-challenge-repository.ts";
+import { PostgresEvidenceUploadRepository } from "./postgres-evidence-upload-repository.ts";
 import { PostgresIdentityRepository } from "./postgres-identity-repository.ts";
 import { OpportunityMatcher } from "./opportunity-matcher.ts";
 import { PostgresOpportunityRepository } from "./postgres-opportunity-repository.ts";
@@ -38,8 +41,9 @@ function optionalPositiveIntegerEnv(name: string, fallback: number): number {
 }
 
 export function createProductionHandler(): (request: Request) => Promise<Response> {
+  const supabaseUrl = requiredEnv("SUPABASE_URL");
   const authVerifier = new SupabaseAuthVerifier(
-    requiredEnv("SUPABASE_URL"),
+    supabaseUrl,
     requiredEnv("SUPABASE_ANON_KEY"),
   );
   const connectionString = requiredEnv("SUPABASE_DB_URL");
@@ -48,6 +52,9 @@ export function createProductionHandler(): (request: Request) => Promise<Respons
   const refreshRepository = new PostgresRefreshRepository(connectionString);
   const claimRepository = new PostgresClaimRepository(connectionString);
   const evidenceChallengeRepository = new PostgresEvidenceChallengeRepository(
+    connectionString,
+  );
+  const evidenceUploadRepository = new PostgresEvidenceUploadRepository(
     connectionString,
   );
   const opportunityRepository = new PostgresOpportunityRepository(connectionString);
@@ -87,6 +94,14 @@ export function createProductionHandler(): (request: Request) => Promise<Respons
   const evidenceChallengeService = new EvidenceChallengeService(
     evidenceChallengeRepository,
   );
+  const evidenceUploadService = new EvidenceUploadService(
+    evidenceUploadRepository,
+    new SupabaseEvidenceObjectStorage(
+      supabaseUrl,
+      requiredEnv("SUPABASE_SERVICE_ROLE_KEY"),
+      requiredEnv("NOW_EVIDENCE_STORAGE_BUCKET"),
+    ),
+  );
   return createApp({
     authVerifier,
     identityRepository,
@@ -95,5 +110,6 @@ export function createProductionHandler(): (request: Request) => Promise<Respons
     opportunityMatcher,
     claimCoordinator,
     evidenceChallengeService,
+    evidenceUploadService,
   });
 }
