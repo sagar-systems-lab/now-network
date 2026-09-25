@@ -481,7 +481,9 @@ export class PostgresEvidenceCommitRepository implements EvidenceCommitRepositor
           and reserved_evidence_id = ${input.evidenceId}::uuid
         returning challenge_id
       `;
-      if (!challengeUpdated[0]) return { kind: "state_conflict" } as const;
+      if (!challengeUpdated[0]) {
+        throw new Error("challenge state changed while evidence commit was locked");
+      }
 
       const claimUpdated = await tx`
         update app.refresh_acceptances
@@ -491,7 +493,9 @@ export class PostgresEvidenceCommitRepository implements EvidenceCommitRepositor
           and status = 'CAPTURE_ACTIVE'
         returning revision
       `;
-      if (!claimUpdated[0]) return { kind: "state_conflict" } as const;
+      if (!claimUpdated[0]) {
+        throw new Error("claim state changed while evidence commit was locked");
+      }
       const claimRevision = Number(claimUpdated[0].revision);
 
       const committedRows = await tx`
@@ -515,7 +519,9 @@ export class PostgresEvidenceCommitRepository implements EvidenceCommitRepositor
           and status = 'CAPTURE_IN_PROGRESS'
         returning revision
       `;
-      if (!refreshUpdated[0]) return { kind: "state_conflict" } as const;
+      if (!refreshUpdated[0]) {
+        throw new Error("refresh state changed while evidence commit was locked");
+      }
       const refreshRevision = Number(refreshUpdated[0].revision);
 
       await tx`
