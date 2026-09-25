@@ -180,6 +180,11 @@ Deno.test("evidence commit binds uploaded bytes and advances the authoritative s
   const mediaHash = await digest(MEDIA);
   const repository = new MemoryCommitRepository(await context());
   const storage = new MemoryStorage();
+  storage.integrity = {
+    sha256: mediaHash,
+    sizeBytes: MEDIA.length,
+    mediaMime: "image/jpeg",
+  };
   const service = new EvidenceCommitService(repository, storage, 1024, () => NOW);
 
   const result = await service.commit({
