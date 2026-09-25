@@ -45,7 +45,7 @@ type CommittedRow = {
   acceptance_id: string;
   challenge_id: string;
   actor_id: string;
-  status: "COMMITTED";
+  status: string;
   media_object_key: string;
   media_sha256: Uint8Array;
   media_size_bytes: number | string;
@@ -187,7 +187,7 @@ function committedFromRow(row: CommittedRow): EvidenceCommitRecord {
     acceptanceId: row.acceptance_id,
     challengeId: row.challenge_id,
     actorId: row.actor_id,
-    status: row.status,
+    status: "COMMITTED",
     mediaObjectKey: row.media_object_key,
     mediaSha256: new Uint8Array(row.media_sha256),
     mediaSizeBytes: Number(row.media_size_bytes),

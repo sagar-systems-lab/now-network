@@ -136,6 +136,7 @@ class MemoryCommitRepository implements EvidenceCommitRepository {
 
 class MemoryStorage implements EvidenceObjectStorage {
   integrity: EvidenceObjectIntegrity | null = null;
+  inspectCalls = 0;
 
   createSignedUpload(): Promise<SignedUploadAuthorization> {
     return Promise.resolve({
@@ -144,6 +145,7 @@ class MemoryStorage implements EvidenceObjectStorage {
   }
 
   inspectUploadedObject(): Promise<EvidenceObjectIntegrity> {
+    this.inspectCalls += 1;
     if (this.integrity === null) {
       return Promise.reject(new Error("missing object"));
     }
@@ -178,11 +180,6 @@ Deno.test("evidence commit binds uploaded bytes and advances the authoritative s
   const mediaHash = await digest(MEDIA);
   const repository = new MemoryCommitRepository(await context());
   const storage = new MemoryStorage();
-  storage.integrity = {
-    sha256: mediaHash,
-    sizeBytes: MEDIA.length,
-    mediaMime: "image/jpeg",
-  };
   const service = new EvidenceCommitService(repository, storage, 1024, () => NOW);
 
   const result = await service.commit({
@@ -316,7 +313,11 @@ Deno.test("evidence commit requires location samples when policy requires locati
 
 Deno.test("idempotent evidence replay preserves the committed identity", async () => {
   const mediaHash = await digest(MEDIA);
-  const value = await context();
+  const value = await context({
+    challengeStatus: "CONSUMED",
+    claimStatus: "EVIDENCE_COMMITTED",
+    refreshStatus: "EVIDENCE_SUBMITTED",
+  });
   const repository = new MemoryCommitRepository(value);
   repository.resultOverride = {
     kind: "replayed",
@@ -353,7 +354,8 @@ Deno.test("idempotent evidence replay preserves the committed identity", async (
   if (
     result.status !== 200 ||
     result.data.evidence_id !== EVIDENCE_ID ||
-    result.data.replayed !== true
+    result.data.replayed !== true ||
+    storage.inspectCalls !== 0
   ) {
     throw new Error("idempotent commit replay changed evidence identity");
   }
