@@ -1,6 +1,8 @@
 alter table app.settlement_operations
   add column execution_hash bytea,
   add column recipient_mask smallint,
+  add column recipient_wallets text[],
+  add column chain_refresh_id bytea,
   add column reward_mint text,
   add column locked_reward_atomic numeric(20,0),
   add column chain_refresh_address text;
@@ -8,6 +10,7 @@ alter table app.settlement_operations
 update app.settlement_operations so
 set
   execution_hash = vr.execution_hash,
+  chain_refresh_id = rr.chain_refresh_id,
   reward_mint = rr.reward_mint,
   locked_reward_atomic = rr.chain_locked_reward,
   chain_refresh_address = rr.chain_refresh_address
@@ -22,6 +25,9 @@ begin
     select 1
     from app.settlement_operations
     where execution_hash is null
+       or recipient_mask is null
+       or recipient_wallets is null
+       or chain_refresh_id is null
        or reward_mint is null
        or locked_reward_atomic is null
        or chain_refresh_address is null
@@ -33,13 +39,20 @@ $$;
 
 alter table app.settlement_operations
   alter column execution_hash set not null,
+  alter column recipient_mask set not null,
+  alter column recipient_wallets set not null,
+  alter column chain_refresh_id set not null,
   alter column reward_mint set not null,
   alter column locked_reward_atomic set not null,
   alter column chain_refresh_address set not null,
   add constraint settlement_operations_execution_hash_32_ck
     check (octet_length(execution_hash) = 32),
   add constraint settlement_operations_recipient_mask_ck
-    check (recipient_mask is null or recipient_mask between 1 and 7),
+    check (recipient_mask between 1 and 7),
+  add constraint settlement_operations_recipient_wallets_ck
+    check (cardinality(recipient_wallets) between 1 and 3),
+  add constraint settlement_operations_chain_refresh_id_32_ck
+    check (octet_length(chain_refresh_id) = 32),
   add constraint settlement_operations_locked_reward_ck
     check (
       locked_reward_atomic > 0

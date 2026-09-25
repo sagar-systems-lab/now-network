@@ -18,6 +18,7 @@ export type SettlementEligibility = {
   verificationDigest: Uint8Array;
   executionHash: Uint8Array;
   chainRefreshId: Uint8Array;
+  chainRefreshId: Uint8Array;
   chainRefreshAddress: string;
   rewardMint: string;
   lockedRewardAtomic: bigint;
@@ -35,6 +36,8 @@ export type SettlementOperation = {
   verificationDigest: Uint8Array;
   executionHash: Uint8Array;
   recipientMask: number;
+  recipientWallets: string[];
+  chainRefreshId: Uint8Array;
   rewardMint: string;
   lockedRewardAtomic: bigint;
   chainRefreshAddress: string;

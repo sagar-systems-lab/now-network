@@ -7,6 +7,8 @@ declare
   operation_hash_constraint text;
   execution_hash_constraint text;
   recipient_mask_constraint text;
+  recipient_wallets_constraint text;
+  chain_refresh_constraint text;
   verification_index text;
   reconcile_index text;
 begin
@@ -41,6 +43,28 @@ begin
   if recipient_mask_constraint is null
      or position('recipient_mask' in lower(recipient_mask_constraint)) = 0 then
     raise exception 'settlement recipient mask guard missing';
+  end if;
+
+  select pg_get_constraintdef(oid)
+  into recipient_wallets_constraint
+  from pg_constraint
+  where conrelid = 'app.settlement_operations'::regclass
+    and conname = 'settlement_operations_recipient_wallets_ck';
+
+  if recipient_wallets_constraint is null
+     or position('recipient_wallets' in lower(recipient_wallets_constraint)) = 0 then
+    raise exception 'settlement recipient wallet guard missing';
+  end if;
+
+  select pg_get_constraintdef(oid)
+  into chain_refresh_constraint
+  from pg_constraint
+  where conrelid = 'app.settlement_operations'::regclass
+    and conname = 'settlement_operations_chain_refresh_id_32_ck';
+
+  if chain_refresh_constraint is null
+     or position('chain_refresh_id' in lower(chain_refresh_constraint)) = 0 then
+    raise exception 'settlement chain refresh identity guard missing';
   end if;
 
   select indexdef
