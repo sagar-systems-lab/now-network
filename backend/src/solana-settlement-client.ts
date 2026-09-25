@@ -7,6 +7,14 @@ import {
   TransactionInstruction,
 } from "npm:@solana/web3.js@1.98.4";
 import type { SettlementOperation } from "./settlement-repository.ts";
+import {
+  type PreparedSettlementAttempt,
+  type SettlementBroadcast,
+  type SettlementChainClient,
+  SettlementChainError,
+  type SettlementInspection,
+} from "./settlement-chain.ts";
+import { parseSettlementVerifierSecret } from "./settlement-verifier-secret.ts";
 import { NOW_SETTLEMENT_PROGRAM_ID } from "./solana-refresh-observer.ts";
 
 const TOKEN_PROGRAM_ID = new PublicKey(
@@ -25,45 +33,6 @@ type RpcResponse<T> = {
   result?: T;
   error?: unknown;
 };
-
-export type PreparedSettlementAttempt = {
-  signature: string;
-  recentBlockhash: string;
-  lastValidBlockHeight: number;
-  signedTransactionBase64: string;
-};
-
-export type SettlementBroadcast =
-  | { kind: "accepted" }
-  | { kind: "ambiguous"; errorCode: string };
-
-export type SettlementInspection =
-  | { kind: "pending" }
-  | {
-    kind: "confirmed";
-    commitment: "confirmed" | "finalized";
-    signature: string;
-    observedAt: Date;
-  }
-  | { kind: "not_settled"; observedAt: Date }
-  | { kind: "authority_conflict"; errorCode: string; observedAt: Date };
-
-export interface SettlementChainClient {
-  prepare(operation: SettlementOperation): Promise<PreparedSettlementAttempt>;
-  broadcast(attempt: PreparedSettlementAttempt): Promise<SettlementBroadcast>;
-  inspect(operation: SettlementOperation): Promise<SettlementInspection>;
-}
-
-export class SettlementChainError extends Error {
-  constructor(
-    readonly code: string,
-    readonly retryable: boolean,
-    message: string,
-  ) {
-    super(message);
-    this.name = "SettlementChainError";
-  }
-}
 
 function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
   if (left.length !== right.length) return false;
@@ -141,24 +110,7 @@ function selectedSlots(mask: number): number[] {
 }
 
 export function settlementVerifierFromJson(raw: string): Keypair {
-  let decoded: unknown;
-  try {
-    decoded = JSON.parse(raw);
-  } catch {
-    throw new Error("NOW_SETTLEMENT_VERIFIER_KEYPAIR_JSON must be valid JSON");
-  }
-  if (
-    !Array.isArray(decoded) ||
-    decoded.length !== 64 ||
-    decoded.some((value) =>
-      !Number.isSafeInteger(value) || Number(value) < 0 || Number(value) > 255
-    )
-  ) {
-    throw new Error(
-      "NOW_SETTLEMENT_VERIFIER_KEYPAIR_JSON must contain exactly 64 byte values",
-    );
-  }
-  return Keypair.fromSecretKey(Uint8Array.from(decoded as number[]));
+  return Keypair.fromSecretKey(parseSettlementVerifierSecret(raw));
 }
 
 export class SolanaSettlementClient implements SettlementChainClient {

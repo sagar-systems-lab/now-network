@@ -12,7 +12,7 @@ import type {
   SettlementBroadcast,
   SettlementChainClient,
   SettlementInspection,
-} from "../src/solana-settlement-client.ts";
+} from "../src/settlement-chain.ts";
 
 const NOW = new Date("2026-09-25T12:00:00.000Z");
 

@@ -7,7 +7,7 @@ import {
   type SettlementChainClient,
   SettlementChainError,
   type SettlementInspection,
-} from "./solana-settlement-client.ts";
+} from "./settlement-chain.ts";
 
 function recipientMask(operation: {
   requiredWitnesses: number;
