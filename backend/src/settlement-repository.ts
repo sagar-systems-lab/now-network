@@ -18,7 +18,6 @@ export type SettlementEligibility = {
   verificationDigest: Uint8Array;
   executionHash: Uint8Array;
   chainRefreshId: Uint8Array;
-  chainRefreshId: Uint8Array;
   chainRefreshAddress: string;
   rewardMint: string;
   lockedRewardAtomic: bigint;
@@ -54,7 +53,6 @@ export type SettlementOperation = {
   updatedAt: Date;
   confirmedAt: Date | null;
   finalizedAt: Date | null;
-  beneficiaries: SettlementBeneficiary[];
 };
 
 export type PrepareSettlementResult =
