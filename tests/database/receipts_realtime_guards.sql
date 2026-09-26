@@ -152,4 +152,66 @@ begin
 end
 $$;
 
+
+set local session_replication_role = replica;
+
+insert into app.receipts(
+  receipt_id,
+  refresh_id,
+  state_id,
+  verification_result_id,
+  settlement_id,
+  status,
+  final_value,
+  observed_at,
+  verification_class,
+  reward_amount_atomic,
+  reward_mint,
+  verification_digest,
+  settlement_signature,
+  chain_commitment,
+  receipt_digest,
+  finalized_at,
+  revision,
+  settlement_operation_hash
+) values (
+  'd3000000-0000-4000-8000-000000000001',
+  'd3000000-0000-4000-8000-000000000002',
+  'd3000000-0000-4000-8000-000000000003',
+  'd3000000-0000-4000-8000-000000000004',
+  'd3000000-0000-4000-8000-000000000005',
+  'FINAL',
+  '{"kind":"numeric","scaled_value":"2","scale":0}'::jsonb,
+  '2026-09-26T06:00:00Z',
+  'FAST',
+  1,
+  'So11111111111111111111111111111111111111112',
+  decode(repeat('55', 32), 'hex'),
+  'final-signature',
+  'finalized',
+  decode(repeat('66', 32), 'hex'),
+  '2026-09-26T06:01:00Z',
+  1,
+  decode(repeat('77', 32), 'hex')
+);
+
+set local session_replication_role = origin;
+
+do $$
+begin
+  begin
+    update app.receipts
+    set reward_amount_atomic = 2
+    where receipt_id = 'd3000000-0000-4000-8000-000000000001'::uuid;
+
+    raise exception 'final receipt mutation was accepted';
+  exception
+    when raise_exception then
+      if sqlerrm = 'final receipt mutation was accepted' then
+        raise;
+      end if;
+  end;
+end
+$$;
+
 rollback;

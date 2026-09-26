@@ -162,15 +162,8 @@ begin
     new.event_id,
     'domain:' || new.event_id::text || ':PUBLIC_ENTITY',
     realtime_type,
-    case
-      when new.event_type = 'RECEIPT_FINALIZED' then 'refresh'
-      else new.entity_type
-    end,
-    case
-      when new.event_type = 'RECEIPT_FINALIZED'
-        then (new.payload ->> 'refresh_id')::uuid
-      else new.entity_id
-    end,
+    new.entity_type,
+    new.entity_id,
     new.entity_revision,
     'PUBLIC_ENTITY',
     case
@@ -222,15 +215,8 @@ select
     when 'STATE_PROJECTED' then 'STATE_UPDATED'
     when 'RECEIPT_FINALIZED' then 'RECEIPT_FINALIZED'
   end,
-  case
-    when d.event_type = 'RECEIPT_FINALIZED' then 'refresh'
-    else d.entity_type
-  end,
-  case
-    when d.event_type = 'RECEIPT_FINALIZED'
-      then (d.payload ->> 'refresh_id')::uuid
-    else d.entity_id
-  end,
+  d.entity_type,
+  d.entity_id,
   d.entity_revision,
   'PUBLIC_ENTITY',
   case
