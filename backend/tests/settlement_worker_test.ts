@@ -1,17 +1,42 @@
-import type { SettlementCoordinator } from "../src/settlement-coordinator.ts";
+import type { NowWorkerCoordinator } from "../src/now-worker-coordinator.ts";
 import { createSettlementWorkerHandler } from "../src/settlement-worker.ts";
 
 const TOKEN = "worker-test-token-0123456789-abcdef";
 
-function coordinator(summary: Record<string, number>): SettlementCoordinator {
+function coordinator(
+  summary: Record<string, unknown>,
+): NowWorkerCoordinator {
   return {
     runOnce: () => Promise.resolve(summary),
-  } as unknown as SettlementCoordinator;
+  } as unknown as NowWorkerCoordinator;
 }
+
+const EMPTY = {
+  settlement: {
+    prepared: 0,
+    signed: 0,
+    submitted: 0,
+    ambiguous: 0,
+    pending: 0,
+    confirmed: 0,
+    finalized: 0,
+    safeRetries: 0,
+    conflicts: 0,
+    deferred: 0,
+  },
+  receipts: {
+    finalized: 0,
+    replayed: 0,
+    conflicts: 0,
+  },
+  realtime: {
+    published: 0,
+  },
+};
 
 Deno.test("settlement worker rejects unauthenticated execution", async () => {
   const handler = createSettlementWorkerHandler(
-    coordinator({ prepared: 0 }),
+    coordinator(EMPTY),
     TOKEN,
   );
   const response = await handler(
@@ -22,18 +47,22 @@ Deno.test("settlement worker rejects unauthenticated execution", async () => {
   }
 });
 
-Deno.test("settlement worker runs a bounded authenticated tick", async () => {
+Deno.test("settlement worker runs the complete bounded worker tick", async () => {
   const expected = {
-    prepared: 1,
-    signed: 1,
-    submitted: 1,
-    ambiguous: 0,
-    pending: 0,
-    confirmed: 0,
-    finalized: 0,
-    safeRetries: 0,
-    conflicts: 0,
-    deferred: 0,
+    settlement: {
+      ...EMPTY.settlement,
+      prepared: 1,
+      signed: 1,
+      submitted: 1,
+    },
+    receipts: {
+      finalized: 1,
+      replayed: 0,
+      conflicts: 0,
+    },
+    realtime: {
+      published: 2,
+    },
   };
   const handler = createSettlementWorkerHandler(
     coordinator(expected),
@@ -50,7 +79,9 @@ Deno.test("settlement worker runs a bounded authenticated tick", async () => {
   if (
     response.status !== 200 ||
     body.ok !== true ||
-    JSON.stringify(body.settlement) !== JSON.stringify(expected)
+    JSON.stringify(body.settlement) !== JSON.stringify(expected.settlement) ||
+    JSON.stringify(body.receipts) !== JSON.stringify(expected.receipts) ||
+    JSON.stringify(body.realtime) !== JSON.stringify(expected.realtime)
   ) {
     throw new Error("authenticated worker tick returned the wrong result");
   }
@@ -58,7 +89,7 @@ Deno.test("settlement worker runs a bounded authenticated tick", async () => {
 
 Deno.test("settlement worker rejects non-POST execution", async () => {
   const handler = createSettlementWorkerHandler(
-    coordinator({ prepared: 0 }),
+    coordinator(EMPTY),
     TOKEN,
   );
   const response = await handler(

@@ -2,6 +2,12 @@ import type { ActorRecord } from "./identity-repository.ts";
 import { ApiFault } from "./errors.ts";
 import type { ReceiptRecord, ReceiptRepository } from "./receipt-repository.ts";
 
+function hex(value: Uint8Array): string {
+  return [...value]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 function receiptData(receipt: ReceiptRecord): Record<string, unknown> {
   return {
     receipt_id: receipt.receiptId,
@@ -15,6 +21,9 @@ function receiptData(receipt: ReceiptRecord): Record<string, unknown> {
     verification_class: receipt.verificationClass,
     reward_amount_atomic: receipt.rewardAmountAtomic.toString(),
     reward_mint: receipt.rewardMint,
+    verification_digest: hex(receipt.verificationDigest),
+    settlement_operation_hash: hex(receipt.settlementOperationHash),
+    receipt_digest: hex(receipt.receiptDigest),
     settlement_signature: receipt.settlementSignature,
     chain_commitment: receipt.chainCommitment,
     finalized_at: receipt.finalizedAt.toISOString(),
