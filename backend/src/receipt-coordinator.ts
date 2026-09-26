@@ -29,7 +29,9 @@ export class ReceiptCoordinator {
     private readonly now: () => Date = () => new Date(),
   ) {}
 
-  async finalizeOne(authority: ReceiptAuthority): Promise<ReceiptRecord | null> {
+  async finalizeOne(
+    authority: ReceiptAuthority,
+  ): Promise<{ receipt: ReceiptRecord; replayed: boolean } | null> {
     assertAuthority(authority);
     const receiptDigest = await deriveReceiptDigestV1({
       ...authority,
@@ -45,7 +47,10 @@ export class ReceiptCoordinator {
     if (result.kind === "authority_conflict") {
       throw new Error("receipt authority changed during finalization");
     }
-    return result.receipt;
+    return {
+      receipt: result.receipt,
+      replayed: result.kind === "replayed",
+    };
   }
 
   async runOnce(limit = 8): Promise<ReceiptTickSummary> {
@@ -59,8 +64,11 @@ export class ReceiptCoordinator {
 
     for (const authority of authorities) {
       try {
-        const receipt = await this.finalizeOne(authority);
-        if (receipt !== null) summary.finalized += 1;
+        const result = await this.finalizeOne(authority);
+        if (result !== null) {
+          if (result.replayed) summary.replayed += 1;
+          else summary.finalized += 1;
+        }
       } catch {
         summary.conflicts += 1;
       }
