@@ -363,7 +363,26 @@ export class PostgresReceiptRepository implements ReceiptRepository {
     actorId: string,
   ): Promise<ReceiptRecord | null> {
     const rows = await this.sql.unsafe(
-      `${SELECT_RECEIPT} r
+      `select
+         r.receipt_id,
+         r.refresh_id,
+         r.state_id,
+         r.verification_result_id,
+         r.settlement_id,
+         r.status,
+         r.final_value,
+         r.observed_at,
+         r.verification_class,
+         r.reward_amount_atomic,
+         r.reward_mint,
+         r.verification_digest,
+         r.settlement_operation_hash,
+         r.settlement_signature,
+         r.chain_commitment,
+         r.receipt_digest,
+         r.finalized_at,
+         r.revision
+       from app.receipts r
        join app.refresh_requests rr
          on rr.refresh_id = r.refresh_id
        join app.settlement_operations so

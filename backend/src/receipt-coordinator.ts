@@ -31,8 +31,15 @@ export class ReceiptCoordinator {
 
   async finalizeOne(
     authority: ReceiptAuthority,
-  ): Promise<{ receipt: ReceiptRecord; replayed: boolean } | null> {
-    assertAuthority(authority);
+  ): Promise<
+    | { kind: "created" | "replayed"; receipt: ReceiptRecord }
+    | { kind: "not_finalizable" | "authority_conflict" }
+  > {
+    try {
+      assertAuthority(authority);
+    } catch {
+      return { kind: "authority_conflict" };
+    }
     const receiptDigest = await deriveReceiptDigestV1({
       ...authority,
       chainCommitment: "finalized",
@@ -43,14 +50,7 @@ export class ReceiptCoordinator {
       receiptDigest,
       observedAt: this.now(),
     });
-    if (result.kind === "not_finalizable") return null;
-    if (result.kind === "authority_conflict") {
-      throw new Error("receipt authority changed during finalization");
-    }
-    return {
-      receipt: result.receipt,
-      replayed: result.kind === "replayed",
-    };
+    return result;
   }
 
   async runOnce(limit = 8): Promise<ReceiptTickSummary> {
@@ -63,15 +63,10 @@ export class ReceiptCoordinator {
     };
 
     for (const authority of authorities) {
-      try {
-        const result = await this.finalizeOne(authority);
-        if (result !== null) {
-          if (result.replayed) summary.replayed += 1;
-          else summary.finalized += 1;
-        }
-      } catch {
-        summary.conflicts += 1;
-      }
+      const result = await this.finalizeOne(authority);
+      if (result.kind === "created") summary.finalized += 1;
+      else if (result.kind === "replayed") summary.replayed += 1;
+      else if (result.kind === "authority_conflict") summary.conflicts += 1;
     }
     return summary;
   }

@@ -125,8 +125,7 @@ alter table public.realtime_events_v1
     references app.outbox_events(outbox_id) on delete restrict;
 
 create unique index realtime_events_source_outbox_uq
-  on public.realtime_events_v1(source_outbox_id)
-  where source_outbox_id is not null;
+  on public.realtime_events_v1(source_outbox_id);
 
 create or replace function app.enqueue_realtime_domain_event()
 returns trigger
@@ -163,14 +162,30 @@ begin
     new.event_id,
     'domain:' || new.event_id::text || ':PUBLIC_ENTITY',
     realtime_type,
-    new.entity_type,
-    new.entity_id,
+    case
+      when new.event_type = 'RECEIPT_FINALIZED' then 'refresh'
+      else new.entity_type
+    end,
+    case
+      when new.event_type = 'RECEIPT_FINALIZED'
+        then (new.payload ->> 'refresh_id')::uuid
+      else new.entity_id
+    end,
     new.entity_revision,
     'PUBLIC_ENTITY',
-    jsonb_build_object(
-      'source_event_id', new.event_id,
-      'occurred_at', new.occurred_at
-    ),
+    case
+      when new.event_type = 'RECEIPT_FINALIZED' then
+        jsonb_build_object(
+          'source_event_id', new.event_id,
+          'refresh_id', new.payload ->> 'refresh_id',
+          'occurred_at', new.occurred_at
+        )
+      else
+        jsonb_build_object(
+          'source_event_id', new.event_id,
+          'occurred_at', new.occurred_at
+        )
+    end,
     'PENDING',
     new.occurred_at,
     new.occurred_at
@@ -207,14 +222,30 @@ select
     when 'STATE_PROJECTED' then 'STATE_UPDATED'
     when 'RECEIPT_FINALIZED' then 'RECEIPT_FINALIZED'
   end,
-  d.entity_type,
-  d.entity_id,
+  case
+    when d.event_type = 'RECEIPT_FINALIZED' then 'refresh'
+    else d.entity_type
+  end,
+  case
+    when d.event_type = 'RECEIPT_FINALIZED'
+      then (d.payload ->> 'refresh_id')::uuid
+    else d.entity_id
+  end,
   d.entity_revision,
   'PUBLIC_ENTITY',
-  jsonb_build_object(
-    'source_event_id', d.event_id,
-    'occurred_at', d.occurred_at
-  ),
+  case
+    when d.event_type = 'RECEIPT_FINALIZED' then
+      jsonb_build_object(
+        'source_event_id', d.event_id,
+        'refresh_id', d.payload ->> 'refresh_id',
+        'occurred_at', d.occurred_at
+      )
+    else
+      jsonb_build_object(
+        'source_event_id', d.event_id,
+        'occurred_at', d.occurred_at
+      )
+  end,
   'PENDING',
   d.occurred_at,
   d.occurred_at
@@ -225,4 +256,37 @@ on conflict (dedupe_key) do nothing;
 create policy realtime_public_read_v1
 on public.realtime_events_v1
 for select
-using (audience_type in ('PUBLIC_ENTITY', 'PUBLIC_AREA'));
+using (
+  audience_type in ('PUBLIC_ENTITY', 'PUBLIC_AREA')
+  and (expires_at is null or expires_at > now())
+);
+
+do $
+begin
+  if exists (select 1 from pg_roles where rolname = 'anon') then
+    execute 'grant select on public.realtime_events_v1 to anon';
+  end if;
+  if exists (select 1 from pg_roles where rolname = 'authenticated') then
+    execute 'grant select on public.realtime_events_v1 to authenticated';
+  end if;
+end
+$;
+
+do $
+begin
+  if exists (
+    select 1
+    from pg_publication
+    where pubname = 'supabase_realtime'
+  ) and not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'realtime_events_v1'
+  ) then
+    alter publication supabase_realtime
+      add table public.realtime_events_v1;
+  end if;
+end
+$;
