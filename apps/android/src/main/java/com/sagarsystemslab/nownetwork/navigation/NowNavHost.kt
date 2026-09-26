@@ -9,7 +9,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import com.sagarsystemslab.nownetwork.feature.activity.ActivityScreen
+import com.sagarsystemslab.nownetwork.feature.activity.ActivityViewModel
 import com.sagarsystemslab.nownetwork.feature.earn.EarnScreen
+import com.sagarsystemslab.nownetwork.feature.earn.EarnViewModel
 import com.sagarsystemslab.nownetwork.feature.home.NowScreen
 import com.sagarsystemslab.nownetwork.feature.state.BrowseViewModel
 import com.sagarsystemslab.nownetwork.feature.state.StateDetailScreen
@@ -18,6 +20,8 @@ import com.sagarsystemslab.nownetwork.feature.state.StateDetailScreen
 fun NowNavHost(
     appState: NowAppState,
     browseViewModel: BrowseViewModel,
+    earnViewModel: EarnViewModel,
+    activityViewModel: ActivityViewModel,
     modifier: Modifier = Modifier,
 ) {
     NavHost(
@@ -53,11 +57,23 @@ fun NowNavHost(
         }
 
         composable<EarnRoute> {
-            EarnScreen()
+            val uiState by earnViewModel.state.collectAsStateWithLifecycle()
+
+            EarnScreen(
+                uiState = uiState,
+                rewardText = earnViewModel::rewardText,
+                serverNowMillis = earnViewModel::serverNowMillis,
+                onRefresh = earnViewModel::refresh,
+            )
         }
 
         composable<ActivityRoute> {
-            ActivityScreen()
+            val uiState by activityViewModel.state.collectAsStateWithLifecycle()
+
+            ActivityScreen(
+                uiState = uiState,
+                serverNowMillis = activityViewModel::serverNowMillis,
+            )
         }
     }
 }

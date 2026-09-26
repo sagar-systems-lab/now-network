@@ -8,6 +8,8 @@ import androidx.activity.viewModels
 import androidx.compose.runtime.LaunchedEffect
 import com.sagarsystemslab.nownetwork.config.PublicRuntimeConfig
 import com.sagarsystemslab.nownetwork.designsystem.NowTheme
+import com.sagarsystemslab.nownetwork.feature.activity.ActivityViewModel
+import com.sagarsystemslab.nownetwork.feature.earn.EarnViewModel
 import com.sagarsystemslab.nownetwork.feature.state.BrowseViewModel
 import com.sagarsystemslab.nownetwork.repository.SessionRepository
 import dagger.Lazy
@@ -17,6 +19,8 @@ import javax.inject.Inject
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     private val browseViewModel: BrowseViewModel by viewModels()
+    private val earnViewModel: EarnViewModel by viewModels()
+    private val activityViewModel: ActivityViewModel by viewModels()
 
     @Inject
     lateinit var runtimeConfig: PublicRuntimeConfig
@@ -35,7 +39,11 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                NowApp(browseViewModel)
+                NowApp(
+                    browseViewModel = browseViewModel,
+                    earnViewModel = earnViewModel,
+                    activityViewModel = activityViewModel,
+                )
             }
         }
     }

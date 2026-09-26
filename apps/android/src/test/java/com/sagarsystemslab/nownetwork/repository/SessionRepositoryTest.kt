@@ -8,6 +8,8 @@ import com.sagarsystemslab.nownetwork.data.local.WalletSessionMetadataDao
 import com.sagarsystemslab.nownetwork.data.local.WalletSessionMetadataEntity
 import com.sagarsystemslab.nownetwork.network.ApiFailure
 import com.sagarsystemslab.nownetwork.network.MeDto
+import com.sagarsystemslab.nownetwork.network.NearbyOpportunitiesDto
+import com.sagarsystemslab.nownetwork.network.NearbyOpportunityQuery
 import com.sagarsystemslab.nownetwork.network.NearbyStateQuery
 import com.sagarsystemslab.nownetwork.network.NearbyStatesDto
 import com.sagarsystemslab.nownetwork.network.NowApiClient
@@ -101,6 +103,12 @@ private class FakeNowApiClient : NowApiClient {
         error("not used")
 
     override suspend fun stateDetail(stateId: String): StateDetailDto =
+        error("not used")
+
+    override suspend fun nearbyOpportunities(
+        query: NearbyOpportunityQuery,
+        accessToken: String,
+    ): NearbyOpportunitiesDto =
         error("not used")
 
     override suspend fun me(accessToken: String): MeDto {

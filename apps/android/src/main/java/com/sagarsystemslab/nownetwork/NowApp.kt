@@ -17,6 +17,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import com.sagarsystemslab.nownetwork.designsystem.NowColors
+import com.sagarsystemslab.nownetwork.feature.activity.ActivityViewModel
+import com.sagarsystemslab.nownetwork.feature.earn.EarnViewModel
 import com.sagarsystemslab.nownetwork.feature.state.BrowseViewModel
 import com.sagarsystemslab.nownetwork.navigation.NowNavHost
 import com.sagarsystemslab.nownetwork.navigation.TopLevelDestination
@@ -24,7 +26,11 @@ import com.sagarsystemslab.nownetwork.navigation.isTopLevel
 import com.sagarsystemslab.nownetwork.navigation.rememberNowAppState
 
 @Composable
-fun NowApp(browseViewModel: BrowseViewModel) {
+fun NowApp(
+    browseViewModel: BrowseViewModel,
+    earnViewModel: EarnViewModel,
+    activityViewModel: ActivityViewModel,
+) {
     val appState = rememberNowAppState()
     val currentDestination = appState.currentDestination
     val showBottomBar = TopLevelDestination.entries.any { destination ->
@@ -75,6 +81,8 @@ fun NowApp(browseViewModel: BrowseViewModel) {
         NowNavHost(
             appState = appState,
             browseViewModel = browseViewModel,
+            earnViewModel = earnViewModel,
+            activityViewModel = activityViewModel,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),

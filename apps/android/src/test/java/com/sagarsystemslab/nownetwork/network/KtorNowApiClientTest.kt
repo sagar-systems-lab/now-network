@@ -89,6 +89,84 @@ class KtorNowApiClientTest {
     }
 
     @Test
+    fun nearbyOpportunityRequestIsAuthenticatedAndDecodesContract() = runBlocking {
+        val client = client(
+            engine = MockEngine { request ->
+                assertEquals("/v1/opportunities/nearby", request.url.encodedPath)
+                assertEquals("Bearer token-a", request.headers[HttpHeaders.Authorization])
+                assertEquals("12.5", request.url.parameters["lat"])
+                assertEquals("77.25", request.url.parameters["lng"])
+
+                respond(
+                    content = """
+                        {
+                          "request_id":"11111111-1111-4111-8111-111111111111",
+                          "server_time":"2026-09-26T12:00:00Z",
+                          "data":{
+                            "items":[{
+                              "refresh_id":"22222222-2222-4222-8222-222222222222",
+                              "state_id":"33333333-3333-4333-8333-333333333333",
+                              "state_version":1,
+                              "title":"Parking Lot B",
+                              "question":"Available spaces",
+                              "state_type":"NUMERIC",
+                              "unit_code":"spaces",
+                              "location":{
+                                "location_id":"44444444-4444-4444-8444-444444444444",
+                                "name":"Parking Lot B",
+                                "location_type":"PARKING",
+                                "display_address":"Demo district"
+                              },
+                              "reward":{
+                                "mint":"mint-a",
+                                "pool_atomic":"450000",
+                                "payout_rule":"EQUAL"
+                              },
+                              "distance_m":92.0,
+                              "expires_at":"2026-09-26T12:10:00Z",
+                              "evidence_deadline":"2026-09-26T12:08:00Z",
+                              "verification_class":"FAST",
+                              "evidence_summary":{
+                                "template_key":"parking.photo.v1",
+                                "media_required":true,
+                                "location_required":true,
+                                "required_witnesses":1,
+                                "max_witnesses":1
+                              },
+                              "availability":{
+                                "claimable":true,
+                                "active_claims":0,
+                                "remaining_slots":1
+                              },
+                              "state_revision":7,
+                              "revision":3
+                            }],
+                            "next_cursor":null
+                          },
+                          "meta":{}
+                        }
+                    """.trimIndent(),
+                    status = HttpStatusCode.OK,
+                    headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                )
+            },
+        )
+
+        val result = client.nearbyOpportunities(
+            query = NearbyOpportunityQuery(
+                latitude = 12.5,
+                longitude = 77.25,
+                radiusMeters = 3_000,
+            ),
+            accessToken = "token-a",
+        )
+
+        assertEquals("Parking Lot B", result.items.single().title)
+        assertEquals("450000", result.items.single().reward.poolAtomic)
+        assertTrue(result.items.single().availability.claimable)
+    }
+
+    @Test
     fun unauthorizedResponseMapsToAuthExpired() = runBlocking {
         val client = client(
             engine = MockEngine {
