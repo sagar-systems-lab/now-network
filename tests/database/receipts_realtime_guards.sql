@@ -126,6 +126,57 @@ insert into app.domain_events(
   entity_type,
   entity_id,
   event_type,
+  entity_revision,
+  payload,
+  occurred_at
+) values (
+  'd1000000-0000-4000-8000-000000000003',
+  'receipt',
+  'd2000000-0000-4000-8000-000000000003',
+  'RECEIPT_FINALIZED',
+  1,
+  '{
+    "receipt_id":"d2000000-0000-4000-8000-000000000003",
+    "refresh_id":"d2000000-0000-4000-8000-000000000004",
+    "reward_amount_atomic":"should-not-leak"
+  }'::jsonb,
+  '2026-09-26T06:00:00.500Z'
+);
+
+do $
+declare
+  receipt_type text;
+  receipt_entity_type text;
+  receipt_entity_id uuid;
+  receipt_payload jsonb;
+begin
+  select event_type, entity_type, entity_id, payload
+  into receipt_type, receipt_entity_type, receipt_entity_id, receipt_payload
+  from app.outbox_events
+  where domain_event_id = 'd1000000-0000-4000-8000-000000000003'::uuid;
+
+  if receipt_type <> 'RECEIPT_FINALIZED'
+     or receipt_entity_type <> 'receipt'
+     or receipt_entity_id <> 'd2000000-0000-4000-8000-000000000003'::uuid then
+    raise exception 'receipt realtime identity was not preserved';
+  end if;
+
+  if receipt_payload ->> 'refresh_id' <>
+      'd2000000-0000-4000-8000-000000000004' then
+    raise exception 'receipt realtime payload lost refresh identity';
+  end if;
+
+  if receipt_payload ? 'reward_amount_atomic' then
+    raise exception 'receipt financial data leaked into public realtime outbox';
+  end if;
+end
+$;
+
+insert into app.domain_events(
+  event_id,
+  entity_type,
+  entity_id,
+  event_type,
   payload,
   occurred_at
 ) values (
