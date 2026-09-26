@@ -331,6 +331,14 @@ jobs:
           set -Eeuo pipefail
           docker exec -i "$DB_CONTAINER" psql -X -U postgres -d now_test -v ON_ERROR_STOP=1 < tests/database/settlement_guards.sql
 
+      - name: Verify receipt and realtime guards
+        shell: bash
+        env:
+          DB_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          set -Eeuo pipefail
+          docker exec -i "$DB_CONTAINER" psql -X -U postgres -d now_test -v ON_ERROR_STOP=1 < tests/database/receipts_realtime_guards.sql
+
       - name: Verify database security baseline
         shell: bash
         env:
@@ -413,6 +421,7 @@ jobs:
             entity_type,
             entity_id,
             audience_type,
+            audience_actor_id,
             payload
           ) values (
             '00000000-0000-0000-0000-000000000002',
@@ -420,6 +429,15 @@ jobs:
             'STATE',
             '00000000-0000-0000-0000-000000000003',
             'PUBLIC_ENTITY',
+            null,
+            '{}'::jsonb
+          ), (
+            '00000000-0000-0000-0000-000000000005',
+            'PRIVATE_TEST',
+            'ACTOR',
+            '00000000-0000-0000-0000-000000000001',
+            'ACTOR_PRIVATE',
+            '00000000-0000-0000-0000-000000000001',
             '{}'::jsonb
           );
           SQL
@@ -428,7 +446,7 @@ jobs:
           test "$actor_rows" = "0"
 
           realtime_rows="$(docker exec "$DB_CONTAINER" psql -XAtq -U postgres -d now_test             -c "set role now_anon; select count(*) from public.realtime_events_v1;")"
-          test "$realtime_rows" = "0"
+          test "$realtime_rows" = "1"
 
           if docker exec "$DB_CONTAINER" psql -XAtq -U postgres -d now_test -v ON_ERROR_STOP=1             -c "set role now_anon; insert into app.actors(actor_id, status) values ('00000000-0000-0000-0000-000000000004', 'ACTIVE');"
           then

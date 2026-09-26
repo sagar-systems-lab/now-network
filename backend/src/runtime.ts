@@ -12,9 +12,11 @@ import { PostgresEvidenceUploadRepository } from "./postgres-evidence-upload-rep
 import { PostgresIdentityRepository } from "./postgres-identity-repository.ts";
 import { OpportunityMatcher } from "./opportunity-matcher.ts";
 import { PostgresOpportunityRepository } from "./postgres-opportunity-repository.ts";
+import { PostgresReceiptRepository } from "./postgres-receipt-repository.ts";
 import { PostgresRefreshRepository } from "./postgres-refresh-repository.ts";
 import { PostgresStateRepository } from "./postgres-state-repository.ts";
 import { PostgresStateProjectionRepository } from "./postgres-state-projection-repository.ts";
+import { ReceiptService } from "./receipt-service.ts";
 import { RefreshCoordinator } from "./refresh-coordinator.ts";
 import { SolanaRpcRefreshChainObserver } from "./solana-refresh-observer.ts";
 import { PostgresVerificationRepository } from "./postgres-verification-repository.ts";
@@ -56,6 +58,7 @@ export function createProductionHandler(): (request: Request) => Promise<Respons
   const identityRepository = new PostgresIdentityRepository(connectionString);
   const stateRepository = new PostgresStateRepository(connectionString);
   const refreshRepository = new PostgresRefreshRepository(connectionString);
+  const receiptRepository = new PostgresReceiptRepository(connectionString);
   const claimRepository = new PostgresClaimRepository(connectionString);
   const evidenceChallengeRepository = new PostgresEvidenceChallengeRepository(
     connectionString,
@@ -129,6 +132,7 @@ export function createProductionHandler(): (request: Request) => Promise<Respons
   const stateProjectionService = new StateProjectionService(
     stateProjectionRepository,
   );
+  const receiptService = new ReceiptService(receiptRepository);
   return createApp({
     authVerifier,
     identityRepository,
@@ -141,5 +145,6 @@ export function createProductionHandler(): (request: Request) => Promise<Respons
     evidenceUploadService,
     verificationService,
     stateProjectionService,
+    receiptService,
   });
 }

@@ -22,6 +22,7 @@ import {
   MAX_OPPORTUNITY_RADIUS_M,
   OpportunityMatcher,
 } from "./opportunity-matcher.ts";
+import type { ReceiptService } from "./receipt-service.ts";
 import type { RefreshCoordinator } from "./refresh-coordinator.ts";
 import type { StateRepository } from "./state-repository.ts";
 import type { StateProjectionService } from "./state-projection-service.ts";
@@ -49,6 +50,7 @@ export type AppDependencies = {
   evidenceUploadService?: EvidenceUploadService;
   verificationService?: VerificationService;
   stateProjectionService?: StateProjectionService;
+  receiptService?: ReceiptService;
   now?: () => Date;
 };
 
@@ -57,6 +59,19 @@ export function createApp(dependencies: AppDependencies): (request: Request) => 
   const stateRead = dependencies.stateRepository
     ? new StateReadService(dependencies.stateRepository, dependencies.now)
     : null;
+
+  function requireReceiptService(): ReceiptService {
+    if (!dependencies.receiptService) {
+      throw new ApiFault(
+        503,
+        "RECEIPT_UNAVAILABLE",
+        "Receipts are temporarily unavailable.",
+        true,
+        1_000,
+      );
+    }
+    return dependencies.receiptService;
+  }
 
   function requireStateRead(): StateReadService {
     if (stateRead === null) {
@@ -345,6 +360,14 @@ export function createApp(dependencies: AppDependencies): (request: Request) => 
           return successResponse(id, data);
         }
 
+        if (request.method === "GET" && refreshRoute.action === "receipt") {
+          const data = await requireReceiptService().get(
+            actor,
+            refreshRoute.refreshId,
+          );
+          return successResponse(id, data);
+        }
+
         if (request.method === "POST" && refreshRoute.action === "funding-intent") {
           const data = await requireRefreshCoordinator().fundingIntent({
             actor,
@@ -482,10 +505,15 @@ function matchRefreshRoute(
   pathname: string,
 ): {
   refreshId: string;
-  action: "detail" | "funding-intent" | "funding-observe" | "verify";
+  action:
+    | "detail"
+    | "funding-intent"
+    | "funding-observe"
+    | "verify"
+    | "receipt";
 } | null {
   const match = pathname.match(
-    /(?:^|\/)v1\/refreshes\/([^/]+)(?:\/(funding-intent|funding-observe|verify))?$/u,
+    /(?:^|\/)v1\/refreshes\/([^/]+)(?:\/(funding-intent|funding-observe|verify|receipt))?$/u,
   );
   if (!match) return null;
   if (!UUID_PATTERN.test(match[1])) {
@@ -499,6 +527,8 @@ function matchRefreshRoute(
       ? "funding-observe"
       : match[2] === "verify"
       ? "verify"
+      : match[2] === "receipt"
+      ? "receipt"
       : "detail",
   };
 }

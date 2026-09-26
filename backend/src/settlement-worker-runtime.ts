@@ -1,4 +1,9 @@
+import { NowWorkerCoordinator } from "./now-worker-coordinator.ts";
+import { PostgresReceiptRepository } from "./postgres-receipt-repository.ts";
+import { PostgresRealtimeOutboxRepository } from "./postgres-realtime-outbox-repository.ts";
 import { PostgresSettlementRepository } from "./postgres-settlement-repository.ts";
+import { ReceiptCoordinator } from "./receipt-coordinator.ts";
+import { RealtimePublisher } from "./realtime-outbox.ts";
 import { SettlementCoordinator } from "./settlement-coordinator.ts";
 import { settlementVerifierFromJson, SolanaSettlementClient } from "./solana-settlement-client.ts";
 import { createSettlementWorkerHandler } from "./settlement-worker.ts";
@@ -32,8 +37,11 @@ function optionalPositiveIntegerEnv(
 export function createProductionSettlementWorkerHandler(): (
   request: Request,
 ) => Promise<Response> {
-  const repository = new PostgresSettlementRepository(
-    requiredEnv("SUPABASE_DB_URL"),
+  const connectionString = requiredEnv("SUPABASE_DB_URL");
+  const repository = new PostgresSettlementRepository(connectionString);
+  const receiptRepository = new PostgresReceiptRepository(connectionString);
+  const realtimeRepository = new PostgresRealtimeOutboxRepository(
+    connectionString,
   );
   const verifier = settlementVerifierFromJson(
     requiredEnv("NOW_SETTLEMENT_VERIFIER_KEYPAIR_JSON"),
@@ -42,7 +50,7 @@ export function createProductionSettlementWorkerHandler(): (
     requiredEnv("NOW_SOLANA_RPC_URL"),
     verifier,
   );
-  const coordinator = new SettlementCoordinator(
+  const settlementCoordinator = new SettlementCoordinator(
     repository,
     chain,
     () => new Date(),
@@ -51,6 +59,11 @@ export function createProductionSettlementWorkerHandler(): (
       2_000,
       60_000,
     ),
+  );
+  const coordinator = new NowWorkerCoordinator(
+    settlementCoordinator,
+    new ReceiptCoordinator(receiptRepository),
+    new RealtimePublisher(realtimeRepository),
   );
 
   return createSettlementWorkerHandler(

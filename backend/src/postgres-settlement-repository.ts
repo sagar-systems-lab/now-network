@@ -815,7 +815,10 @@ export class PostgresSettlementRepository implements SettlementRepository {
           updated_at = ${input.observedAt},
           revision = revision + 1
         where refresh_id = ${current.refreshId}::uuid
-          and status in ('SETTLEMENT_PENDING', 'SETTLEMENT_VERIFYING')
+          and (
+            status in ('SETTLEMENT_PENDING', 'SETTLEMENT_VERIFYING')
+            or (${finalized} and status = 'COMPLETED')
+          )
       `;
 
       await tx`
