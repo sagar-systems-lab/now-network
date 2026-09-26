@@ -7,6 +7,7 @@ import com.sagarsystemslab.nownetwork.auth.SupabaseAuthGateway
 import com.sagarsystemslab.nownetwork.auth.UnavailableAuthGateway
 import com.sagarsystemslab.nownetwork.config.BrowseAreaConfig
 import com.sagarsystemslab.nownetwork.config.PublicRuntimeConfig
+import com.sagarsystemslab.nownetwork.config.RewardDisplayConfig
 import com.sagarsystemslab.nownetwork.data.local.CachedStateDao
 import com.sagarsystemslab.nownetwork.data.local.LocalPersistenceStore
 import com.sagarsystemslab.nownetwork.data.local.NowDatabase
@@ -65,6 +66,15 @@ object RuntimeModule {
 
     @Provides
     @Singleton
+    fun provideRewardDisplayConfig(): RewardDisplayConfig =
+        RewardDisplayConfig(
+            mint = BuildConfig.REWARD_MINT,
+            symbol = BuildConfig.REWARD_SYMBOL,
+            decimals = BuildConfig.REWARD_DECIMALS.toIntOrNull() ?: 6,
+        )
+
+    @Provides
+    @Singleton
     fun provideJson(): Json =
         Json {
             ignoreUnknownKeys = true
@@ -109,6 +119,18 @@ object RuntimeModule {
     @Provides
     fun provideCachedStateDao(database: NowDatabase): CachedStateDao =
         database.cachedStateDao()
+
+    @Provides
+    fun provideCachedOpportunityDao(
+        database: NowDatabase,
+    ): com.sagarsystemslab.nownetwork.data.local.CachedOpportunityDao =
+        database.cachedOpportunityDao()
+
+    @Provides
+    fun provideActiveOperationDao(
+        database: NowDatabase,
+    ): com.sagarsystemslab.nownetwork.data.local.ActiveOperationDao =
+        database.activeOperationDao()
 
     @Provides
     fun provideWalletSessionMetadataDao(

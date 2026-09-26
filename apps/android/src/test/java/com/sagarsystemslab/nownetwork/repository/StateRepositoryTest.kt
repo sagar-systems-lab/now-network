@@ -3,6 +3,8 @@ package com.sagarsystemslab.nownetwork.repository
 import com.sagarsystemslab.nownetwork.data.local.CacheApplyResult
 import com.sagarsystemslab.nownetwork.data.local.CachedStateEntity
 import com.sagarsystemslab.nownetwork.network.MeDto
+import com.sagarsystemslab.nownetwork.network.NearbyOpportunitiesDto
+import com.sagarsystemslab.nownetwork.network.NearbyOpportunityQuery
 import com.sagarsystemslab.nownetwork.network.NearbyStateQuery
 import com.sagarsystemslab.nownetwork.network.NearbyStatesDto
 import com.sagarsystemslab.nownetwork.network.NowApiClient
@@ -106,6 +108,12 @@ private class FakeStateApi : NowApiClient {
                 displayAddress = "Demo Campus",
             ),
         )
+
+    override suspend fun nearbyOpportunities(
+        query: NearbyOpportunityQuery,
+        accessToken: String,
+    ): NearbyOpportunitiesDto =
+        error("not used")
 
     override suspend fun me(accessToken: String): MeDto =
         error("not used")

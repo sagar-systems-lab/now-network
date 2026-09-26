@@ -68,6 +68,21 @@ android {
             "BROWSE_RADIUS_METERS",
             buildConfigString(publicConfig("NOW_BROWSE_RADIUS_METERS", "3000")),
         )
+        buildConfigField(
+            "String",
+            "REWARD_MINT",
+            buildConfigString(publicConfig("NOW_REWARD_MINT")),
+        )
+        buildConfigField(
+            "String",
+            "REWARD_SYMBOL",
+            buildConfigString(publicConfig("NOW_REWARD_SYMBOL", "USDC")),
+        )
+        buildConfigField(
+            "String",
+            "REWARD_DECIMALS",
+            buildConfigString(publicConfig("NOW_REWARD_DECIMALS", "6")),
+        )
     }
 
     buildTypes {

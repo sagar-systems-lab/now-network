@@ -50,6 +50,22 @@ class KtorNowApiClient @Inject constructor(
             deserializer = StateDetailDto.serializer(),
         )
 
+    override suspend fun nearbyOpportunities(
+        query: NearbyOpportunityQuery,
+        accessToken: String,
+    ): NearbyOpportunitiesDto =
+        get(
+            path = "/v1/opportunities/nearby",
+            accessToken = accessToken,
+            deserializer = NearbyOpportunitiesDto.serializer(),
+        ) {
+            parameter("lat", query.latitude)
+            parameter("lng", query.longitude)
+            parameter("radius_m", query.radiusMeters)
+            parameter("limit", query.limit)
+            query.cursor?.let { parameter("cursor", it) }
+        }
+
     override suspend fun me(accessToken: String): MeDto =
         get(
             path = "/v1/me",

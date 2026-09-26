@@ -129,3 +129,86 @@ data class WalletBindingDto(
     val status: String,
     val revision: Long,
 )
+
+
+@Serializable
+data class NearbyOpportunitiesDto(
+    val items: List<OpportunityDto>,
+    @SerialName("next_cursor")
+    val nextCursor: String? = null,
+)
+
+@Serializable
+data class OpportunityDto(
+    @SerialName("refresh_id")
+    val refreshId: String,
+    @SerialName("state_id")
+    val stateId: String,
+    @SerialName("state_version")
+    val stateVersion: Int,
+    val title: String,
+    val question: String,
+    @SerialName("state_type")
+    val stateType: String,
+    @SerialName("unit_code")
+    val unitCode: String? = null,
+    val location: OpportunityLocationDto,
+    val reward: OpportunityRewardDto,
+    @SerialName("distance_m")
+    val distanceM: Double,
+    @SerialName("expires_at")
+    val expiresAt: String,
+    @SerialName("evidence_deadline")
+    val evidenceDeadline: String,
+    @SerialName("verification_class")
+    val verificationClass: String,
+    @SerialName("evidence_summary")
+    val evidenceSummary: OpportunityEvidenceSummaryDto,
+    val availability: OpportunityAvailabilityDto,
+    @SerialName("state_revision")
+    val stateRevision: Long,
+    val revision: Long,
+)
+
+@Serializable
+data class OpportunityLocationDto(
+    @SerialName("location_id")
+    val locationId: String,
+    val name: String,
+    @SerialName("location_type")
+    val locationType: String,
+    @SerialName("display_address")
+    val displayAddress: String? = null,
+)
+
+@Serializable
+data class OpportunityRewardDto(
+    val mint: String,
+    @SerialName("pool_atomic")
+    val poolAtomic: String,
+    @SerialName("payout_rule")
+    val payoutRule: String,
+)
+
+@Serializable
+data class OpportunityEvidenceSummaryDto(
+    @SerialName("template_key")
+    val templateKey: String,
+    @SerialName("media_required")
+    val mediaRequired: Boolean,
+    @SerialName("location_required")
+    val locationRequired: Boolean,
+    @SerialName("required_witnesses")
+    val requiredWitnesses: Int,
+    @SerialName("max_witnesses")
+    val maxWitnesses: Int,
+)
+
+@Serializable
+data class OpportunityAvailabilityDto(
+    val claimable: Boolean,
+    @SerialName("active_claims")
+    val activeClaims: Int,
+    @SerialName("remaining_slots")
+    val remainingSlots: Int,
+)

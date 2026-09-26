@@ -24,6 +24,9 @@ interface CachedOpportunityDao {
     @Query("SELECT * FROM cached_opportunities WHERE refresh_id = :refreshId LIMIT 1")
     suspend fun get(refreshId: String): CachedOpportunityEntity?
 
+    @Query("SELECT * FROM cached_opportunities ORDER BY cached_at_ms DESC")
+    fun observeAll(): Flow<List<CachedOpportunityEntity>>
+
     @Query(
         "SELECT * FROM cached_opportunities " +
             "WHERE refresh_expires_at_ms > :nowMs ORDER BY cached_at_ms DESC",
