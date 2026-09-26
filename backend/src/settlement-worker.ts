@@ -1,4 +1,4 @@
-import type { SettlementCoordinator } from "./settlement-coordinator.ts";
+import type { NowWorkerCoordinator } from "./now-worker-coordinator.ts";
 
 function json(
   status: number,
@@ -23,7 +23,7 @@ function constantTimeEqual(left: string, right: string): boolean {
 }
 
 export function createSettlementWorkerHandler(
-  coordinator: SettlementCoordinator,
+  coordinator: NowWorkerCoordinator,
   workerToken: string,
   batchLimit = 8,
 ): (request: Request) => Promise<Response> {
@@ -53,7 +53,7 @@ export function createSettlementWorkerHandler(
       const summary = await coordinator.runOnce(batchLimit);
       return json(200, {
         ok: true,
-        settlement: summary,
+        ...summary,
       });
     } catch {
       return json(503, {
