@@ -8,7 +8,7 @@ import {
 Deno.test("runtime surfaces expose the shared contract vocabulary", () => {
   const health = healthPayload();
 
-  if (health.service !== "now-api" || health.status !== "ok") {
+  if (health.service !== "now-api" || health.status !== "HEALTHY") {
     throw new Error("API health contract is unavailable");
   }
 

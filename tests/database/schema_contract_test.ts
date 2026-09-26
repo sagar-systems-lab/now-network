@@ -41,6 +41,7 @@ const expectedMigrations = [
   "20260925_026_state_projection_hardening.sql",
   "20260925_027_settlement_orchestration.sql",
   "20260926_028_receipts_realtime.sql",
+  "20260926_029_runtime_health.sql",
 ] as const;
 
 async function readMigration(name: string): Promise<string> {
@@ -132,6 +133,7 @@ Deno.test("authoritative tables enable row-level security immediately", async ()
     "app.domain_events",
     "app.security_events",
     "app.outbox_events",
+    "app.runtime_health",
     "public.realtime_events_v1",
   ];
 
@@ -230,9 +232,24 @@ Deno.test("database indexes cover geospatial and recovery paths", async () => {
       "receipts_verification_result_uq",
       "outbox_events_dedupe_key_uq",
       "realtime_events_source_outbox_uq",
+      "runtime_health_seen_idx",
     ]
   ) {
     assertIncludes(sql, indexName);
+  }
+});
+
+Deno.test("runtime health exposes bounded backlog diagnostics", async () => {
+  const sql = await allSql();
+  for (
+    const invariant of [
+      "runtime_backlog_snapshot_v1",
+      "pending_verification_count",
+      "pending_settlement_count",
+      "pending_outbox_count",
+    ]
+  ) {
+    assertIncludes(sql, invariant);
   }
 });
 

@@ -23,6 +23,7 @@ import {
   OpportunityMatcher,
 } from "./opportunity-matcher.ts";
 import type { ReceiptService } from "./receipt-service.ts";
+import type { ReadinessProbe } from "./runtime-health.ts";
 import type { RefreshCoordinator } from "./refresh-coordinator.ts";
 import type { StateRepository } from "./state-repository.ts";
 import type { StateProjectionService } from "./state-projection-service.ts";
@@ -51,6 +52,8 @@ export type AppDependencies = {
   verificationService?: VerificationService;
   stateProjectionService?: StateProjectionService;
   receiptService?: ReceiptService;
+  readinessProbe?: ReadinessProbe;
+  readinessToken?: string;
   now?: () => Date;
 };
 
@@ -194,9 +197,19 @@ export function createApp(dependencies: AppDependencies): (request: Request) => 
     const url = new URL(request.url);
     if (
       request.method === "GET" &&
-      (url.pathname === "/health" || url.pathname.endsWith("/health"))
+      (
+        url.pathname === "/health" ||
+        url.pathname.endsWith("/health") ||
+        url.pathname === "/ready" ||
+        url.pathname.endsWith("/ready")
+      )
     ) {
-      return handleHealthRequest(request);
+      return await handleHealthRequest(
+        request,
+        dependencies.readinessProbe,
+        dependencies.readinessToken,
+        dependencies.now,
+      );
     }
 
     const id = requestId(request);
