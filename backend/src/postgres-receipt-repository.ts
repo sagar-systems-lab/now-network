@@ -152,6 +152,7 @@ const SELECT_AUTHORITY = String.raw`
     and octet_length(so.operation_hash) = 32
     and octet_length(so.verification_digest) = 32
     and so.verification_digest = vr.canonical_digest
+    and sh.value is not null
 `;
 
 const SELECT_RECEIPT = String.raw`
@@ -394,7 +395,6 @@ export class PostgresReceiptRepository implements ReceiptRepository {
              select 1
              from app.wallet_bindings wb
              where wb.actor_id = $2::uuid
-               and wb.status = 'ACTIVE'
                and wb.wallet_address = any(so.recipient_wallets)
            )
          )

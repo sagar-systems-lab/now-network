@@ -261,18 +261,20 @@ using (
   and (expires_at is null or expires_at > now())
 );
 
-do $
+do $$
 begin
   if exists (select 1 from pg_roles where rolname = 'anon') then
+    execute 'grant usage on schema app to anon';
     execute 'grant select on public.realtime_events_v1 to anon';
   end if;
   if exists (select 1 from pg_roles where rolname = 'authenticated') then
+    execute 'grant usage on schema app to authenticated';
     execute 'grant select on public.realtime_events_v1 to authenticated';
   end if;
 end
-$;
+$$;
 
-do $
+do $$
 begin
   if exists (
     select 1
@@ -285,8 +287,7 @@ begin
       and schemaname = 'public'
       and tablename = 'realtime_events_v1'
   ) then
-    alter publication supabase_realtime
-      add table public.realtime_events_v1;
+    execute 'alter publication supabase_realtime add table public.realtime_events_v1';
   end if;
 end
-$;
+$$;
