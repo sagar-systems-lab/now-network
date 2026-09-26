@@ -51,6 +51,9 @@ begin
   if old.status in ('FINAL', 'ANNOTATED') then
     raise exception 'final receipt is immutable';
   end if;
+  if tg_op = 'DELETE' then
+    return old;
+  end if;
   return new;
 end;
 $$;
