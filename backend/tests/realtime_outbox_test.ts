@@ -1,7 +1,4 @@
-import {
-  type RealtimeOutboxRepository,
-  RealtimePublisher,
-} from "../src/realtime-outbox.ts";
+import { type RealtimeOutboxRepository, RealtimePublisher } from "../src/realtime-outbox.ts";
 
 Deno.test("realtime publisher bounds each worker batch", async () => {
   let observedLimit = 0;

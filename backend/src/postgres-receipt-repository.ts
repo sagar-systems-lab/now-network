@@ -339,11 +339,13 @@ export class PostgresReceiptRepository implements ReceiptRepository {
           'RECEIPT_FINALIZED',
           ${locked.refreshId}::uuid,
           1,
-          ${JSON.stringify({
-            receipt_id: input.receiptId,
-            refresh_id: locked.refreshId,
-            state_id: locked.stateId,
-          })}::jsonb,
+          ${
+        JSON.stringify({
+          receipt_id: input.receiptId,
+          refresh_id: locked.refreshId,
+          state_id: locked.stateId,
+        })
+      }::jsonb,
           ${input.observedAt}
         )
       `;
@@ -401,8 +403,6 @@ export class PostgresReceiptRepository implements ReceiptRepository {
        limit 1`,
       [refreshId, actorId],
     );
-    return rows[0]
-      ? receiptFromRow(rows[0] as unknown as ReceiptRow)
-      : null;
+    return rows[0] ? receiptFromRow(rows[0] as unknown as ReceiptRow) : null;
   }
 }

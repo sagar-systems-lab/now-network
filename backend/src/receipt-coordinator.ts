@@ -1,9 +1,5 @@
 import { deriveReceiptDigestV1 } from "./receipt-identity.ts";
-import type {
-  ReceiptAuthority,
-  ReceiptRecord,
-  ReceiptRepository,
-} from "./receipt-repository.ts";
+import type { ReceiptAuthority, ReceiptRecord, ReceiptRepository } from "./receipt-repository.ts";
 
 export type ReceiptTickSummary = {
   finalized: number;

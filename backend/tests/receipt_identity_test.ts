@@ -40,14 +40,18 @@ Deno.test("receipt digest is deterministic across object key order", async () =>
 
 Deno.test("receipt digest binds finalized settlement authority", async () => {
   const baseline = hex(await deriveReceiptDigestV1(BASE));
-  const signatureDrift = hex(await deriveReceiptDigestV1({
-    ...BASE,
-    settlementSignature: "different-signature",
-  }));
-  const operationDrift = hex(await deriveReceiptDigestV1({
-    ...BASE,
-    settlementOperationHash: new Uint8Array(32).fill(9),
-  }));
+  const signatureDrift = hex(
+    await deriveReceiptDigestV1({
+      ...BASE,
+      settlementSignature: "different-signature",
+    }),
+  );
+  const operationDrift = hex(
+    await deriveReceiptDigestV1({
+      ...BASE,
+      settlementOperationHash: new Uint8Array(32).fill(9),
+    }),
+  );
 
   if (baseline === signatureDrift || baseline === operationDrift) {
     throw new Error("receipt digest did not bind settlement authority");

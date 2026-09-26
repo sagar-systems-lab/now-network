@@ -1,12 +1,6 @@
 import type { ReceiptCoordinator, ReceiptTickSummary } from "./receipt-coordinator.ts";
-import type {
-  RealtimePublishSummary,
-  RealtimePublisher,
-} from "./realtime-outbox.ts";
-import type {
-  SettlementCoordinator,
-  SettlementTickSummary,
-} from "./settlement-coordinator.ts";
+import type { RealtimePublisher, RealtimePublishSummary } from "./realtime-outbox.ts";
+import type { SettlementCoordinator, SettlementTickSummary } from "./settlement-coordinator.ts";
 
 export type NowWorkerTickSummary = {
   settlement: SettlementTickSummary;

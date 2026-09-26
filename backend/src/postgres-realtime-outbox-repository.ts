@@ -1,8 +1,5 @@
 import postgres from "npm:postgres@3.4.7";
-import type {
-  RealtimeOutboxRepository,
-  RealtimePublishSummary,
-} from "./realtime-outbox.ts";
+import type { RealtimeOutboxRepository, RealtimePublishSummary } from "./realtime-outbox.ts";
 
 type DateLike = Date | string;
 
@@ -24,8 +21,7 @@ function date(value: DateLike): Date {
   return value instanceof Date ? value : new Date(value);
 }
 
-export class PostgresRealtimeOutboxRepository
-  implements RealtimeOutboxRepository {
+export class PostgresRealtimeOutboxRepository implements RealtimeOutboxRepository {
   private readonly sql: ReturnType<typeof postgres>;
 
   constructor(connectionString: string) {
