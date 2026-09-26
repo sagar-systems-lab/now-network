@@ -49,6 +49,14 @@ class NowAppState(
             return entry?.destination
         }
 
+    fun navigateToState(stateId: String) {
+        navController.navigate(StateDetailRoute(stateId = stateId))
+    }
+
+    fun navigateBack() {
+        navController.popBackStack()
+    }
+
     fun navigateTo(destination: TopLevelDestination) {
         when (destination) {
             TopLevelDestination.NOW -> navController.navigate(NowRoute) {

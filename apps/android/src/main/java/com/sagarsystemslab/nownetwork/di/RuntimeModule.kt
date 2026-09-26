@@ -5,6 +5,7 @@ import com.sagarsystemslab.nownetwork.BuildConfig
 import com.sagarsystemslab.nownetwork.auth.AuthGateway
 import com.sagarsystemslab.nownetwork.auth.SupabaseAuthGateway
 import com.sagarsystemslab.nownetwork.auth.UnavailableAuthGateway
+import com.sagarsystemslab.nownetwork.config.BrowseAreaConfig
 import com.sagarsystemslab.nownetwork.config.PublicRuntimeConfig
 import com.sagarsystemslab.nownetwork.data.local.CachedStateDao
 import com.sagarsystemslab.nownetwork.data.local.LocalPersistenceStore
@@ -50,6 +51,16 @@ object RuntimeModule {
             supabaseUrl = BuildConfig.SUPABASE_URL,
             supabasePublishableKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY,
             solanaCluster = BuildConfig.SOLANA_CLUSTER,
+        )
+
+    @Provides
+    @Singleton
+    fun provideBrowseAreaConfig(): BrowseAreaConfig =
+        BrowseAreaConfig(
+            label = BuildConfig.BROWSE_AREA_LABEL,
+            latitude = BuildConfig.BROWSE_LATITUDE.toDoubleOrNull(),
+            longitude = BuildConfig.BROWSE_LONGITUDE.toDoubleOrNull(),
+            radiusMeters = BuildConfig.BROWSE_RADIUS_METERS.toIntOrNull() ?: 3_000,
         )
 
     @Provides

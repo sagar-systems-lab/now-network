@@ -17,15 +17,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import com.sagarsystemslab.nownetwork.designsystem.NowColors
+import com.sagarsystemslab.nownetwork.feature.state.BrowseViewModel
 import com.sagarsystemslab.nownetwork.navigation.NowNavHost
 import com.sagarsystemslab.nownetwork.navigation.TopLevelDestination
 import com.sagarsystemslab.nownetwork.navigation.isTopLevel
 import com.sagarsystemslab.nownetwork.navigation.rememberNowAppState
 
 @Composable
-fun NowApp() {
+fun NowApp(browseViewModel: BrowseViewModel) {
     val appState = rememberNowAppState()
     val currentDestination = appState.currentDestination
+    val showBottomBar = TopLevelDestination.entries.any { destination ->
+        currentDestination.isTopLevel(destination)
+    }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -33,34 +37,36 @@ fun NowApp() {
         contentColor = MaterialTheme.colorScheme.onBackground,
         contentWindowInsets = WindowInsets.safeDrawing,
         bottomBar = {
-            Column {
-                HorizontalDivider(color = NowColors.BorderSubtle)
-                NavigationBar(
-                    containerColor = NowColors.SurfacePrimary,
-                    contentColor = MaterialTheme.colorScheme.onSurface,
-                ) {
-                    TopLevelDestination.entries.forEach { destination ->
-                        val selected = currentDestination.isTopLevel(destination)
-                        NavigationBarItem(
-                            modifier = Modifier.testTag(destination.testTag),
-                            selected = selected,
-                            onClick = { appState.navigateTo(destination) },
-                            icon = {
-                                Icon(
-                                    imageVector = destination.icon,
-                                    contentDescription = null,
-                                )
-                            },
-                            label = { Text(destination.label) },
-                            alwaysShowLabel = true,
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = NowColors.Blue600,
-                                selectedTextColor = NowColors.Blue600,
-                                indicatorColor = NowColors.Blue50,
-                                unselectedIconColor = NowColors.Ink500,
-                                unselectedTextColor = NowColors.Ink500,
-                            ),
-                        )
+            if (showBottomBar) {
+                Column {
+                    HorizontalDivider(color = NowColors.BorderSubtle)
+                    NavigationBar(
+                        containerColor = NowColors.SurfacePrimary,
+                        contentColor = MaterialTheme.colorScheme.onSurface,
+                    ) {
+                        TopLevelDestination.entries.forEach { destination ->
+                            val selected = currentDestination.isTopLevel(destination)
+                            NavigationBarItem(
+                                modifier = Modifier.testTag(destination.testTag),
+                                selected = selected,
+                                onClick = { appState.navigateTo(destination) },
+                                icon = {
+                                    Icon(
+                                        imageVector = destination.icon,
+                                        contentDescription = null,
+                                    )
+                                },
+                                label = { Text(destination.label) },
+                                alwaysShowLabel = true,
+                                colors = NavigationBarItemDefaults.colors(
+                                    selectedIconColor = NowColors.Blue600,
+                                    selectedTextColor = NowColors.Blue600,
+                                    indicatorColor = NowColors.Blue50,
+                                    unselectedIconColor = NowColors.Ink500,
+                                    unselectedTextColor = NowColors.Ink500,
+                                ),
+                            )
+                        }
                     }
                 }
             }
@@ -68,6 +74,7 @@ fun NowApp() {
     ) { innerPadding ->
         NowNavHost(
             appState = appState,
+            browseViewModel = browseViewModel,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
