@@ -1,5 +1,6 @@
 import type { NowWorkerCoordinator } from "../src/now-worker-coordinator.ts";
 import { createSettlementWorkerHandler } from "../src/settlement-worker.ts";
+import type { WorkerHeartbeat } from "../src/runtime-health.ts";
 
 const TOKEN = "worker-test-token-0123456789-abcdef";
 
@@ -100,5 +101,46 @@ Deno.test("settlement worker rejects non-POST execution", async () => {
   );
   if (response.status !== 405) {
     throw new Error("worker accepted a non-POST execution");
+  }
+});
+
+Deno.test("settlement worker records one successful heartbeat after a tick", async () => {
+  const heartbeats: WorkerHeartbeat[] = [];
+  const observedAt = new Date("2026-09-26T09:30:00.000Z");
+  const handler = createSettlementWorkerHandler(
+    coordinator(EMPTY),
+    TOKEN,
+    8,
+    {
+      repository: {
+        recordWorkerHeartbeat(input) {
+          heartbeats.push(input);
+          return Promise.resolve();
+        },
+      },
+      workerId: "worker-test",
+      buildVersion: "test-build",
+      now: () => observedAt,
+    },
+  );
+
+  const response = await handler(
+    new Request("https://worker.invalid/", {
+      method: "POST",
+      headers: { authorization: `Bearer ${TOKEN}` },
+    }),
+  );
+
+  if (response.status !== 200 || heartbeats.length !== 1) {
+    throw new Error("successful worker tick did not record one heartbeat");
+  }
+  const heartbeat = heartbeats[0];
+  if (
+    heartbeat.workerId !== "worker-test" ||
+    heartbeat.buildVersion !== "test-build" ||
+    heartbeat.result !== "SUCCESS" ||
+    heartbeat.observedAt.getTime() !== observedAt.getTime()
+  ) {
+    throw new Error("worker heartbeat identity drifted");
   }
 });

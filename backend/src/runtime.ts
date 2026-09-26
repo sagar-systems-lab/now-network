@@ -13,6 +13,7 @@ import { PostgresIdentityRepository } from "./postgres-identity-repository.ts";
 import { OpportunityMatcher } from "./opportunity-matcher.ts";
 import { PostgresOpportunityRepository } from "./postgres-opportunity-repository.ts";
 import { PostgresReceiptRepository } from "./postgres-receipt-repository.ts";
+import { PostgresRuntimeHealthRepository } from "./postgres-runtime-health-repository.ts";
 import { PostgresRefreshRepository } from "./postgres-refresh-repository.ts";
 import { PostgresStateRepository } from "./postgres-state-repository.ts";
 import { PostgresStateProjectionRepository } from "./postgres-state-projection-repository.ts";
@@ -22,10 +23,20 @@ import { SolanaRpcRefreshChainObserver } from "./solana-refresh-observer.ts";
 import { PostgresVerificationRepository } from "./postgres-verification-repository.ts";
 import { VerificationService } from "./verification-service.ts";
 import { StateProjectionService } from "./state-projection-service.ts";
+import { RuntimeReadinessProbe } from "./runtime-health.ts";
+import { withStructuredRequestLogging } from "./structured-log.ts";
 
 function requiredEnv(name: string): string {
   const value = Deno.env.get(name)?.trim();
   if (!value) throw new Error(`missing required environment variable ${name}`);
+  return value;
+}
+
+function requiredSecretEnv(name: string): string {
+  const value = requiredEnv(name);
+  if (value.length < 32) {
+    throw new Error(`environment variable ${name} must contain at least 32 characters`);
+  }
   return value;
 }
 
@@ -59,6 +70,7 @@ export function createProductionHandler(): (request: Request) => Promise<Respons
   const stateRepository = new PostgresStateRepository(connectionString);
   const refreshRepository = new PostgresRefreshRepository(connectionString);
   const receiptRepository = new PostgresReceiptRepository(connectionString);
+  const runtimeHealthRepository = new PostgresRuntimeHealthRepository(connectionString);
   const claimRepository = new PostgresClaimRepository(connectionString);
   const evidenceChallengeRepository = new PostgresEvidenceChallengeRepository(
     connectionString,
@@ -133,7 +145,7 @@ export function createProductionHandler(): (request: Request) => Promise<Respons
     stateProjectionRepository,
   );
   const receiptService = new ReceiptService(receiptRepository);
-  return createApp({
+  const app = createApp({
     authVerifier,
     identityRepository,
     stateRepository,
@@ -146,5 +158,8 @@ export function createProductionHandler(): (request: Request) => Promise<Respons
     verificationService,
     stateProjectionService,
     receiptService,
+    readinessProbe: new RuntimeReadinessProbe(runtimeHealthRepository),
+    readinessToken: requiredSecretEnv("NOW_READY_TOKEN"),
   });
+  return withStructuredRequestLogging(app, "now-api");
 }

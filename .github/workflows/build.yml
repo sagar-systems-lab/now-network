@@ -339,6 +339,14 @@ jobs:
           set -Eeuo pipefail
           docker exec -i "$DB_CONTAINER" psql -X -U postgres -d now_test -v ON_ERROR_STOP=1 < tests/database/receipts_realtime_guards.sql
 
+      - name: Verify runtime health guards
+        shell: bash
+        env:
+          DB_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          set -Eeuo pipefail
+          docker exec -i "$DB_CONTAINER" psql -X -U postgres -d now_test -v ON_ERROR_STOP=1 < tests/database/runtime_health_guards.sql
+
       - name: Verify database security baseline
         shell: bash
         env:
@@ -376,6 +384,7 @@ jobs:
                 ('app', 'domain_events'),
                 ('app', 'security_events'),
                 ('app', 'outbox_events'),
+                ('app', 'runtime_health'),
                 ('public', 'realtime_events_v1')
             ),
             rls_state as (

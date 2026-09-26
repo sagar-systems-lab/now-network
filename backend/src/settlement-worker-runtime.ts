@@ -1,12 +1,14 @@
 import { NowWorkerCoordinator } from "./now-worker-coordinator.ts";
 import { PostgresReceiptRepository } from "./postgres-receipt-repository.ts";
 import { PostgresRealtimeOutboxRepository } from "./postgres-realtime-outbox-repository.ts";
+import { PostgresRuntimeHealthRepository } from "./postgres-runtime-health-repository.ts";
 import { PostgresSettlementRepository } from "./postgres-settlement-repository.ts";
 import { ReceiptCoordinator } from "./receipt-coordinator.ts";
 import { RealtimePublisher } from "./realtime-outbox.ts";
 import { SettlementCoordinator } from "./settlement-coordinator.ts";
 import { settlementVerifierFromJson, SolanaSettlementClient } from "./solana-settlement-client.ts";
 import { createSettlementWorkerHandler } from "./settlement-worker.ts";
+import { withStructuredRequestLogging } from "./structured-log.ts";
 
 function requiredEnv(name: string): string {
   const value = Deno.env.get(name)?.trim();
@@ -43,6 +45,9 @@ export function createProductionSettlementWorkerHandler(): (
   const realtimeRepository = new PostgresRealtimeOutboxRepository(
     connectionString,
   );
+  const runtimeHealthRepository = new PostgresRuntimeHealthRepository(
+    connectionString,
+  );
   const verifier = settlementVerifierFromJson(
     requiredEnv("NOW_SETTLEMENT_VERIFIER_KEYPAIR_JSON"),
   );
@@ -66,9 +71,15 @@ export function createProductionSettlementWorkerHandler(): (
     new RealtimePublisher(realtimeRepository),
   );
 
-  return createSettlementWorkerHandler(
+  const handler = createSettlementWorkerHandler(
     coordinator,
     requiredEnv("NOW_WORKER_TOKEN"),
     optionalPositiveIntegerEnv("NOW_WORKER_BATCH_LIMIT", 8, 32),
+    {
+      repository: runtimeHealthRepository,
+      workerId: Deno.env.get("NOW_WORKER_ID")?.trim() || "now-worker",
+      buildVersion: Deno.env.get("NOW_BUILD_VERSION")?.trim() || "dev",
+    },
   );
+  return withStructuredRequestLogging(handler, "now-worker");
 }
