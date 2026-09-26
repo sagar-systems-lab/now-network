@@ -48,6 +48,26 @@ android {
             "SOLANA_CLUSTER",
             buildConfigString(publicConfig("NOW_SOLANA_CLUSTER", "devnet")),
         )
+        buildConfigField(
+            "String",
+            "BROWSE_AREA_LABEL",
+            buildConfigString(publicConfig("NOW_BROWSE_AREA_LABEL")),
+        )
+        buildConfigField(
+            "String",
+            "BROWSE_LATITUDE",
+            buildConfigString(publicConfig("NOW_BROWSE_LATITUDE")),
+        )
+        buildConfigField(
+            "String",
+            "BROWSE_LONGITUDE",
+            buildConfigString(publicConfig("NOW_BROWSE_LONGITUDE")),
+        )
+        buildConfigField(
+            "String",
+            "BROWSE_RADIUS_METERS",
+            buildConfigString(publicConfig("NOW_BROWSE_RADIUS_METERS", "3000")),
+        )
     }
 
     buildTypes {
@@ -91,6 +111,8 @@ dependencies {
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.androidx.activity.compose)
 
     implementation(platform(libs.androidx.compose.bom))
