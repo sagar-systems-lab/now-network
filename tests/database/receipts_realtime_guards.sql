@@ -143,7 +143,7 @@ insert into app.domain_events(
   '2026-09-26T06:00:00.500Z'
 );
 
-do $
+do $$
 declare
   receipt_type text;
   receipt_entity_type text;
@@ -170,7 +170,7 @@ begin
     raise exception 'receipt financial data leaked into public realtime outbox';
   end if;
 end
-$;
+$$;
 
 insert into app.domain_events(
   event_id,
