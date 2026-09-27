@@ -10,8 +10,10 @@ import com.sagarsystemslab.nownetwork.config.PublicRuntimeConfig
 import com.sagarsystemslab.nownetwork.designsystem.NowTheme
 import com.sagarsystemslab.nownetwork.feature.activity.ActivityViewModel
 import com.sagarsystemslab.nownetwork.feature.earn.EarnViewModel
+import com.sagarsystemslab.nownetwork.feature.requester.RequesterFundingViewModel
 import com.sagarsystemslab.nownetwork.feature.state.BrowseViewModel
 import com.sagarsystemslab.nownetwork.repository.SessionRepository
+import com.sagarsystemslab.nownetwork.wallet.AndroidWalletInteractionHost
 import dagger.Lazy
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -21,6 +23,8 @@ class MainActivity : ComponentActivity() {
     private val browseViewModel: BrowseViewModel by viewModels()
     private val earnViewModel: EarnViewModel by viewModels()
     private val activityViewModel: ActivityViewModel by viewModels()
+    private val requesterFundingViewModel: RequesterFundingViewModel by viewModels()
+    private lateinit var walletInteractionHost: AndroidWalletInteractionHost
 
     @Inject
     lateinit var runtimeConfig: PublicRuntimeConfig
@@ -30,6 +34,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        walletInteractionHost = AndroidWalletInteractionHost(this)
         enableEdgeToEdge()
         setContent {
             NowTheme {
@@ -43,6 +48,8 @@ class MainActivity : ComponentActivity() {
                     browseViewModel = browseViewModel,
                     earnViewModel = earnViewModel,
                     activityViewModel = activityViewModel,
+                    requesterFundingViewModel = requesterFundingViewModel,
+                    walletInteractionHost = walletInteractionHost,
                 )
             }
         }

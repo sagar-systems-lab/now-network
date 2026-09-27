@@ -3,11 +3,14 @@ package com.sagarsystemslab.nownetwork.network
 import com.sagarsystemslab.nownetwork.config.PublicRuntimeConfig
 import com.sagarsystemslab.nownetwork.repository.ServerClock
 import io.ktor.client.HttpClient
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
+import io.ktor.serialization.kotlinx.json.json
 import java.util.UUID
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
@@ -167,6 +170,72 @@ class KtorNowApiClientTest {
     }
 
     @Test
+    fun requesterRefreshMutationCarriesAuthAndIdempotency() = runBlocking {
+        val client = client(
+            engine = MockEngine { request ->
+                assertEquals(HttpMethod.Post, request.method)
+                assertEquals("/v1/refreshes", request.url.encodedPath)
+                assertEquals("Bearer token-a", request.headers[HttpHeaders.Authorization])
+                assertEquals("refresh-create:test-1234", request.headers["Idempotency-Key"])
+                assertTrue(
+                    request.body.contentType
+                        ?.toString()
+                        ?.startsWith("application/json") == true,
+                )
+
+                respond(
+                    content = """
+                        {
+                          "request_id":"11111111-1111-4111-8111-111111111111",
+                          "server_time":"2026-09-27T12:00:00Z",
+                          "data":{
+                            "refresh_id":"22222222-2222-4222-8222-222222222222",
+                            "state_id":"33333333-3333-4333-8333-333333333333",
+                            "state_version":1,
+                            "status":"DRAFT",
+                            "verification_class":"FAST",
+                            "required_witnesses":1,
+                            "max_witnesses":1,
+                            "payout_rule":"SINGLE_WINNER_ALL",
+                            "proof_policy":{},
+                            "proof_policy_digest":"00",
+                            "intent_core_hash":"00",
+                            "refresh_expires_at":"2035-01-01T00:10:00Z",
+                            "evidence_deadline":"2035-01-01T00:08:00Z",
+                            "reward_mint":"mint-a",
+                            "funding_target_atomic":"450000",
+                            "funding_operation_id":null,
+                            "chain_total_funded_atomic":"0",
+                            "chain_refresh_address":null,
+                            "chain_status":null,
+                            "chain_observed_at":null,
+                            "revision":1,
+                            "next_step":"FUNDING_INTENT"
+                          },
+                          "meta":{}
+                        }
+                    """.trimIndent(),
+                    status = HttpStatusCode.Created,
+                    headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                )
+            },
+        )
+
+        val result = client.createRefresh(
+            request = CreateRefreshRequest(
+                stateId = "33333333-3333-4333-8333-333333333333",
+                walletBindingId = "44444444-4444-4444-8444-444444444444",
+                fundingTargetAtomic = "450000",
+            ),
+            idempotencyKey = "refresh-create:test-1234",
+            accessToken = "token-a",
+        )
+
+        assertEquals("DRAFT", result.status)
+        assertEquals("450000", result.fundingTargetAtomic)
+    }
+
+    @Test
     fun unauthorizedResponseMapsToAuthExpired() = runBlocking {
         val client = client(
             engine = MockEngine {
@@ -268,7 +337,12 @@ class KtorNowApiClientTest {
         clock: ServerClock = ServerClock(),
     ): KtorNowApiClient =
         KtorNowApiClient(
-            client = HttpClient(engine) { expectSuccess = false },
+            client = HttpClient(engine) {
+                expectSuccess = false
+                install(ContentNegotiation) {
+                    json(json)
+                }
+            },
             json = json,
             config = PublicRuntimeConfig(
                 apiBaseUrl = "https://now.example",

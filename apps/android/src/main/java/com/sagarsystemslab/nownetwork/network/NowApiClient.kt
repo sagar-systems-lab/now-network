@@ -50,4 +50,38 @@ interface NowApiClient {
         accessToken: String,
     ): NearbyOpportunitiesDto
     suspend fun me(accessToken: String): MeDto
+
+    suspend fun walletBindingChallenge(
+        request: WalletBindingChallengeRequest,
+        accessToken: String,
+    ): WalletBindingChallengeDto
+
+    suspend fun verifyWalletBinding(
+        request: WalletBindingVerifyRequest,
+        accessToken: String,
+    ): WalletBindingVerifyDto
+
+    suspend fun createRefresh(
+        request: CreateRefreshRequest,
+        idempotencyKey: String,
+        accessToken: String,
+    ): RefreshDto
+
+    suspend fun refreshDetail(
+        refreshId: String,
+        accessToken: String,
+    ): RefreshDto
+
+    suspend fun fundingIntent(
+        refreshId: String,
+        idempotencyKey: String,
+        accessToken: String,
+    ): FundingIntentDto
+
+    suspend fun observeFunding(
+        refreshId: String,
+        request: FundingObserveRequest,
+        idempotencyKey: String,
+        accessToken: String,
+    ): RefreshDto
 }

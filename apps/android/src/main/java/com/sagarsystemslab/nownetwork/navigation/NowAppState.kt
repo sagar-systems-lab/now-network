@@ -53,6 +53,10 @@ class NowAppState(
         navController.navigate(StateDetailRoute(stateId = stateId))
     }
 
+    fun navigateToRequesterFunding(stateId: String) {
+        navController.navigate(RequesterFundingRoute(stateId = stateId))
+    }
+
     fun navigateBack() {
         navController.popBackStack()
     }

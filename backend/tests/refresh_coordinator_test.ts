@@ -490,7 +490,15 @@ Deno.test("funding intent is stable and advances DRAFT to AWAITING_FUNDING once"
     throw new Error("funding intent must be stable");
   }
   const accounts = first.accounts as Record<string, unknown>;
-  for (const field of ["config", "refresh", "contribution", "vault_token_account"]) {
+  for (
+    const field of [
+      "config",
+      "refresh",
+      "contribution",
+      "source_token_account",
+      "vault_token_account",
+    ]
+  ) {
     if (typeof accounts[field] !== "string") throw new Error(`missing ${field}`);
   }
   const plan = first.instruction_plan as unknown[];

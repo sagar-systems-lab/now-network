@@ -158,6 +158,46 @@ private class FakeStateApi : NowApiClient {
 
     override suspend fun me(accessToken: String): MeDto =
         error("not used")
+    override suspend fun walletBindingChallenge(
+        request: com.sagarsystemslab.nownetwork.network.WalletBindingChallengeRequest,
+        accessToken: String,
+    ): com.sagarsystemslab.nownetwork.network.WalletBindingChallengeDto =
+        error("not used")
+
+    override suspend fun verifyWalletBinding(
+        request: com.sagarsystemslab.nownetwork.network.WalletBindingVerifyRequest,
+        accessToken: String,
+    ): com.sagarsystemslab.nownetwork.network.WalletBindingVerifyDto =
+        error("not used")
+
+    override suspend fun createRefresh(
+        request: com.sagarsystemslab.nownetwork.network.CreateRefreshRequest,
+        idempotencyKey: String,
+        accessToken: String,
+    ): com.sagarsystemslab.nownetwork.network.RefreshDto =
+        error("not used")
+
+    override suspend fun refreshDetail(
+        refreshId: String,
+        accessToken: String,
+    ): com.sagarsystemslab.nownetwork.network.RefreshDto =
+        error("not used")
+
+    override suspend fun fundingIntent(
+        refreshId: String,
+        idempotencyKey: String,
+        accessToken: String,
+    ): com.sagarsystemslab.nownetwork.network.FundingIntentDto =
+        error("not used")
+
+    override suspend fun observeFunding(
+        refreshId: String,
+        request: com.sagarsystemslab.nownetwork.network.FundingObserveRequest,
+        idempotencyKey: String,
+        accessToken: String,
+    ): com.sagarsystemslab.nownetwork.network.RefreshDto =
+        error("not used")
+
 }
 
 private class FakeStateCache : StateCache {
@@ -192,4 +232,44 @@ private class FailingStateApi : NowApiClient {
 
     override suspend fun me(accessToken: String): MeDto =
         error("network must not be used for cached read")
+    override suspend fun walletBindingChallenge(
+        request: com.sagarsystemslab.nownetwork.network.WalletBindingChallengeRequest,
+        accessToken: String,
+    ): com.sagarsystemslab.nownetwork.network.WalletBindingChallengeDto =
+        error("not used")
+
+    override suspend fun verifyWalletBinding(
+        request: com.sagarsystemslab.nownetwork.network.WalletBindingVerifyRequest,
+        accessToken: String,
+    ): com.sagarsystemslab.nownetwork.network.WalletBindingVerifyDto =
+        error("not used")
+
+    override suspend fun createRefresh(
+        request: com.sagarsystemslab.nownetwork.network.CreateRefreshRequest,
+        idempotencyKey: String,
+        accessToken: String,
+    ): com.sagarsystemslab.nownetwork.network.RefreshDto =
+        error("not used")
+
+    override suspend fun refreshDetail(
+        refreshId: String,
+        accessToken: String,
+    ): com.sagarsystemslab.nownetwork.network.RefreshDto =
+        error("not used")
+
+    override suspend fun fundingIntent(
+        refreshId: String,
+        idempotencyKey: String,
+        accessToken: String,
+    ): com.sagarsystemslab.nownetwork.network.FundingIntentDto =
+        error("not used")
+
+    override suspend fun observeFunding(
+        refreshId: String,
+        request: com.sagarsystemslab.nownetwork.network.FundingObserveRequest,
+        idempotencyKey: String,
+        accessToken: String,
+    ): com.sagarsystemslab.nownetwork.network.RefreshDto =
+        error("not used")
+
 }

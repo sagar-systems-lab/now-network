@@ -435,6 +435,7 @@ export class RefreshCoordinator {
             config: addresses.configAddress,
             refresh: addresses.refreshAddress,
             contribution: addresses.contributionAddress,
+            source_token_account: addresses.sourceTokenAccount,
             vault_token_account: addresses.vaultTokenAccount,
             token_program: TOKEN_PROGRAM_ID,
             associated_token_program: ASSOCIATED_TOKEN_PROGRAM_ID,

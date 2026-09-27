@@ -20,3 +20,9 @@ data class StateDetailRoute(
 data class OpportunityRoute(
     val refreshId: String,
 )
+
+
+@Serializable
+data class RequesterFundingRoute(
+    val stateId: String,
+)

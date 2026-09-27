@@ -50,6 +50,38 @@ android {
         )
         buildConfigField(
             "String",
+            "SOLANA_RPC_URL",
+            buildConfigString(
+                publicConfig("NOW_SOLANA_RPC_URL", "https://api.devnet.solana.com"),
+            ),
+        )
+        buildConfigField(
+            "String",
+            "SOLANA_PROGRAM_ID",
+            buildConfigString(
+                publicConfig(
+                    "NOW_SOLANA_PROGRAM_ID",
+                    "7nqsPpBhpUwSahMrpuAPNMupx2vVEGqkU6XXcng7VaAm",
+                ),
+            ),
+        )
+        buildConfigField(
+            "String",
+            "WALLET_IDENTITY_URI",
+            buildConfigString(
+                publicConfig(
+                    "NOW_WALLET_IDENTITY_URI",
+                    "https://github.com/sagar-systems-lab/now-network",
+                ),
+            ),
+        )
+        buildConfigField(
+            "String",
+            "WALLET_ICON_URI",
+            buildConfigString(publicConfig("NOW_WALLET_ICON_URI", "favicon.ico")),
+        )
+        buildConfigField(
+            "String",
             "BROWSE_AREA_LABEL",
             buildConfigString(publicConfig("NOW_BROWSE_AREA_LABEL")),
         )
@@ -121,6 +153,14 @@ ksp {
     arg("room.generateKotlin", "true")
 }
 
+configurations.configureEach {
+    resolutionStrategy.force(
+        "org.jetbrains.kotlin:kotlin-stdlib:${libs.versions.kotlin.get()}",
+        "org.jetbrains.kotlin:kotlin-stdlib-jdk7:${libs.versions.kotlin.get()}",
+        "org.jetbrains.kotlin:kotlin-stdlib-jdk8:${libs.versions.kotlin.get()}",
+    )
+}
+
 dependencies {
     implementation(project(":core:designsystem"))
 
@@ -149,6 +189,7 @@ dependencies {
     implementation(libs.supabase.realtime)
 
     implementation(libs.hilt.android)
+    implementation(libs.mobile.wallet.adapter)
 
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)

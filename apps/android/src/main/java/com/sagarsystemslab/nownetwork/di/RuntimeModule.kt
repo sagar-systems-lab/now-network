@@ -9,6 +9,7 @@ import com.sagarsystemslab.nownetwork.auth.UnavailableAuthGateway
 import com.sagarsystemslab.nownetwork.config.BrowseAreaConfig
 import com.sagarsystemslab.nownetwork.config.PublicRuntimeConfig
 import com.sagarsystemslab.nownetwork.config.RewardDisplayConfig
+import com.sagarsystemslab.nownetwork.config.SolanaRuntimeConfig
 import com.sagarsystemslab.nownetwork.data.local.CachedStateDao
 import com.sagarsystemslab.nownetwork.data.local.LocalPersistenceStore
 import com.sagarsystemslab.nownetwork.data.local.NowDatabase
@@ -16,6 +17,8 @@ import com.sagarsystemslab.nownetwork.data.local.NowDatabaseFactory
 import com.sagarsystemslab.nownetwork.data.local.WalletSessionMetadataDao
 import com.sagarsystemslab.nownetwork.network.KtorNowApiClient
 import com.sagarsystemslab.nownetwork.network.NowApiClient
+import com.sagarsystemslab.nownetwork.solana.KtorSolanaRpcClient
+import com.sagarsystemslab.nownetwork.solana.SolanaRpcClient
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -50,6 +53,17 @@ object RuntimeModule {
             supabaseUrl = BuildConfig.SUPABASE_URL,
             supabasePublishableKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY,
             solanaCluster = BuildConfig.SOLANA_CLUSTER,
+        )
+
+    @Provides
+    @Singleton
+    fun provideSolanaRuntimeConfig(): SolanaRuntimeConfig =
+        SolanaRuntimeConfig(
+            cluster = BuildConfig.SOLANA_CLUSTER,
+            rpcUrl = BuildConfig.SOLANA_RPC_URL,
+            programId = BuildConfig.SOLANA_PROGRAM_ID,
+            walletIdentityUri = BuildConfig.WALLET_IDENTITY_URI,
+            walletIconUri = BuildConfig.WALLET_ICON_URI,
         )
 
     @Provides
@@ -144,6 +158,12 @@ object RuntimeModule {
     @Singleton
     fun provideNowApiClient(implementation: KtorNowApiClient): NowApiClient =
         implementation
+
+    @Provides
+    @Singleton
+    fun provideSolanaRpcClient(
+        implementation: KtorSolanaRpcClient,
+    ): SolanaRpcClient = implementation
 
     @Provides
     @Singleton
