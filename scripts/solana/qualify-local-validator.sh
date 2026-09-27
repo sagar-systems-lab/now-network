@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-PROGRAM_ID="7nqsPpBhpUwSahMrpuAPNMupx2vVEGqkU6XXcng7VaAm"
+PROGRAM_ID="sE74tJL2pCSWMHhEGvBM5hL2DYmFaUUQCDpC1QkHE3T"
 RPC_URL="http://127.0.0.1:8899"
 PROGRAM_SO="target/deploy/now_settlement.so"
 

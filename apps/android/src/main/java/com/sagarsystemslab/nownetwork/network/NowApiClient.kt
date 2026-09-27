@@ -49,6 +49,28 @@ interface NowApiClient {
         query: NearbyOpportunityQuery,
         accessToken: String,
     ): NearbyOpportunitiesDto
+    suspend fun opportunityDetail(
+        refreshId: String,
+        accessToken: String,
+    ): OpportunityDto
+
+    suspend fun prepareClaim(
+        refreshId: String,
+        request: ClaimPrepareRequest,
+        idempotencyKey: String,
+        accessToken: String,
+    ): ClaimIntentDto
+
+    suspend fun claimDetail(
+        acceptanceId: String,
+        accessToken: String,
+    ): ClaimStatusDto
+
+    suspend fun observeClaim(
+        acceptanceId: String,
+        request: ClaimObserveRequest,
+        accessToken: String,
+    ): ClaimStatusDto
     suspend fun me(accessToken: String): MeDto
 
     suspend fun walletBindingChallenge(

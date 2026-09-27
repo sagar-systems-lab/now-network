@@ -10,6 +10,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import com.sagarsystemslab.nownetwork.feature.activity.ActivityScreen
 import com.sagarsystemslab.nownetwork.feature.activity.ActivityViewModel
+import com.sagarsystemslab.nownetwork.feature.earn.ContributorClaimScreen
+import com.sagarsystemslab.nownetwork.feature.earn.ContributorClaimViewModel
 import com.sagarsystemslab.nownetwork.feature.earn.EarnScreen
 import com.sagarsystemslab.nownetwork.feature.earn.EarnViewModel
 import com.sagarsystemslab.nownetwork.feature.home.NowScreen
@@ -24,6 +26,7 @@ fun NowNavHost(
     appState: NowAppState,
     browseViewModel: BrowseViewModel,
     earnViewModel: EarnViewModel,
+    contributorClaimViewModel: ContributorClaimViewModel,
     activityViewModel: ActivityViewModel,
     requesterFundingViewModel: RequesterFundingViewModel,
     walletInteractionHost: WalletInteractionHost,
@@ -92,6 +95,29 @@ fun NowNavHost(
                 rewardText = earnViewModel::rewardText,
                 serverNowMillis = earnViewModel::serverNowMillis,
                 onRefresh = earnViewModel::refresh,
+                onOpportunityClick = appState::navigateToOpportunity,
+            )
+        }
+
+        composable<OpportunityRoute> { backStackEntry ->
+            val route = backStackEntry.toRoute<OpportunityRoute>()
+            val uiState by contributorClaimViewModel.state.collectAsStateWithLifecycle()
+
+            LaunchedEffect(route.refreshId) {
+                contributorClaimViewModel.open(route.refreshId)
+            }
+
+            ContributorClaimScreen(
+                uiState = uiState,
+                rewardText = contributorClaimViewModel.rewardText(),
+                onBack = appState::navigateBack,
+                onPrepare = {
+                    contributorClaimViewModel.prepare(walletInteractionHost)
+                },
+                onSubmit = {
+                    contributorClaimViewModel.submit(walletInteractionHost)
+                },
+                onCheck = contributorClaimViewModel::checkConfirmation,
             )
         }
 

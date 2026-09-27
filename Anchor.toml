@@ -8,10 +8,10 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-now_settlement = "7nqsPpBhpUwSahMrpuAPNMupx2vVEGqkU6XXcng7VaAm"
+now_settlement = "sE74tJL2pCSWMHhEGvBM5hL2DYmFaUUQCDpC1QkHE3T"
 
 [programs.devnet]
-now_settlement = "7nqsPpBhpUwSahMrpuAPNMupx2vVEGqkU6XXcng7VaAm"
+now_settlement = "sE74tJL2pCSWMHhEGvBM5hL2DYmFaUUQCDpC1QkHE3T"
 
 [provider]
 cluster = "Localnet"

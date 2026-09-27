@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-readonly PROGRAM_ID="7nqsPpBhpUwSahMrpuAPNMupx2vVEGqkU6XXcng7VaAm"
+readonly PROGRAM_ID="sE74tJL2pCSWMHhEGvBM5hL2DYmFaUUQCDpC1QkHE3T"
 readonly UPGRADEABLE_LOADER_ID="BPFLoaderUpgradeab1e11111111111111111111111"
 readonly DEFAULT_RPC_URL="https://api.devnet.solana.com"
 
@@ -66,7 +66,7 @@ PY
     fail "PROGRAM_IDENTITY_DRIFT"
   fi
 
-  grep -Fxq '*-keypair.json' "$ROOT/.gitignore" ||
+  tr -d '\r' < "$ROOT/.gitignore" | grep -Fxq '*-keypair.json' ||
     fail "PROGRAM_KEYPAIR_IGNORE_MISSING"
   grep -Fq '*-keypair.json' "$ROOT/scripts/security/scan-secrets.sh" ||
     fail "PROGRAM_KEYPAIR_SECRET_SCAN_MISSING"
@@ -151,8 +151,21 @@ authority_pubkey_for_verify() {
   printf '%s\n' "$NOW_DEVNET_EXPECTED_UPGRADE_AUTHORITY"
 }
 
+readonly_solana_keypair_args() {
+  if [[ -n "${NOW_DEVNET_PAYER_KEYPAIR:-}" ]]; then
+    printf '%s\n' "--keypair" "$(external_keypair "$NOW_DEVNET_PAYER_KEYPAIR" "PAYER")"
+    return
+  fi
+
+  if [[ -n "${NOW_DEVNET_UPGRADE_AUTHORITY_KEYPAIR:-}" ]]; then
+    printf '%s\n' "--keypair" "$(external_keypair "$NOW_DEVNET_UPGRADE_AUTHORITY_KEYPAIR" "UPGRADE_AUTHORITY")"
+  fi
+}
+
 read_program_json() {
-  solana --url "$RPC_URL" --output json program show "$PROGRAM_ID"
+  local -a keypair_args=()
+  mapfile -t keypair_args < <(readonly_solana_keypair_args)
+  solana --url "$RPC_URL" "${keypair_args[@]}" --output json program show "$PROGRAM_ID"
 }
 
 verify_program_metadata() {
@@ -207,7 +220,9 @@ dumped_binary_matches() {
   local dump_path="$TMP_DIR/onchain-program.so"
   rm -f "$dump_path"
 
-  solana --url "$RPC_URL" program dump "$PROGRAM_ID" "$dump_path" >/dev/null ||
+  local -a keypair_args=()
+  mapfile -t keypair_args < <(readonly_solana_keypair_args)
+  solana --url "$RPC_URL" "${keypair_args[@]}" program dump "$PROGRAM_ID" "$dump_path" >/dev/null ||
     return 1
   test -s "$dump_path" || return 1
 
@@ -293,7 +308,8 @@ deploy_or_upgrade() {
     program deploy "$PROGRAM_SO" \
     --fee-payer "$payer" \
     --program-id "$program_argument" \
-    --upgrade-authority "$authority"
+    --upgrade-authority "$authority" \
+    --use-rpc
 
   verify_deployment "$authority_pubkey"
   pass "DEPLOY_OR_UPGRADE"

@@ -2,6 +2,7 @@ package com.sagarsystemslab.nownetwork.solana
 
 import com.sagarsystemslab.nownetwork.config.RewardDisplayConfig
 import com.sagarsystemslab.nownetwork.config.SolanaRuntimeConfig
+import com.sagarsystemslab.nownetwork.network.ClaimIntentDto
 import com.sagarsystemslab.nownetwork.network.FundingIntentDto
 import java.math.BigInteger
 import java.nio.ByteBuffer
@@ -24,6 +25,25 @@ data class FundingTransactionMetadata(
     val amountAtomic: String,
     val instructionNames: List<String>,
 )
+
+data class ClaimTransaction(
+    val bytes: ByteArray,
+    val lastValidBlockHeight: Long,
+    val metadata: ClaimTransactionMetadata,
+)
+
+data class ClaimTransactionMetadata(
+    val acceptanceId: String,
+    val refreshId: String,
+    val refreshAddress: String,
+    val claimant: String,
+    val programId: String,
+    val rewardMint: String,
+    val claimDurationSeconds: Long,
+    val instructionNames: List<String>,
+)
+
+class ClaimIntentRejected(message: String) : IllegalArgumentException(message)
 
 class FundingIntentRejected(message: String) : IllegalArgumentException(message)
 
@@ -131,6 +151,159 @@ class SolanaTransactionBuilder @Inject constructor(
                     "contribute",
                 ),
             ),
+        )
+    }
+
+    suspend fun buildClaim(
+        intent: ClaimIntentDto,
+        walletAddress: String,
+        latestBlockhash: LatestBlockhash,
+    ): ClaimTransaction {
+        validateClaimIntent(
+            intent = intent,
+            walletAddress = walletAddress,
+        )
+
+        val program = claimPublicKey(config.programId, "configured program")
+        val wallet = claimPublicKey(walletAddress, "wallet")
+        val mint = claimPublicKey(intent.rewardMint, "reward mint")
+        val configAccount = claimPublicKey(intent.accounts.config, "config account")
+        val refresh = claimPublicKey(intent.accounts.refresh, "refresh account")
+        val claimantRewardAccount = claimPublicKey(
+            intent.accounts.claimantRewardTokenAccount,
+            "claimant reward token account",
+        )
+
+        val createRewardAccount = SolanaInstruction(
+            programId = SolanaPrograms.associatedToken,
+            accounts = listOf(
+                SolanaAccountMeta(wallet, isSigner = true, isWritable = true),
+                SolanaAccountMeta(claimantRewardAccount, isSigner = false, isWritable = true),
+                SolanaAccountMeta(wallet, isSigner = false, isWritable = false),
+                SolanaAccountMeta(mint, isSigner = false, isWritable = false),
+                SolanaAccountMeta(SolanaPrograms.system, isSigner = false, isWritable = false),
+                SolanaAccountMeta(SolanaPrograms.token, isSigner = false, isWritable = false),
+                SolanaAccountMeta(SolanaPrograms.rent, isSigner = false, isWritable = false),
+            ),
+            data = byteArrayOf(1),
+        )
+
+        val claimWitness = SolanaInstruction(
+            programId = program,
+            accounts = listOf(
+                SolanaAccountMeta(wallet, isSigner = true, isWritable = false),
+                SolanaAccountMeta(configAccount, isSigner = false, isWritable = false),
+                SolanaAccountMeta(refresh, isSigner = false, isWritable = true),
+                SolanaAccountMeta(mint, isSigner = false, isWritable = false),
+                SolanaAccountMeta(claimantRewardAccount, isSigner = false, isWritable = false),
+            ),
+            data = concat(
+                discriminator("claim_witness"),
+                claimHex32(intent.instruction.refreshIdHex, "claim refresh id"),
+                u32Le(intent.instruction.claimDurationSeconds, "claim duration"),
+            ),
+        )
+
+        val transaction = try {
+            serializeLegacyTransaction(
+                feePayer = wallet,
+                recentBlockhash = latestBlockhash.blockhash,
+                instructions = listOf(
+                    createRewardAccount,
+                    claimWitness,
+                ),
+            )
+        } catch (error: IllegalArgumentException) {
+            throw ClaimIntentRejected(
+                error.message ?: "Claim transaction serialization failed",
+            )
+        }
+
+        return ClaimTransaction(
+            bytes = transaction,
+            lastValidBlockHeight = latestBlockhash.lastValidBlockHeight,
+            metadata = ClaimTransactionMetadata(
+                acceptanceId = intent.acceptanceId,
+                refreshId = intent.refreshId,
+                refreshAddress = intent.accounts.refresh,
+                claimant = walletAddress,
+                programId = intent.programId,
+                rewardMint = intent.rewardMint,
+                claimDurationSeconds = intent.claimDurationSeconds,
+                instructionNames = listOf(
+                    "create_claimant_reward_account_if_needed",
+                    "claim_witness",
+                ),
+            ),
+        )
+    }
+
+    private fun validateClaimIntent(
+        intent: ClaimIntentDto,
+        walletAddress: String,
+    ) {
+        if (!config.configured) {
+            throw ClaimIntentRejected("Solana runtime is not configured")
+        }
+        if (intent.cluster != config.cluster) {
+            throw ClaimIntentRejected("Claim intent cluster mismatch")
+        }
+        if (intent.programId != config.programId) {
+            throw ClaimIntentRejected("Claim intent program mismatch")
+        }
+        if (!rewardConfig.valid || rewardConfig.mint.isBlank()) {
+            throw ClaimIntentRejected("Reward mint is not configured")
+        }
+        if (intent.rewardMint != rewardConfig.mint) {
+            throw ClaimIntentRejected("Claim intent reward mint mismatch")
+        }
+        if (intent.walletAddress != walletAddress || intent.accounts.claimant != walletAddress) {
+            throw ClaimIntentRejected("Claim intent wallet mismatch")
+        }
+        if (intent.accounts.rewardMint != intent.rewardMint) {
+            throw ClaimIntentRejected("Claim reward mint account mismatch")
+        }
+        if (intent.instruction.name != "claim_witness") {
+            throw ClaimIntentRejected("Unexpected claim instruction")
+        }
+        if (intent.instruction.claimDurationSeconds != intent.claimDurationSeconds) {
+            throw ClaimIntentRejected("Claim duration mismatch")
+        }
+        if (intent.claimDurationSeconds !in 1L..U32_MAX) {
+            throw ClaimIntentRejected("Claim duration is outside u32")
+        }
+        if (intent.instruction.refreshIdHex != intent.chainRefreshIdHex) {
+            throw ClaimIntentRejected("Claim refresh identity mismatch")
+        }
+
+        val chainRefreshId = claimHex32(intent.chainRefreshIdHex, "chain refresh id")
+        val program = claimPublicKey(intent.programId, "program")
+        val mint = claimPublicKey(intent.rewardMint, "reward mint")
+        val wallet = claimPublicKey(walletAddress, "wallet")
+
+        val expectedConfig = findProgramAddress(
+            seeds = listOf("config".encodeToByteArray()),
+            programId = program,
+        )
+        val expectedRefresh = findProgramAddress(
+            seeds = listOf("refresh".encodeToByteArray(), chainRefreshId),
+            programId = program,
+        )
+        val expectedRewardAccount = findProgramAddress(
+            seeds = listOf(
+                wallet.bytes,
+                SolanaPrograms.token.bytes,
+                mint.bytes,
+            ),
+            programId = SolanaPrograms.associatedToken,
+        )
+
+        claimRequireAddress("config", intent.accounts.config, expectedConfig.address)
+        claimRequireAddress("refresh", intent.accounts.refresh, expectedRefresh.address)
+        claimRequireAddress(
+            "claimant reward token",
+            intent.accounts.claimantRewardTokenAccount,
+            expectedRewardAccount.address,
         )
     }
 
@@ -286,6 +459,42 @@ class SolanaTransactionBuilder @Inject constructor(
         }
     }
 
+    private fun u32Le(value: Long, label: String): ByteArray {
+        if (value !in 0L..U32_MAX) {
+            throw ClaimIntentRejected("$label is outside u32")
+        }
+        return ByteBuffer.allocate(Int.SIZE_BYTES)
+            .order(ByteOrder.LITTLE_ENDIAN)
+            .putInt(value.toInt())
+            .array()
+    }
+
+    private fun claimHex32(value: String, label: String): ByteArray {
+        if (value.length != 64 || value.any { it.digitToIntOrNull(16) == null }) {
+            throw ClaimIntentRejected("$label must be 32-byte hex")
+        }
+        return ByteArray(32) { index ->
+            value.substring(index * 2, index * 2 + 2).toInt(16).toByte()
+        }
+    }
+
+    private fun claimPublicKey(value: String, label: String): SolanaPublicKey =
+        try {
+            SolanaPublicKey.parse(value)
+        } catch (error: IllegalArgumentException) {
+            throw ClaimIntentRejected("$label is not a valid Solana key")
+        }
+
+    private fun claimRequireAddress(
+        label: String,
+        actual: String,
+        expected: String,
+    ) {
+        if (actual != expected) {
+            throw ClaimIntentRejected("$label account mismatch")
+        }
+    }
+
     private fun i64Le(value: Long): ByteArray =
         ByteBuffer.allocate(Long.SIZE_BYTES)
             .order(ByteOrder.LITTLE_ENDIAN)
@@ -330,5 +539,6 @@ class SolanaTransactionBuilder @Inject constructor(
 
     private companion object {
         val U64_MAX: BigInteger = BigInteger.ONE.shiftLeft(64).subtract(BigInteger.ONE)
+        const val U32_MAX: Long = 4_294_967_295L
     }
 }

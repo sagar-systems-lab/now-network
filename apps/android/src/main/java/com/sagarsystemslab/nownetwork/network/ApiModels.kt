@@ -367,3 +367,102 @@ data class CreateRefreshRequest(
 data class FundingObserveRequest(
     val signature: String,
 )
+
+
+@Serializable
+data class ClaimPrepareRequest(
+    @SerialName("wallet_binding_id")
+    val walletBindingId: String,
+)
+
+@Serializable
+data class ClaimObserveRequest(
+    val signature: String,
+)
+
+@Serializable
+data class ClaimStatusDto(
+    @SerialName("acceptance_id")
+    val acceptanceId: String,
+    @SerialName("refresh_id")
+    val refreshId: String,
+    val status: String,
+    @SerialName("claim_slot")
+    val claimSlot: Int? = null,
+    @SerialName("claim_duration_seconds")
+    val claimDurationSeconds: Long? = null,
+    @SerialName("claim_deadline")
+    val claimDeadline: String? = null,
+    @SerialName("chain_signature")
+    val chainSignature: String? = null,
+    @SerialName("chain_status")
+    val chainStatus: String? = null,
+    @SerialName("refresh_status")
+    val refreshStatus: String,
+    @SerialName("refresh_expires_at")
+    val refreshExpiresAt: String,
+    @SerialName("evidence_deadline")
+    val evidenceDeadline: String,
+    val revision: Long,
+    @SerialName("next_step")
+    val nextStep: String? = null,
+)
+
+@Serializable
+data class ClaimIntentDto(
+    @SerialName("acceptance_id")
+    val acceptanceId: String,
+    @SerialName("refresh_id")
+    val refreshId: String,
+    val status: String,
+    @SerialName("claim_slot")
+    val claimSlot: Int? = null,
+    @SerialName("claim_duration_seconds")
+    val claimDurationSeconds: Long,
+    @SerialName("claim_deadline")
+    val claimDeadline: String? = null,
+    @SerialName("chain_signature")
+    val chainSignature: String? = null,
+    @SerialName("chain_status")
+    val chainStatus: String? = null,
+    @SerialName("refresh_status")
+    val refreshStatus: String,
+    @SerialName("refresh_expires_at")
+    val refreshExpiresAt: String,
+    @SerialName("evidence_deadline")
+    val evidenceDeadline: String,
+    val revision: Long,
+    @SerialName("next_step")
+    val nextStep: String? = null,
+    val cluster: String,
+    @SerialName("program_id")
+    val programId: String,
+    @SerialName("wallet_address")
+    val walletAddress: String,
+    @SerialName("reward_mint")
+    val rewardMint: String,
+    @SerialName("chain_refresh_id_hex")
+    val chainRefreshIdHex: String,
+    val accounts: ClaimAccountsDto,
+    val instruction: ClaimInstructionDto,
+)
+
+@Serializable
+data class ClaimAccountsDto(
+    val claimant: String,
+    val config: String,
+    val refresh: String,
+    @SerialName("reward_mint")
+    val rewardMint: String,
+    @SerialName("claimant_reward_token_account")
+    val claimantRewardTokenAccount: String,
+)
+
+@Serializable
+data class ClaimInstructionDto(
+    val name: String,
+    @SerialName("refresh_id_hex")
+    val refreshIdHex: String,
+    @SerialName("claim_duration_seconds")
+    val claimDurationSeconds: Long,
+)

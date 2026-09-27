@@ -1,7 +1,7 @@
 import bs58 from "npm:bs58@6.0.0";
 import type { RefreshPayoutRule } from "../../packages/contracts/src/refresh-intent.ts";
 
-export const NOW_SETTLEMENT_PROGRAM_ID = "7nqsPpBhpUwSahMrpuAPNMupx2vVEGqkU6XXcng7VaAm";
+export const NOW_SETTLEMENT_PROGRAM_ID = "sE74tJL2pCSWMHhEGvBM5hL2DYmFaUUQCDpC1QkHE3T";
 
 type FetchLike = typeof fetch;
 

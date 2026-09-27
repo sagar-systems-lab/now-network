@@ -236,6 +236,81 @@ class KtorNowApiClientTest {
     }
 
     @Test
+    fun contributorClaimMutationCarriesAuthAndIdempotency() = runBlocking {
+        val refreshId = "22222222-2222-4222-8222-222222222222"
+        val client = client(
+            engine = MockEngine { request ->
+                assertEquals(HttpMethod.Post, request.method)
+                assertEquals("/v1/opportunities/$refreshId/claim", request.url.encodedPath)
+                assertEquals("Bearer token-a", request.headers[HttpHeaders.Authorization])
+                assertEquals("claim-prepare:test-1234", request.headers["Idempotency-Key"])
+                assertTrue(
+                    request.body.contentType
+                        ?.toString()
+                        ?.startsWith("application/json") == true,
+                )
+
+                respond(
+                    content = """
+                        {
+                          "request_id":"11111111-1111-4111-8111-111111111111",
+                          "server_time":"2026-09-27T12:00:00Z",
+                          "data":{
+                            "acceptance_id":"33333333-3333-4333-8333-333333333333",
+                            "refresh_id":"$refreshId",
+                            "status":"WALLET_PENDING",
+                            "claim_slot":null,
+                            "claim_duration_seconds":300,
+                            "claim_deadline":null,
+                            "chain_signature":null,
+                            "chain_status":null,
+                            "refresh_status":"AVAILABLE",
+                            "refresh_expires_at":"2035-01-01T00:10:00Z",
+                            "evidence_deadline":"2035-01-01T00:08:00Z",
+                            "revision":1,
+                            "next_step":"SIGN_OR_OBSERVE_CLAIM",
+                            "cluster":"devnet",
+                            "program_id":"program-a",
+                            "wallet_address":"wallet-a",
+                            "reward_mint":"mint-a",
+                            "chain_refresh_id_hex":"04",
+                            "accounts":{
+                              "claimant":"wallet-a",
+                              "config":"config-a",
+                              "refresh":"refresh-a",
+                              "reward_mint":"mint-a",
+                              "claimant_reward_token_account":"reward-account-a"
+                            },
+                            "instruction":{
+                              "name":"claim_witness",
+                              "refresh_id_hex":"04",
+                              "claim_duration_seconds":300
+                            }
+                          },
+                          "meta":{}
+                        }
+                    """.trimIndent(),
+                    status = HttpStatusCode.Created,
+                    headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                )
+            },
+        )
+
+        val result = client.prepareClaim(
+            refreshId = refreshId,
+            request = ClaimPrepareRequest(
+                walletBindingId = "44444444-4444-4444-8444-444444444444",
+            ),
+            idempotencyKey = "claim-prepare:test-1234",
+            accessToken = "token-a",
+        )
+
+        assertEquals("WALLET_PENDING", result.status)
+        assertEquals(300L, result.claimDurationSeconds)
+        assertEquals("claim_witness", result.instruction.name)
+    }
+
+    @Test
     fun unauthorizedResponseMapsToAuthExpired() = runBlocking {
         val client = client(
             engine = MockEngine {

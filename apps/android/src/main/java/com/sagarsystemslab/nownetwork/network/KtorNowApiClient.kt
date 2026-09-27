@@ -70,6 +70,58 @@ class KtorNowApiClient @Inject constructor(
             query.cursor?.let { parameter("cursor", it) }
         }
 
+    override suspend fun opportunityDetail(
+        refreshId: String,
+        accessToken: String,
+    ): OpportunityDto =
+        get(
+            path = "/v1/opportunities/$refreshId",
+            accessToken = accessToken,
+            deserializer = OpportunityDto.serializer(),
+        )
+
+    override suspend fun prepareClaim(
+        refreshId: String,
+        request: ClaimPrepareRequest,
+        idempotencyKey: String,
+        accessToken: String,
+    ): ClaimIntentDto =
+        post(
+            path = "/v1/opportunities/$refreshId/claim",
+            accessToken = accessToken,
+            idempotencyKey = idempotencyKey,
+            requestBody = json.encodeToJsonElement(
+                ClaimPrepareRequest.serializer(),
+                request,
+            ),
+            deserializer = ClaimIntentDto.serializer(),
+        )
+
+    override suspend fun claimDetail(
+        acceptanceId: String,
+        accessToken: String,
+    ): ClaimStatusDto =
+        get(
+            path = "/v1/claims/$acceptanceId",
+            accessToken = accessToken,
+            deserializer = ClaimStatusDto.serializer(),
+        )
+
+    override suspend fun observeClaim(
+        acceptanceId: String,
+        request: ClaimObserveRequest,
+        accessToken: String,
+    ): ClaimStatusDto =
+        post(
+            path = "/v1/claims/$acceptanceId/observe",
+            accessToken = accessToken,
+            requestBody = json.encodeToJsonElement(
+                ClaimObserveRequest.serializer(),
+                request,
+            ),
+            deserializer = ClaimStatusDto.serializer(),
+        )
+
     override suspend fun me(accessToken: String): MeDto =
         get(
             path = "/v1/me",
