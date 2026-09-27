@@ -20,6 +20,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import com.sagarsystemslab.nownetwork.designsystem.NowColors
 import com.sagarsystemslab.nownetwork.designsystem.NowSpacing
@@ -140,7 +142,10 @@ private fun ActivityRow(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .testTag("activity-row-${item.operationId}"),
+            .testTag("activity-row-${item.operationId}")
+            .semantics {
+                stateDescription = activityStatus(item)
+            },
         shape = MaterialTheme.shapes.large,
         color = NowColors.SurfacePrimary,
         border = BorderStroke(1.dp, NowColors.BorderSubtle),

@@ -131,6 +131,32 @@ class NowDatabaseInstrumentedTest {
     }
 
     @Test
+    fun cachedStateSurvivesDatabaseReopen() {
+        runBlocking {
+            val name = "now-offline-cache-" + UUID.randomUUID() + ".db"
+            context.deleteDatabase(name)
+
+            val cached = state(
+                revision = 9,
+                payload = """{"spaces":2}""",
+            )
+
+            val first = Room.databaseBuilder(context, NowDatabase::class.java, name).build()
+            first.cachedStateDao().upsert(cached)
+            first.close()
+
+            val reopened = Room.databaseBuilder(context, NowDatabase::class.java, name).build()
+            val restored = requireNotNull(reopened.cachedStateDao().get("parking-a"))
+
+            assertEquals(9L, restored.revision)
+            assertEquals("""{"spaces":2}""", restored.payloadJson)
+
+            reopened.close()
+            context.deleteDatabase(name)
+        }
+    }
+
+    @Test
     fun activeOperationSurvivesDatabaseReopen() {
         runBlocking {
             val name = "now-recovery-" + UUID.randomUUID() + ".db"

@@ -10,6 +10,8 @@ import com.sagarsystemslab.nownetwork.network.ApiFailure
 import com.sagarsystemslab.nownetwork.network.NearbyStateQuery
 import com.sagarsystemslab.nownetwork.repository.ServerClock
 import com.sagarsystemslab.nownetwork.repository.StateRepository
+import com.sagarsystemslab.nownetwork.realtime.NowRealtimeGateway
+import com.sagarsystemslab.nownetwork.realtime.NowRealtimeSignal
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
@@ -49,6 +51,7 @@ class BrowseViewModel @Inject constructor(
     private val browseArea: BrowseAreaConfig,
     private val runtimeConfig: PublicRuntimeConfig,
     private val serverClock: ServerClock,
+    private val realtimeGateway: NowRealtimeGateway,
 ) : ViewModel() {
     private val mutableHomeState = MutableStateFlow(
         HomeUiState(
@@ -66,6 +69,9 @@ class BrowseViewModel @Inject constructor(
     val detailState: StateFlow<StateDetailUiState> = mutableDetailState.asStateFlow()
 
     private var activeSnapshotIds: Set<String>? = null
+    private var realtimeConnectedOnce = false
+    private var realtimeDisconnectedAfterConnect = false
+    private var foregroundCount = 0
 
     init {
         viewModelScope.launch {
@@ -90,7 +96,44 @@ class BrowseViewModel @Inject constructor(
             }
         }
 
+        viewModelScope.launch {
+            realtimeGateway.signals().collect { signal ->
+                when (signal) {
+                    NowRealtimeSignal.Connected -> {
+                        if (realtimeConnectedOnce && realtimeDisconnectedAfterConnect) {
+                            realtimeDisconnectedAfterConnect = false
+                            refreshHome()
+                        }
+                        realtimeConnectedOnce = true
+                    }
+
+                    NowRealtimeSignal.Disconnected -> {
+                        if (realtimeConnectedOnce) {
+                            realtimeDisconnectedAfterConnect = true
+                        }
+                    }
+
+                    NowRealtimeSignal.Unavailable -> Unit
+
+                    is NowRealtimeSignal.Event -> {
+                        handleRealtimeEvent(signal)
+                    }
+                }
+            }
+        }
+
         if (browseArea.configured && runtimeConfig.apiConfigured) {
+            refreshHome()
+        }
+    }
+
+    fun onForeground() {
+        foregroundCount += 1
+        if (
+            foregroundCount > 1 &&
+            browseArea.configured &&
+            runtimeConfig.apiConfigured
+        ) {
             refreshHome()
         }
     }
@@ -178,6 +221,57 @@ class BrowseViewModel @Inject constructor(
                         loading = false,
                         notice = error.toBrowseNotice(),
                     )
+                }
+            }
+        }
+    }
+
+    private suspend fun handleRealtimeEvent(signal: NowRealtimeSignal.Event) {
+        if (
+            signal.eventType != "STATE_UPDATED" ||
+            signal.entityType != "state"
+        ) {
+            return
+        }
+
+        val selectedId = mutableDetailState.value.stateId
+        val visibleIds = activeSnapshotIds
+        val relevant =
+            signal.entityId == selectedId ||
+                (visibleIds != null && signal.entityId in visibleIds)
+
+        if (!relevant) {
+            return
+        }
+
+        try {
+            val detail = repository.reconcileRealtimeState(
+                stateId = signal.entityId,
+                incomingRevision = signal.entityRevision,
+            )
+
+            if (detail != null && signal.entityId == selectedId) {
+                mutableDetailState.update {
+                    it.copy(
+                        detail = detail,
+                        loading = false,
+                        notice = BrowseNotice.NONE,
+                    )
+                }
+            }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            if (signal.entityId == selectedId) {
+                mutableDetailState.update {
+                    it.copy(
+                        loading = false,
+                        notice = error.toBrowseNotice(),
+                    )
+                }
+            } else {
+                mutableHomeState.update {
+                    it.copy(notice = error.toBrowseNotice())
                 }
             }
         }

@@ -27,6 +27,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import com.sagarsystemslab.nownetwork.designsystem.NowColors
 import com.sagarsystemslab.nownetwork.designsystem.NowSpacing
@@ -109,7 +113,11 @@ fun EarnScreen(
         if (uiState.refreshing && visibleOpportunities.isNotEmpty()) {
             item {
                 LinearProgressIndicator(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .semantics {
+                            contentDescription = "Refreshing earning opportunities"
+                        },
                     color = NowColors.Blue600,
                     trackColor = NowColors.Blue100,
                 )
@@ -208,8 +216,12 @@ private fun OpportunityCard(
                     style = NowType.LabelM,
                     color = NowColors.Ink600,
                 )
+                val timeText = formatOpportunityTime(opportunity.expiresAtMillis, nowMillis)
                 Text(
-                    text = formatOpportunityTime(opportunity.expiresAtMillis, nowMillis),
+                    modifier = Modifier.semantics {
+                        contentDescription = "Opportunity time: $timeText"
+                    },
+                    text = timeText,
                     style = NowType.LabelM,
                     color = if (opportunity.expiresAtMillis <= nowMillis) {
                         NowColors.ConflictText
@@ -244,6 +256,10 @@ private fun AvailabilityChip(claimable: Boolean) {
     val foreground = if (claimable) NowColors.LiveText else NowColors.StaleText
 
     Surface(
+        modifier = Modifier.semantics {
+            stateDescription = text
+            contentDescription = "Availability $text"
+        },
         shape = MaterialTheme.shapes.extraLarge,
         color = background,
         border = BorderStroke(1.dp, border),
@@ -325,7 +341,10 @@ private fun OpportunityLoadingCard() {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .height(172.dp),
+            .height(172.dp)
+            .clearAndSetSemantics {
+                contentDescription = "Loading earning opportunity"
+            },
         shape = MaterialTheme.shapes.large,
         color = NowColors.SurfacePrimary,
         border = BorderStroke(1.dp, NowColors.BorderSubtle),
