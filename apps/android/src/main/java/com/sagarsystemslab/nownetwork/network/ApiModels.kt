@@ -212,3 +212,158 @@ data class OpportunityAvailabilityDto(
     @SerialName("remaining_slots")
     val remainingSlots: Int,
 )
+
+
+@Serializable
+data class WalletBindingChallengeDto(
+    @SerialName("challenge_id")
+    val challengeId: String,
+    @SerialName("wallet_address")
+    val walletAddress: String,
+    val cluster: String,
+    val purpose: String,
+    val domain: String,
+    val message: String,
+    @SerialName("issued_at")
+    val issuedAt: String,
+    @SerialName("expires_at")
+    val expiresAt: String,
+)
+
+@Serializable
+data class WalletBindingVerifyDto(
+    @SerialName("actor_id")
+    val actorId: String,
+    val recovered: Boolean,
+    @SerialName("wallet_binding")
+    val walletBinding: WalletBindingDto,
+)
+
+@Serializable
+data class RefreshDto(
+    @SerialName("refresh_id")
+    val refreshId: String,
+    @SerialName("state_id")
+    val stateId: String,
+    @SerialName("state_version")
+    val stateVersion: Int,
+    val status: String,
+    @SerialName("verification_class")
+    val verificationClass: String,
+    @SerialName("required_witnesses")
+    val requiredWitnesses: Int,
+    @SerialName("max_witnesses")
+    val maxWitnesses: Int,
+    @SerialName("payout_rule")
+    val payoutRule: String,
+    @SerialName("proof_policy")
+    val proofPolicy: JsonElement,
+    @SerialName("proof_policy_digest")
+    val proofPolicyDigest: String,
+    @SerialName("intent_core_hash")
+    val intentCoreHash: String,
+    @SerialName("refresh_expires_at")
+    val refreshExpiresAt: String,
+    @SerialName("evidence_deadline")
+    val evidenceDeadline: String,
+    @SerialName("reward_mint")
+    val rewardMint: String,
+    @SerialName("funding_target_atomic")
+    val fundingTargetAtomic: String,
+    @SerialName("funding_operation_id")
+    val fundingOperationId: String? = null,
+    @SerialName("chain_total_funded_atomic")
+    val chainTotalFundedAtomic: String,
+    @SerialName("chain_refresh_address")
+    val chainRefreshAddress: String? = null,
+    @SerialName("chain_status")
+    val chainStatus: String? = null,
+    @SerialName("chain_observed_at")
+    val chainObservedAt: String? = null,
+    val revision: Long,
+    @SerialName("next_step")
+    val nextStep: String? = null,
+)
+
+@Serializable
+data class FundingIntentDto(
+    @SerialName("operation_id")
+    val operationId: String,
+    @SerialName("refresh_id")
+    val refreshId: String,
+    val status: String,
+    val cluster: String,
+    @SerialName("program_id")
+    val programId: String,
+    @SerialName("reward_mint")
+    val rewardMint: String,
+    @SerialName("amount_atomic")
+    val amountAtomic: String,
+    @SerialName("intent_core_hash")
+    val intentCoreHash: String,
+    @SerialName("chain_refresh_id_hex")
+    val chainRefreshIdHex: String,
+    @SerialName("state_id_digest_hex")
+    val stateIdDigestHex: String,
+    @SerialName("refresh_expires_at")
+    val refreshExpiresAtUnix: Long,
+    @SerialName("verification_class")
+    val verificationClass: String,
+    @SerialName("required_witnesses")
+    val requiredWitnesses: Int,
+    @SerialName("max_witnesses")
+    val maxWitnesses: Int,
+    @SerialName("payout_rule")
+    val payoutRule: String,
+    @SerialName("creator_wallet")
+    val creatorWallet: String,
+    val accounts: FundingAccountsDto,
+    @SerialName("instruction_plan")
+    val instructionPlan: List<String>,
+)
+
+@Serializable
+data class FundingAccountsDto(
+    val config: String,
+    val refresh: String,
+    val contribution: String,
+    @SerialName("source_token_account")
+    val sourceTokenAccount: String,
+    @SerialName("vault_token_account")
+    val vaultTokenAccount: String,
+    @SerialName("token_program")
+    val tokenProgram: String,
+    @SerialName("associated_token_program")
+    val associatedTokenProgram: String,
+    @SerialName("system_program")
+    val systemProgram: String,
+)
+
+@Serializable
+data class WalletBindingChallengeRequest(
+    @SerialName("wallet_address")
+    val walletAddress: String,
+    val cluster: String,
+)
+
+@Serializable
+data class WalletBindingVerifyRequest(
+    @SerialName("challenge_id")
+    val challengeId: String,
+    val signature: String,
+)
+
+@Serializable
+data class CreateRefreshRequest(
+    @SerialName("state_id")
+    val stateId: String,
+    @SerialName("wallet_binding_id")
+    val walletBindingId: String,
+    @SerialName("funding_target_atomic")
+    val fundingTargetAtomic: String,
+)
+
+@Serializable
+data class FundingObserveRequest(
+    val signature: String,
+)

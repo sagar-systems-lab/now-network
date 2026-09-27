@@ -13,8 +13,11 @@ import com.sagarsystemslab.nownetwork.feature.activity.ActivityViewModel
 import com.sagarsystemslab.nownetwork.feature.earn.EarnScreen
 import com.sagarsystemslab.nownetwork.feature.earn.EarnViewModel
 import com.sagarsystemslab.nownetwork.feature.home.NowScreen
+import com.sagarsystemslab.nownetwork.feature.requester.RequesterFundingScreen
+import com.sagarsystemslab.nownetwork.feature.requester.RequesterFundingViewModel
 import com.sagarsystemslab.nownetwork.feature.state.BrowseViewModel
 import com.sagarsystemslab.nownetwork.feature.state.StateDetailScreen
+import com.sagarsystemslab.nownetwork.wallet.WalletInteractionHost
 
 @Composable
 fun NowNavHost(
@@ -22,6 +25,8 @@ fun NowNavHost(
     browseViewModel: BrowseViewModel,
     earnViewModel: EarnViewModel,
     activityViewModel: ActivityViewModel,
+    requesterFundingViewModel: RequesterFundingViewModel,
+    walletInteractionHost: WalletInteractionHost,
     modifier: Modifier = Modifier,
 ) {
     NavHost(
@@ -53,6 +58,29 @@ fun NowNavHost(
                 serverNowMillis = browseViewModel::serverNowMillis,
                 onBack = appState::navigateBack,
                 onRetry = browseViewModel::retryState,
+                onRefreshRequest = appState::navigateToRequesterFunding,
+            )
+        }
+
+        composable<RequesterFundingRoute> { backStackEntry ->
+            val route = backStackEntry.toRoute<RequesterFundingRoute>()
+            val uiState by requesterFundingViewModel.state.collectAsStateWithLifecycle()
+
+            LaunchedEffect(route.stateId) {
+                requesterFundingViewModel.open(route.stateId)
+            }
+
+            RequesterFundingScreen(
+                uiState = uiState,
+                onBack = appState::navigateBack,
+                onAmountChange = requesterFundingViewModel::updateAmount,
+                onPrepare = {
+                    requesterFundingViewModel.prepare(walletInteractionHost)
+                },
+                onSubmit = {
+                    requesterFundingViewModel.submit(walletInteractionHost)
+                },
+                onCheck = requesterFundingViewModel::checkConfirmation,
             )
         }
 

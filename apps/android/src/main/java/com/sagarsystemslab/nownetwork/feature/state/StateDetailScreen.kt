@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -38,6 +40,7 @@ fun StateDetailScreen(
     serverNowMillis: () -> Long,
     onBack: () -> Unit,
     onRetry: () -> Unit,
+    onRefreshRequest: (String) -> Unit,
 ) {
     val nowMillis = rememberVisibleServerTime(serverNowMillis)
 
@@ -124,10 +127,40 @@ fun StateDetailScreen(
                                     style = NowType.BodyM,
                                     color = NowColors.Ink700,
                                 )
+
+                                if (refresh.status == "DRAFT" || refresh.status == "AWAITING_FUNDING") {
+                                    TextButton(
+                                        onClick = { onRefreshRequest(detail.stateId) },
+                                    ) {
+                                        Text("Continue funding")
+                                    }
+                                }
                             }
                         }
                     }
                 }
+
+                if (
+                    detail.activeRefresh == null &&
+                    detail.freshnessAt(nowMillis) != FreshnessKind.LIVE &&
+                    detail.freshnessAt(nowMillis) != FreshnessKind.CONFLICT
+                ) {
+                    item {
+                        Button(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("refresh-state"),
+                            onClick = { onRefreshRequest(detail.stateId) },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = NowColors.Blue600,
+                                contentColor = NowColors.SurfacePrimary,
+                            ),
+                        ) {
+                            Text("Refresh this state")
+                        }
+                    }
+                }
+
                 item {
                     TechnicalDetails(detail)
                 }

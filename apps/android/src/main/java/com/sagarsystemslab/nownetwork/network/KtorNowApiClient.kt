@@ -8,8 +8,12 @@ import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
+import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
 import io.ktor.http.isSuccess
 import java.io.IOException
 import java.net.SocketTimeoutException
@@ -72,6 +76,126 @@ class KtorNowApiClient @Inject constructor(
             accessToken = accessToken,
             deserializer = MeDto.serializer(),
         )
+
+
+    override suspend fun walletBindingChallenge(
+        request: WalletBindingChallengeRequest,
+        accessToken: String,
+    ): WalletBindingChallengeDto =
+        post(
+            path = "/v1/wallet-bindings/challenge",
+            accessToken = accessToken,
+            requestBody = json.encodeToJsonElement(
+                WalletBindingChallengeRequest.serializer(),
+                request,
+            ),
+            deserializer = WalletBindingChallengeDto.serializer(),
+        )
+
+    override suspend fun verifyWalletBinding(
+        request: WalletBindingVerifyRequest,
+        accessToken: String,
+    ): WalletBindingVerifyDto =
+        post(
+            path = "/v1/wallet-bindings/verify",
+            accessToken = accessToken,
+            requestBody = json.encodeToJsonElement(
+                WalletBindingVerifyRequest.serializer(),
+                request,
+            ),
+            deserializer = WalletBindingVerifyDto.serializer(),
+        )
+
+    override suspend fun createRefresh(
+        request: CreateRefreshRequest,
+        idempotencyKey: String,
+        accessToken: String,
+    ): RefreshDto =
+        post(
+            path = "/v1/refreshes",
+            accessToken = accessToken,
+            idempotencyKey = idempotencyKey,
+            requestBody = json.encodeToJsonElement(
+                CreateRefreshRequest.serializer(),
+                request,
+            ),
+            deserializer = RefreshDto.serializer(),
+        )
+
+    override suspend fun refreshDetail(
+        refreshId: String,
+        accessToken: String,
+    ): RefreshDto =
+        get(
+            path = "/v1/refreshes/$refreshId",
+            accessToken = accessToken,
+            deserializer = RefreshDto.serializer(),
+        )
+
+    override suspend fun fundingIntent(
+        refreshId: String,
+        idempotencyKey: String,
+        accessToken: String,
+    ): FundingIntentDto =
+        post(
+            path = "/v1/refreshes/$refreshId/funding-intent",
+            accessToken = accessToken,
+            idempotencyKey = idempotencyKey,
+            requestBody = kotlinx.serialization.json.buildJsonObject {},
+            deserializer = FundingIntentDto.serializer(),
+        )
+
+    override suspend fun observeFunding(
+        refreshId: String,
+        request: FundingObserveRequest,
+        idempotencyKey: String,
+        accessToken: String,
+    ): RefreshDto =
+        post(
+            path = "/v1/refreshes/$refreshId/funding-observe",
+            accessToken = accessToken,
+            idempotencyKey = idempotencyKey,
+            requestBody = json.encodeToJsonElement(
+                FundingObserveRequest.serializer(),
+                request,
+            ),
+            deserializer = RefreshDto.serializer(),
+        )
+
+
+
+    private suspend fun <T> post(
+        path: String,
+        accessToken: String,
+        requestBody: kotlinx.serialization.json.JsonElement,
+        deserializer: DeserializationStrategy<T>,
+        idempotencyKey: String? = null,
+    ): T {
+        val baseUrl = config.apiBaseUrl.trim().trimEnd('/')
+        if (baseUrl.isEmpty()) {
+            throw ApiFailure.Configuration("NOW API base URL is not configured")
+        }
+
+        val response = try {
+            client.post("$baseUrl$path") {
+                header("x-request-id", UUID.randomUUID().toString())
+                bearerAuth(accessToken)
+                header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                idempotencyKey?.let { header("Idempotency-Key", it) }
+                setBody(requestBody)
+            }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: HttpRequestTimeoutException) {
+            throw ApiFailure.Timeout(error)
+        } catch (error: SocketTimeoutException) {
+            throw ApiFailure.Timeout(error)
+        } catch (error: IOException) {
+            throw ApiFailure.NetworkUnavailable(error)
+        }
+
+        return decodeResponse(response, deserializer)
+    }
 
     private suspend fun <T> get(
         path: String,

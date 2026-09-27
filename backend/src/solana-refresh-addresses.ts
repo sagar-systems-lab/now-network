@@ -142,6 +142,7 @@ export type RefreshChainAddresses = {
   configAddress: string;
   refreshAddress: string;
   contributionAddress: string;
+  sourceTokenAccount: string;
   vaultTokenAccount: string;
 };
 
@@ -176,6 +177,10 @@ export async function deriveRefreshChainAddresses(input: {
     [textEncoder.encode("contribution"), refresh, creator],
     program,
   );
+  const sourceTokenAccount = await findProgramAddress(
+    [creator, tokenProgram, rewardMint],
+    associatedTokenProgram,
+  );
   const vault = await findProgramAddress(
     [refresh, tokenProgram, rewardMint],
     associatedTokenProgram,
@@ -185,6 +190,7 @@ export async function deriveRefreshChainAddresses(input: {
     configAddress: bs58.encode(config),
     refreshAddress: bs58.encode(refresh),
     contributionAddress: bs58.encode(contribution),
+    sourceTokenAccount: bs58.encode(sourceTokenAccount),
     vaultTokenAccount: bs58.encode(vault),
   };
 }

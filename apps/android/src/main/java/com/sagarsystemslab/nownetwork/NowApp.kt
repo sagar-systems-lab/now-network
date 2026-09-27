@@ -19,17 +19,21 @@ import androidx.compose.ui.platform.testTag
 import com.sagarsystemslab.nownetwork.designsystem.NowColors
 import com.sagarsystemslab.nownetwork.feature.activity.ActivityViewModel
 import com.sagarsystemslab.nownetwork.feature.earn.EarnViewModel
+import com.sagarsystemslab.nownetwork.feature.requester.RequesterFundingViewModel
 import com.sagarsystemslab.nownetwork.feature.state.BrowseViewModel
 import com.sagarsystemslab.nownetwork.navigation.NowNavHost
 import com.sagarsystemslab.nownetwork.navigation.TopLevelDestination
 import com.sagarsystemslab.nownetwork.navigation.isTopLevel
 import com.sagarsystemslab.nownetwork.navigation.rememberNowAppState
+import com.sagarsystemslab.nownetwork.wallet.WalletInteractionHost
 
 @Composable
 fun NowApp(
     browseViewModel: BrowseViewModel,
     earnViewModel: EarnViewModel,
     activityViewModel: ActivityViewModel,
+    requesterFundingViewModel: RequesterFundingViewModel,
+    walletInteractionHost: WalletInteractionHost,
 ) {
     val appState = rememberNowAppState()
     val currentDestination = appState.currentDestination
@@ -83,6 +87,8 @@ fun NowApp(
             browseViewModel = browseViewModel,
             earnViewModel = earnViewModel,
             activityViewModel = activityViewModel,
+            requesterFundingViewModel = requesterFundingViewModel,
+            walletInteractionHost = walletInteractionHost,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
