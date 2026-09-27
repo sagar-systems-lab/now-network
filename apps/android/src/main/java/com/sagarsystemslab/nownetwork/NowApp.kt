@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import com.sagarsystemslab.nownetwork.designsystem.NowColors
 import com.sagarsystemslab.nownetwork.feature.activity.ActivityViewModel
+import com.sagarsystemslab.nownetwork.feature.earn.ContributorClaimViewModel
 import com.sagarsystemslab.nownetwork.feature.earn.EarnViewModel
 import com.sagarsystemslab.nownetwork.feature.requester.RequesterFundingViewModel
 import com.sagarsystemslab.nownetwork.feature.state.BrowseViewModel
@@ -31,6 +32,7 @@ import com.sagarsystemslab.nownetwork.wallet.WalletInteractionHost
 fun NowApp(
     browseViewModel: BrowseViewModel,
     earnViewModel: EarnViewModel,
+    contributorClaimViewModel: ContributorClaimViewModel,
     activityViewModel: ActivityViewModel,
     requesterFundingViewModel: RequesterFundingViewModel,
     walletInteractionHost: WalletInteractionHost,
@@ -86,6 +88,7 @@ fun NowApp(
             appState = appState,
             browseViewModel = browseViewModel,
             earnViewModel = earnViewModel,
+            contributorClaimViewModel = contributorClaimViewModel,
             activityViewModel = activityViewModel,
             requesterFundingViewModel = requesterFundingViewModel,
             walletInteractionHost = walletInteractionHost,

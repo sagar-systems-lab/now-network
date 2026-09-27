@@ -277,6 +277,34 @@ private class FundingApi : NowApiClient {
         idempotencyKey: String,
         accessToken: String,
     ): FundingIntentDto = error("not used")
+
+    override suspend fun opportunityDetail(
+        refreshId: String,
+        accessToken: String,
+    ): com.sagarsystemslab.nownetwork.network.OpportunityDto =
+        error("not used")
+
+    override suspend fun prepareClaim(
+        refreshId: String,
+        request: com.sagarsystemslab.nownetwork.network.ClaimPrepareRequest,
+        idempotencyKey: String,
+        accessToken: String,
+    ): com.sagarsystemslab.nownetwork.network.ClaimIntentDto =
+        error("not used")
+
+    override suspend fun claimDetail(
+        acceptanceId: String,
+        accessToken: String,
+    ): com.sagarsystemslab.nownetwork.network.ClaimStatusDto =
+        error("not used")
+
+    override suspend fun observeClaim(
+        acceptanceId: String,
+        request: com.sagarsystemslab.nownetwork.network.ClaimObserveRequest,
+        accessToken: String,
+    ): com.sagarsystemslab.nownetwork.network.ClaimStatusDto =
+        error("not used")
+
 }
 
 private class FundingOperationDao : ActiveOperationDao {

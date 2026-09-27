@@ -44,6 +44,7 @@ fun EarnScreen(
     rewardText: (OpportunitySummary) -> String,
     serverNowMillis: () -> Long,
     onRefresh: () -> Unit,
+    onOpportunityClick: (String) -> Unit,
 ) {
     val nowMillis = rememberVisibleServerTime(serverNowMillis)
     val visibleOpportunities = uiState.opportunities.filter {
@@ -147,6 +148,7 @@ fun EarnScreen(
                     opportunity = opportunity,
                     reward = rewardText(opportunity),
                     nowMillis = nowMillis,
+                    onClaim = { onOpportunityClick(opportunity.refreshId) },
                 )
             }
         }
@@ -158,6 +160,7 @@ private fun OpportunityCard(
     opportunity: OpportunitySummary,
     reward: String,
     nowMillis: Long,
+    onClaim: () -> Unit,
 ) {
     Card(
         modifier = Modifier
@@ -243,6 +246,15 @@ private fun OpportunityCard(
                     style = NowType.BodyS,
                     color = NowColors.StaleText,
                 )
+            }
+
+            if (opportunity.claimable && !opportunity.cachedOnly) {
+                TextButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onClaim,
+                ) {
+                    Text("Claim")
+                }
             }
         }
     }

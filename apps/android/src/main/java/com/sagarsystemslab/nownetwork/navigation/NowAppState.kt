@@ -57,6 +57,10 @@ class NowAppState(
         navController.navigate(RequesterFundingRoute(stateId = stateId))
     }
 
+    fun navigateToOpportunity(refreshId: String) {
+        navController.navigate(OpportunityRoute(refreshId = refreshId))
+    }
+
     fun navigateBack() {
         navController.popBackStack()
     }

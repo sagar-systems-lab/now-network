@@ -61,7 +61,7 @@ android {
             buildConfigString(
                 publicConfig(
                     "NOW_SOLANA_PROGRAM_ID",
-                    "7nqsPpBhpUwSahMrpuAPNMupx2vVEGqkU6XXcng7VaAm",
+                    "sE74tJL2pCSWMHhEGvBM5hL2DYmFaUUQCDpC1QkHE3T",
                 ),
             ),
         )

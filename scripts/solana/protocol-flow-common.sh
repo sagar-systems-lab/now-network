@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-readonly PROGRAM_ID="7nqsPpBhpUwSahMrpuAPNMupx2vVEGqkU6XXcng7VaAm"
+readonly PROGRAM_ID="sE74tJL2pCSWMHhEGvBM5hL2DYmFaUUQCDpC1QkHE3T"
 readonly TOKEN_PROGRAM_ID="TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
 readonly ASSOCIATED_TOKEN_PROGRAM_ID="ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
 
@@ -77,7 +77,7 @@ import sys
 ) = sys.argv[1:]
 
 data = {
-    "programId": "7nqsPpBhpUwSahMrpuAPNMupx2vVEGqkU6XXcng7VaAm",
+    "programId": "sE74tJL2pCSWMHhEGvBM5hL2DYmFaUUQCDpC1QkHE3T",
     "payer": payer,
     "claimant": claimant,
     "rewardMint": mint,

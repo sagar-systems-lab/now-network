@@ -1,8 +1,10 @@
 package com.sagarsystemslab.nownetwork.di
 
 import com.sagarsystemslab.nownetwork.repository.DefaultActivityRepository
+import com.sagarsystemslab.nownetwork.repository.DefaultContributorClaimRepository
 import com.sagarsystemslab.nownetwork.repository.DefaultOpportunityRepository
 import com.sagarsystemslab.nownetwork.repository.DefaultStateRepository
+import com.sagarsystemslab.nownetwork.repository.ContributorClaimRepository
 import com.sagarsystemslab.nownetwork.repository.DefaultRequesterFundingRepository
 import com.sagarsystemslab.nownetwork.repository.StateCache
 import com.sagarsystemslab.nownetwork.repository.StateRepository
@@ -25,6 +27,12 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class RepositoryModule {
+    @Binds
+    @Singleton
+    abstract fun bindContributorClaimRepository(
+        implementation: DefaultContributorClaimRepository,
+    ): ContributorClaimRepository
+
     @Binds
     @Singleton
     abstract fun bindRequesterFundingRepository(
