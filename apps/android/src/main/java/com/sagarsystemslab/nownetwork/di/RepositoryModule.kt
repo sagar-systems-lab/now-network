@@ -8,6 +8,8 @@ import com.sagarsystemslab.nownetwork.repository.StateRepository
 import com.sagarsystemslab.nownetwork.repository.ActivityRepository
 import com.sagarsystemslab.nownetwork.repository.OpportunityRepository
 import com.sagarsystemslab.nownetwork.repository.RoomStateCache
+import com.sagarsystemslab.nownetwork.realtime.NowRealtimeGateway
+import com.sagarsystemslab.nownetwork.realtime.SupabaseNowRealtimeGateway
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -17,6 +19,12 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class RepositoryModule {
+    @Binds
+    @Singleton
+    abstract fun bindRealtimeGateway(
+        implementation: SupabaseNowRealtimeGateway,
+    ): NowRealtimeGateway
+
     @Binds
     @Singleton
     abstract fun bindOpportunityRepository(

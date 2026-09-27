@@ -21,6 +21,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.sagarsystemslab.nownetwork.designsystem.NowColors
 import com.sagarsystemslab.nownetwork.designsystem.NowSpacing
@@ -125,7 +128,11 @@ fun NowScreen(
         if (uiState.refreshing && uiState.states.isNotEmpty()) {
             item {
                 LinearProgressIndicator(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .semantics {
+                            contentDescription = "Refreshing nearby states"
+                        },
                     color = NowColors.Blue600,
                     trackColor = NowColors.Blue100,
                 )
@@ -163,7 +170,10 @@ private fun StateLoadingCard() {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .height(148.dp),
+            .height(148.dp)
+            .clearAndSetSemantics {
+                contentDescription = "Loading nearby state"
+            },
         shape = MaterialTheme.shapes.large,
         color = NowColors.SurfacePrimary,
         border = androidx.compose.foundation.BorderStroke(1.dp, NowColors.BorderSubtle),

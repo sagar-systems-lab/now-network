@@ -4,6 +4,7 @@ import android.content.Context
 import com.sagarsystemslab.nownetwork.BuildConfig
 import com.sagarsystemslab.nownetwork.auth.AuthGateway
 import com.sagarsystemslab.nownetwork.auth.SupabaseAuthGateway
+import com.sagarsystemslab.nownetwork.auth.SupabaseRuntimeClient
 import com.sagarsystemslab.nownetwork.auth.UnavailableAuthGateway
 import com.sagarsystemslab.nownetwork.config.BrowseAreaConfig
 import com.sagarsystemslab.nownetwork.config.PublicRuntimeConfig
@@ -20,9 +21,6 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
-import io.github.jan.supabase.SupabaseClient
-import io.github.jan.supabase.auth.Auth
-import io.github.jan.supabase.createSupabaseClient
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.HttpTimeout
@@ -149,22 +147,6 @@ object RuntimeModule {
 
     @Provides
     @Singleton
-    fun provideAuthGateway(config: PublicRuntimeConfig): AuthGateway {
-        if (!config.authConfigured) {
-            return UnavailableAuthGateway()
-        }
-
-        val client: SupabaseClient = createSupabaseClient(
-            supabaseUrl = config.supabaseUrl,
-            supabaseKey = config.supabasePublishableKey,
-        ) {
-            install(Auth) {
-                alwaysAutoRefresh = true
-                autoLoadFromStorage = true
-                autoSaveToStorage = true
-            }
-        }
-
-        return SupabaseAuthGateway(client)
-    }
+    fun provideAuthGateway(runtimeClient: SupabaseRuntimeClient): AuthGateway =
+        runtimeClient.client?.let(::SupabaseAuthGateway) ?: UnavailableAuthGateway()
 }

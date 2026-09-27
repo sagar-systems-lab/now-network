@@ -57,6 +57,47 @@ class StateRepositoryTest {
         assertEquals("Parking Lot B", observed.title)
         assertEquals(84.5, observed.distanceMeters)
     }
+
+    @Test
+    fun cachedStateRemainsReadableWithoutNetwork() = runBlocking {
+        val cache = FakeStateCache()
+        val online = DefaultStateRepository(
+            api = FakeStateApi(),
+            stateCache = cache,
+            json = json,
+            serverClock = ServerClock(),
+        )
+
+        online.refreshNearby(
+            NearbyStateQuery(
+                latitude = 12.5,
+                longitude = 77.25,
+                radiusMeters = 3_000,
+            ),
+        )
+
+        val offline = DefaultStateRepository(
+            api = FailingStateApi(),
+            stateCache = cache,
+            json = json,
+            serverClock = ServerClock(),
+        )
+
+        val cached = offline.observeCachedStates().first().single()
+
+        assertEquals("Parking Lot B", cached.title)
+        assertEquals(7L, cached.revision)
+    }
+
+    @Test
+    fun realtimeRevisionPolicyIgnoresReplayButSnapshotsForwardProgress() {
+        assertEquals(false, requiresRealtimeSnapshot(7L, 6L))
+        assertEquals(false, requiresRealtimeSnapshot(7L, 7L))
+        assertEquals(true, requiresRealtimeSnapshot(7L, 8L))
+        assertEquals(true, requiresRealtimeSnapshot(7L, 10L))
+        assertEquals(true, requiresRealtimeSnapshot(null, 1L))
+        assertEquals(true, requiresRealtimeSnapshot(7L, null))
+    }
 }
 
 private class FakeStateApi : NowApiClient {
@@ -133,4 +174,22 @@ private class FakeStateCache : StateCache {
         rows.value = rows.value.filterNot { it.stateId == snapshot.stateId } + snapshot
         return CacheApplyResult.INSERTED
     }
+}
+
+
+private class FailingStateApi : NowApiClient {
+    override suspend fun nearbyStates(query: NearbyStateQuery): NearbyStatesDto =
+        error("network must not be used for cached read")
+
+    override suspend fun stateDetail(stateId: String): StateDetailDto =
+        error("network must not be used for cached read")
+
+    override suspend fun nearbyOpportunities(
+        query: NearbyOpportunityQuery,
+        accessToken: String,
+    ): NearbyOpportunitiesDto =
+        error("network must not be used for cached read")
+
+    override suspend fun me(accessToken: String): MeDto =
+        error("network must not be used for cached read")
 }

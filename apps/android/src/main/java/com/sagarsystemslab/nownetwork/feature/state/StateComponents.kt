@@ -19,6 +19,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import com.sagarsystemslab.nownetwork.designsystem.NowColors
 import com.sagarsystemslab.nownetwork.designsystem.NowSpacing
@@ -33,7 +36,10 @@ fun FreshnessChip(
     val palette = freshnessPalette(freshness)
 
     Surface(
-        modifier = modifier,
+        modifier = modifier.semantics {
+            contentDescription = "Freshness ${freshness.name}"
+            stateDescription = freshness.name
+        },
         shape = MaterialTheme.shapes.extraLarge,
         color = palette.background,
         border = BorderStroke(1.dp, palette.border),

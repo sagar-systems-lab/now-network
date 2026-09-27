@@ -1,6 +1,8 @@
 package com.sagarsystemslab.nownetwork.repository
 
 import com.sagarsystemslab.nownetwork.data.local.CachedStateEntity
+import com.sagarsystemslab.nownetwork.data.local.RevisionDecision
+import com.sagarsystemslab.nownetwork.data.local.decideRevision
 import com.sagarsystemslab.nownetwork.model.ActiveRefresh
 import com.sagarsystemslab.nownetwork.model.NearbyStatePage
 import com.sagarsystemslab.nownetwork.model.StateDetail
@@ -26,6 +28,11 @@ interface StateRepository {
     suspend fun refreshNearby(query: NearbyStateQuery): NearbyStatePage
 
     suspend fun getState(stateId: String): StateDetail
+
+    suspend fun reconcileRealtimeState(
+        stateId: String,
+        incomingRevision: Long?,
+    ): StateDetail?
 }
 
 @Singleton
@@ -74,6 +81,18 @@ class DefaultStateRepository @Inject constructor(
             ?.let { stateCache.applySnapshot(it) }
 
         return detail
+    }
+
+    override suspend fun reconcileRealtimeState(
+        stateId: String,
+        incomingRevision: Long?,
+    ): StateDetail? {
+        val currentRevision = stateCache.get(stateId)?.revision
+        if (!requiresRealtimeSnapshot(currentRevision, incomingRevision)) {
+            return null
+        }
+
+        return getState(stateId)
     }
 
     private fun StateSummary.toCacheEntity(cachedAtMillis: Long): CachedStateEntity? {
@@ -183,3 +202,20 @@ private fun String.toEpochMillis(field: String): Long =
     } catch (error: Exception) {
         throw ApiFailure.ProtocolError("NOW API returned invalid $field", error)
     }
+
+
+fun requiresRealtimeSnapshot(
+    currentRevision: Long?,
+    incomingRevision: Long?,
+): Boolean {
+    if (incomingRevision == null) return true
+
+    return when (decideRevision(currentRevision, incomingRevision)) {
+        RevisionDecision.IGNORE_STALE,
+        RevisionDecision.IGNORE_DUPLICATE -> false
+
+        RevisionDecision.INSERT,
+        RevisionDecision.APPLY_NEXT,
+        RevisionDecision.REQUIRE_SNAPSHOT -> true
+    }
+}

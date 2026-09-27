@@ -172,4 +172,10 @@ private class EmptyStateRepository : StateRepository {
 
     override suspend fun getState(stateId: String): StateDetail =
         error("not used")
+
+    override suspend fun reconcileRealtimeState(
+        stateId: String,
+        incomingRevision: Long?,
+    ): StateDetail? =
+        error("not used")
 }
