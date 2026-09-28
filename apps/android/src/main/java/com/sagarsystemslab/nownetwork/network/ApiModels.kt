@@ -466,3 +466,134 @@ data class ClaimInstructionDto(
     @SerialName("claim_duration_seconds")
     val claimDurationSeconds: Long,
 )
+
+
+@Serializable
+data class EvidenceChallengeDto(
+    @SerialName("challenge_id")
+    val challengeId: String,
+    @SerialName("refresh_id")
+    val refreshId: String,
+    @SerialName("acceptance_id")
+    val acceptanceId: String,
+    val nonce: String,
+    @SerialName("issued_at")
+    val issuedAt: String,
+    @SerialName("expires_at")
+    val expiresAt: String,
+    @SerialName("policy_version")
+    val policyVersion: Int,
+    val capture: EvidenceCapturePolicyDto,
+    @SerialName("claim_status")
+    val claimStatus: String,
+    @SerialName("claim_revision")
+    val claimRevision: Long,
+    @SerialName("refresh_status")
+    val refreshStatus: String,
+    @SerialName("refresh_revision")
+    val refreshRevision: Long,
+)
+
+@Serializable
+data class EvidenceCapturePolicyDto(
+    @SerialName("media_required")
+    val mediaRequired: Boolean,
+    @SerialName("location_required")
+    val locationRequired: Boolean,
+)
+
+@Serializable
+data class EvidenceUploadAuthorizeRequest(
+    val nonce: String,
+    @SerialName("media_mime")
+    val mediaMime: String,
+)
+
+@Serializable
+data class EvidenceUploadAuthorizationDto(
+    @SerialName("evidence_id")
+    val evidenceId: String,
+    @SerialName("challenge_id")
+    val challengeId: String,
+    @SerialName("object_key")
+    val objectKey: String,
+    @SerialName("media_mime")
+    val mediaMime: String,
+    val upload: EvidenceUploadTargetDto,
+    @SerialName("application_deadline")
+    val applicationDeadline: String,
+    val replayed: Boolean,
+)
+
+@Serializable
+data class EvidenceUploadTargetDto(
+    val method: String,
+    @SerialName("signed_url")
+    val signedUrl: String,
+    @SerialName("content_type")
+    val contentType: String,
+)
+
+@Serializable
+data class EvidenceLocationSampleDto(
+    val lat: Double,
+    val lng: Double,
+    @SerialName("accuracy_m")
+    val accuracyM: Double? = null,
+    val provider: String? = null,
+    @SerialName("mock_signal")
+    val mockSignal: Boolean? = null,
+    @SerialName("captured_offset_ms")
+    val capturedOffsetMs: Long? = null,
+)
+
+@Serializable
+data class EvidenceCommitRequest(
+    val nonce: String,
+    @SerialName("media_sha256")
+    val mediaSha256: String,
+    @SerialName("media_size_bytes")
+    val mediaSizeBytes: Long,
+    @SerialName("answer_value")
+    val answerValue: JsonElement,
+    @SerialName("capture_started_monotonic_ms")
+    val captureStartedMonotonicMs: Long,
+    @SerialName("capture_completed_monotonic_ms")
+    val captureCompletedMonotonicMs: Long,
+    @SerialName("location_samples")
+    val locationSamples: List<EvidenceLocationSampleDto> = emptyList(),
+)
+
+@Serializable
+data class EvidenceCommitDto(
+    @SerialName("evidence_id")
+    val evidenceId: String,
+    @SerialName("refresh_id")
+    val refreshId: String,
+    @SerialName("acceptance_id")
+    val acceptanceId: String,
+    @SerialName("challenge_id")
+    val challengeId: String,
+    @SerialName("evidence_status")
+    val evidenceStatus: String,
+    @SerialName("claim_status")
+    val claimStatus: String,
+    @SerialName("refresh_status")
+    val refreshStatus: String,
+    @SerialName("committed_at")
+    val committedAt: String,
+    val media: EvidenceCommittedMediaDto,
+    val replayed: Boolean,
+    @SerialName("next_step")
+    val nextStep: String,
+)
+
+@Serializable
+data class EvidenceCommittedMediaDto(
+    @SerialName("object_key")
+    val objectKey: String,
+    val sha256: String,
+    @SerialName("size_bytes")
+    val sizeBytes: Long,
+    val mime: String,
+)

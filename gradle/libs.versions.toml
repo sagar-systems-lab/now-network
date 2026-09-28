@@ -17,6 +17,9 @@ androidxTestRunner = "1.7.0"
 androidxTestExtJunit = "1.3.0"
 junit4 = "4.13.2"
 mwa = "2.1.1"
+cameraX = "1.6.2"
+work = "2.12.0"
+playServicesLocation = "21.4.0"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "core" }
@@ -53,6 +56,12 @@ supabase-realtime = { module = "io.github.jan-tennert.supabase:realtime-kt" }
 hilt-android = { module = "com.google.dagger:hilt-android", version.ref = "hilt" }
 hilt-compiler = { module = "com.google.dagger:hilt-compiler", version.ref = "hilt" }
 mobile-wallet-adapter = { module = "com.solanamobile:mobile-wallet-adapter-clientlib", version.ref = "mwa" }
+androidx-camera-core = { module = "androidx.camera:camera-core", version.ref = "cameraX" }
+androidx-camera-camera2 = { module = "androidx.camera:camera-camera2", version.ref = "cameraX" }
+androidx-camera-lifecycle = { module = "androidx.camera:camera-lifecycle", version.ref = "cameraX" }
+androidx-camera-view = { module = "androidx.camera:camera-view", version.ref = "cameraX" }
+androidx-work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "work" }
+play-services-location = { module = "com.google.android.gms:play-services-location", version.ref = "playServicesLocation" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

@@ -1,5 +1,6 @@
 package com.sagarsystemslab.nownetwork
 
+import com.sagarsystemslab.nownetwork.navigation.EvidenceCaptureRoute
 import com.sagarsystemslab.nownetwork.navigation.OpportunityRoute
 import com.sagarsystemslab.nownetwork.navigation.StateDetailRoute
 import com.sagarsystemslab.nownetwork.navigation.TopLevelDestination
@@ -25,5 +26,11 @@ class NavigationContractTest {
             "refresh-456",
             OpportunityRoute(refreshId = "refresh-456").refreshId,
         )
+        val evidenceRoute = EvidenceCaptureRoute(
+            acceptanceId = "acceptance-789",
+            refreshId = "refresh-456",
+        )
+        assertEquals("acceptance-789", evidenceRoute.acceptanceId)
+        assertEquals("refresh-456", evidenceRoute.refreshId)
     }
 }

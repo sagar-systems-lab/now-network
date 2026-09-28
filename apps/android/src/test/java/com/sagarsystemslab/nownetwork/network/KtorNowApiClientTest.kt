@@ -14,6 +14,7 @@ import io.ktor.serialization.kotlinx.json.json
 import java.util.UUID
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
@@ -308,6 +309,127 @@ class KtorNowApiClientTest {
         assertEquals("WALLET_PENDING", result.status)
         assertEquals(300L, result.claimDurationSeconds)
         assertEquals("claim_witness", result.instruction.name)
+    }
+
+    @Test
+    fun evidenceChallengeUsesClaimBoundRoute() = runBlocking {
+        val acceptanceId = "33333333-3333-4333-8333-333333333333"
+        val client = client(
+            engine = MockEngine { request ->
+                assertEquals(HttpMethod.Post, request.method)
+                assertEquals("/v1/claims/$acceptanceId/challenge", request.url.encodedPath)
+                assertEquals("Bearer token-a", request.headers[HttpHeaders.Authorization])
+
+                respond(
+                    content = """
+                        {
+                          "request_id":"11111111-1111-4111-8111-111111111111",
+                          "server_time":"2026-09-28T00:00:00Z",
+                          "data":{
+                            "challenge_id":"44444444-4444-4444-8444-444444444444",
+                            "refresh_id":"22222222-2222-4222-8222-222222222222",
+                            "acceptance_id":"$acceptanceId",
+                            "nonce":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+                            "issued_at":"2026-09-28T00:00:00Z",
+                            "expires_at":"2026-09-28T00:03:00Z",
+                            "policy_version":1,
+                            "capture":{
+                              "media_required":true,
+                              "location_required":true
+                            },
+                            "claim_status":"CAPTURE_ACTIVE",
+                            "claim_revision":3,
+                            "refresh_status":"CAPTURE_IN_PROGRESS",
+                            "refresh_revision":8
+                          },
+                          "meta":{}
+                        }
+                    """.trimIndent(),
+                    status = HttpStatusCode.Created,
+                    headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                )
+            },
+        )
+
+        val result = client.issueEvidenceChallenge(
+            acceptanceId = acceptanceId,
+            accessToken = "token-a",
+        )
+
+        assertEquals(acceptanceId, result.acceptanceId)
+        assertTrue(result.capture.locationRequired)
+        assertEquals("CAPTURE_ACTIVE", result.claimStatus)
+    }
+
+    @Test
+    fun evidenceCommitCarriesStableIdempotencyContract() = runBlocking {
+        val evidenceId = "55555555-5555-4555-8555-555555555555"
+        val client = client(
+            engine = MockEngine { request ->
+                assertEquals(HttpMethod.Post, request.method)
+                assertEquals("/v1/evidence/$evidenceId/commit", request.url.encodedPath)
+                assertEquals("Bearer token-a", request.headers[HttpHeaders.Authorization])
+                assertEquals("evidence-commit:$evidenceId", request.headers["Idempotency-Key"])
+
+                respond(
+                    content = """
+                        {
+                          "request_id":"11111111-1111-4111-8111-111111111111",
+                          "server_time":"2026-09-28T00:00:10Z",
+                          "data":{
+                            "evidence_id":"$evidenceId",
+                            "refresh_id":"22222222-2222-4222-8222-222222222222",
+                            "acceptance_id":"33333333-3333-4333-8333-333333333333",
+                            "challenge_id":"44444444-4444-4444-8444-444444444444",
+                            "evidence_status":"COMMITTED",
+                            "claim_status":"EVIDENCE_COMMITTED",
+                            "refresh_status":"EVIDENCE_SUBMITTED",
+                            "committed_at":"2026-09-28T00:00:10Z",
+                            "media":{
+                              "object_key":"refreshes/r/evidence/e/original",
+                              "sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                              "size_bytes":2048,
+                              "mime":"image/jpeg"
+                            },
+                            "replayed":false,
+                            "next_step":"VERIFICATION"
+                          },
+                          "meta":{}
+                        }
+                    """.trimIndent(),
+                    status = HttpStatusCode.Created,
+                    headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                )
+            },
+        )
+
+        val result = client.commitEvidence(
+            evidenceId = evidenceId,
+            request = EvidenceCommitRequest(
+                nonce = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+                mediaSha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                mediaSizeBytes = 2048,
+                answerValue = JsonPrimitive(2),
+                captureStartedMonotonicMs = 1000,
+                captureCompletedMonotonicMs = 1200,
+                locationSamples = listOf(
+                    EvidenceLocationSampleDto(
+                        lat = 12.5,
+                        lng = 77.25,
+                        accuracyM = 8.0,
+                        provider = "fused",
+                        mockSignal = false,
+                        capturedOffsetMs = 50,
+                    ),
+                ),
+            ),
+            idempotencyKey = "evidence-commit:$evidenceId",
+            accessToken = "token-a",
+        )
+
+        assertEquals("COMMITTED", result.evidenceStatus)
+        assertEquals("VERIFICATION", result.nextStep)
+        assertEquals(2048L, result.media.sizeBytes)
     }
 
     @Test

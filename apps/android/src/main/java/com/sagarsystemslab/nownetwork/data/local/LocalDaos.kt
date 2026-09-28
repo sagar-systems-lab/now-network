@@ -64,6 +64,13 @@ interface PendingEvidenceDao {
     suspend fun get(evidenceId: String): PendingEvidenceEntity?
 
     @Query(
+        "SELECT * FROM pending_evidence WHERE acceptance_id = :acceptanceId " +
+            "ORDER BY updated_at_ms DESC LIMIT 1",
+    )
+    suspend fun getLatestByAcceptanceId(acceptanceId: String): PendingEvidenceEntity?
+
+
+    @Query(
         "SELECT * FROM pending_evidence " +
             "WHERE upload_state NOT IN ('VERIFIED', 'REJECTED', 'EXPIRED', 'FAILED') " +
             "ORDER BY updated_at_ms ASC",

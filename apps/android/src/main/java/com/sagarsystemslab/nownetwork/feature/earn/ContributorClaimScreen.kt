@@ -37,6 +37,7 @@ fun ContributorClaimScreen(
     onPrepare: () -> Unit,
     onSubmit: () -> Unit,
     onCheck: () -> Unit,
+    onCaptureEvidence: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -206,6 +207,14 @@ fun ContributorClaimScreen(
                         append("Evidence capture is the next step.")
                     },
                 )
+                if (claim != null) {
+                    Button(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = onCaptureEvidence,
+                    ) {
+                        Text("Capture evidence")
+                    }
+                }
             }
 
             ContributorClaimStage.ERROR -> {

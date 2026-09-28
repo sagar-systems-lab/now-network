@@ -12,6 +12,8 @@ enum class LocalOutboxStatus {
 }
 
 enum class PendingEvidenceStatus {
+    CHALLENGE_ISSUED,
+    CAPTURING,
     CAPTURED_LOCAL,
     HASHING,
     UPLOAD_READY,

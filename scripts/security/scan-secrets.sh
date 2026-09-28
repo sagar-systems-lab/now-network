@@ -43,7 +43,17 @@ install_gitleaks() {
 check_sensitive_paths
 install_gitleaks
 
-"$TMP/gitleaks" git --redact --no-banner --verbose .
+# Scan only history reachable from the checked-out ref. Gitleaks defaults to
+# --all, which can pull abandoned local branches into developer-machine scans
+# even though those refs are not part of the branch being qualified.
+"$TMP/gitleaks" git \
+  --redact \
+  --no-banner \
+  --verbose \
+  --log-opts="HEAD --full-history --diff-filter=tuxdb" \
+  .
+
+# Independently scan the current working tree, including untracked content.
 "$TMP/gitleaks" dir --redact --no-banner --verbose .
 
 printf 'secret scan: clean\n'

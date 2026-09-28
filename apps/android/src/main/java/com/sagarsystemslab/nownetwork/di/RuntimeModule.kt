@@ -15,6 +15,8 @@ import com.sagarsystemslab.nownetwork.data.local.LocalPersistenceStore
 import com.sagarsystemslab.nownetwork.data.local.NowDatabase
 import com.sagarsystemslab.nownetwork.data.local.NowDatabaseFactory
 import com.sagarsystemslab.nownetwork.data.local.WalletSessionMetadataDao
+import com.sagarsystemslab.nownetwork.network.EvidenceApiClient
+import com.sagarsystemslab.nownetwork.network.EvidenceReadApiClient
 import com.sagarsystemslab.nownetwork.network.KtorNowApiClient
 import com.sagarsystemslab.nownetwork.network.NowApiClient
 import com.sagarsystemslab.nownetwork.solana.KtorSolanaRpcClient
@@ -145,6 +147,12 @@ object RuntimeModule {
         database.activeOperationDao()
 
     @Provides
+    fun providePendingEvidenceDao(
+        database: NowDatabase,
+    ): com.sagarsystemslab.nownetwork.data.local.PendingEvidenceDao =
+        database.pendingEvidenceDao()
+
+    @Provides
     fun provideWalletSessionMetadataDao(
         database: NowDatabase,
     ): WalletSessionMetadataDao = database.walletSessionMetadataDao()
@@ -158,6 +166,17 @@ object RuntimeModule {
     @Singleton
     fun provideNowApiClient(implementation: KtorNowApiClient): NowApiClient =
         implementation
+
+    @Provides
+    @Singleton
+    fun provideEvidenceApiClient(implementation: KtorNowApiClient): EvidenceApiClient =
+        implementation
+
+    @Provides
+    @Singleton
+    fun provideEvidenceReadApiClient(
+        implementation: KtorNowApiClient,
+    ): EvidenceReadApiClient = implementation
 
     @Provides
     @Singleton

@@ -2,6 +2,14 @@ package com.sagarsystemslab.nownetwork.di
 
 import com.sagarsystemslab.nownetwork.repository.DefaultActivityRepository
 import com.sagarsystemslab.nownetwork.repository.DefaultContributorClaimRepository
+import com.sagarsystemslab.nownetwork.repository.DefaultEvidenceCaptureRepository
+import com.sagarsystemslab.nownetwork.repository.EvidenceCaptureRepository
+import com.sagarsystemslab.nownetwork.evidence.AppPrivateEvidenceFileStore
+import com.sagarsystemslab.nownetwork.evidence.EvidenceFileStore
+import com.sagarsystemslab.nownetwork.evidence.EvidenceLocationProvider
+import com.sagarsystemslab.nownetwork.evidence.EvidenceObjectUploader
+import com.sagarsystemslab.nownetwork.evidence.FusedEvidenceLocationProvider
+import com.sagarsystemslab.nownetwork.evidence.KtorEvidenceObjectUploader
 import com.sagarsystemslab.nownetwork.repository.DefaultOpportunityRepository
 import com.sagarsystemslab.nownetwork.repository.DefaultStateRepository
 import com.sagarsystemslab.nownetwork.repository.ContributorClaimRepository
@@ -27,6 +35,30 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class RepositoryModule {
+    @Binds
+    @Singleton
+    abstract fun bindEvidenceCaptureRepository(
+        implementation: DefaultEvidenceCaptureRepository,
+    ): EvidenceCaptureRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindEvidenceObjectUploader(
+        implementation: KtorEvidenceObjectUploader,
+    ): EvidenceObjectUploader
+
+    @Binds
+    @Singleton
+    abstract fun bindEvidenceFileStore(
+        implementation: AppPrivateEvidenceFileStore,
+    ): EvidenceFileStore
+
+    @Binds
+    @Singleton
+    abstract fun bindEvidenceLocationProvider(
+        implementation: FusedEvidenceLocationProvider,
+    ): EvidenceLocationProvider
+
     @Binds
     @Singleton
     abstract fun bindContributorClaimRepository(

@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-readonly RPC_URL="http://127.0.0.1:8899"
+readonly RPC_PORT="18899"
+readonly RPC_URL="http://127.0.0.1:${RPC_PORT}"
+readonly FAUCET_PORT="19900"
+readonly GOSSIP_PORT="18001"
+readonly DYNAMIC_PORT_RANGE="18002-18040"
 readonly PROGRAM_SO="target/deploy/now_settlement.so"
 readonly SETTLEMENT_REFRESH_ID_HEX="$(printf 'a1%.0s' {1..32})"
 readonly REFUND_REFRESH_ID_HEX="$(printf 'b2%.0s' {1..32})"
@@ -38,8 +42,40 @@ cleanup() {
 }
 
 diagnostics() {
+  echo "----- protocol-flow validator process -----"
+  if [[ -n "$VALIDATOR_PID" ]]; then
+    ps -o pid=,ppid=,stat=,etime=,cmd= -p "$VALIDATOR_PID" 2>/dev/null || true
+  fi
+  echo "----- protocol-flow validator ports -----"
+  ss -ltnp 2>/dev/null | grep -E ':(18899|18900|19900|18001|1800[2-9]|180[1-3][0-9]|18040)\\b' || true
   echo "----- protocol-flow validator log -----"
   tail -n 300 "$VALIDATOR_LOG" 2>/dev/null || true
+}
+
+wait_for_rpc() {
+  local stable_probes=0
+
+  for _ in $(seq 1 240); do
+    if ! kill -0 "$VALIDATOR_PID" 2>/dev/null; then
+      echo "protocol-flow validator exited before RPC stabilized" >&2
+      wait "$VALIDATOR_PID" 2>/dev/null || true
+      return 1
+    fi
+
+    if solana cluster-version --url "$RPC_URL" >/dev/null 2>&1; then
+      stable_probes=$((stable_probes + 1))
+      if [[ "$stable_probes" -ge 3 ]]; then
+        return 0
+      fi
+    else
+      stable_probes=0
+    fi
+
+    sleep 0.25
+  done
+
+  echo "protocol-flow validator RPC did not stabilize" >&2
+  return 1
 }
 
 trap cleanup EXIT
@@ -49,16 +85,19 @@ solana-keygen new   --no-bip39-passphrase   --silent   --force   --outfile "$PAY
 solana-keygen new   --no-bip39-passphrase   --silent   --force   --outfile "$CLAIMANT"
 solana-keygen new   --no-bip39-passphrase   --silent   --force   --outfile "$MINT_KEYPAIR"
 
-solana-test-validator   --ledger "$LEDGER"   --rpc-port 8899   --reset   --bpf-program "$PROGRAM_ID" "$PROGRAM_SO"   >"$VALIDATOR_LOG" 2>&1 &
+solana-test-validator \
+  --ledger "$LEDGER" \
+  --bind-address 127.0.0.1 \
+  --rpc-port "$RPC_PORT" \
+  --faucet-port "$FAUCET_PORT" \
+  --gossip-port "$GOSSIP_PORT" \
+  --dynamic-port-range "$DYNAMIC_PORT_RANGE" \
+  --reset \
+  --bpf-program "$PROGRAM_ID" "$PROGRAM_SO" \
+  >"$VALIDATOR_LOG" 2>&1 &
 VALIDATOR_PID="$!"
 
-for _ in $(seq 1 120); do
-  if solana cluster-version --url "$RPC_URL" >/dev/null 2>&1; then
-    break
-  fi
-  sleep 0.5
-done
-solana cluster-version --url "$RPC_URL" >/dev/null
+wait_for_rpc
 
 solana config set --url "$RPC_URL" --keypair "$PAYER" >/dev/null
 solana airdrop 20 >/dev/null

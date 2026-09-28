@@ -9,6 +9,7 @@ import androidx.compose.runtime.LaunchedEffect
 import com.sagarsystemslab.nownetwork.config.PublicRuntimeConfig
 import com.sagarsystemslab.nownetwork.designsystem.NowTheme
 import com.sagarsystemslab.nownetwork.feature.activity.ActivityViewModel
+import com.sagarsystemslab.nownetwork.feature.capture.EvidenceCaptureViewModel
 import com.sagarsystemslab.nownetwork.feature.earn.ContributorClaimViewModel
 import com.sagarsystemslab.nownetwork.feature.earn.EarnViewModel
 import com.sagarsystemslab.nownetwork.feature.requester.RequesterFundingViewModel
@@ -24,6 +25,7 @@ class MainActivity : ComponentActivity() {
     private val browseViewModel: BrowseViewModel by viewModels()
     private val earnViewModel: EarnViewModel by viewModels()
     private val contributorClaimViewModel: ContributorClaimViewModel by viewModels()
+    private val evidenceCaptureViewModel: EvidenceCaptureViewModel by viewModels()
     private val activityViewModel: ActivityViewModel by viewModels()
     private val requesterFundingViewModel: RequesterFundingViewModel by viewModels()
     private lateinit var walletInteractionHost: AndroidWalletInteractionHost
@@ -50,6 +52,7 @@ class MainActivity : ComponentActivity() {
                     browseViewModel = browseViewModel,
                     earnViewModel = earnViewModel,
                     contributorClaimViewModel = contributorClaimViewModel,
+                    evidenceCaptureViewModel = evidenceCaptureViewModel,
                     activityViewModel = activityViewModel,
                     requesterFundingViewModel = requesterFundingViewModel,
                     walletInteractionHost = walletInteractionHost,

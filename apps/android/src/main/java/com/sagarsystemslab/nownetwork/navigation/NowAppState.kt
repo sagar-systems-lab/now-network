@@ -61,6 +61,18 @@ class NowAppState(
         navController.navigate(OpportunityRoute(refreshId = refreshId))
     }
 
+    fun navigateToEvidence(
+        acceptanceId: String,
+        refreshId: String,
+    ) {
+        navController.navigate(
+            EvidenceCaptureRoute(
+                acceptanceId = acceptanceId,
+                refreshId = refreshId,
+            ),
+        )
+    }
+
     fun navigateBack() {
         navController.popBackStack()
     }

@@ -26,3 +26,9 @@ data class OpportunityRoute(
 data class RequesterFundingRoute(
     val stateId: String,
 )
+
+@Serializable
+data class EvidenceCaptureRoute(
+    val acceptanceId: String,
+    val refreshId: String,
+)
