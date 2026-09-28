@@ -14,6 +14,7 @@ import com.sagarsystemslab.nownetwork.feature.earn.ContributorClaimViewModel
 import com.sagarsystemslab.nownetwork.feature.earn.EarnViewModel
 import com.sagarsystemslab.nownetwork.feature.requester.RequesterFundingViewModel
 import com.sagarsystemslab.nownetwork.feature.state.BrowseViewModel
+import com.sagarsystemslab.nownetwork.feature.verification.VerificationViewModel
 import com.sagarsystemslab.nownetwork.repository.SessionRepository
 import com.sagarsystemslab.nownetwork.wallet.AndroidWalletInteractionHost
 import dagger.Lazy
@@ -26,6 +27,7 @@ class MainActivity : ComponentActivity() {
     private val earnViewModel: EarnViewModel by viewModels()
     private val contributorClaimViewModel: ContributorClaimViewModel by viewModels()
     private val evidenceCaptureViewModel: EvidenceCaptureViewModel by viewModels()
+    private val verificationViewModel: VerificationViewModel by viewModels()
     private val activityViewModel: ActivityViewModel by viewModels()
     private val requesterFundingViewModel: RequesterFundingViewModel by viewModels()
     private lateinit var walletInteractionHost: AndroidWalletInteractionHost
@@ -53,6 +55,7 @@ class MainActivity : ComponentActivity() {
                     earnViewModel = earnViewModel,
                     contributorClaimViewModel = contributorClaimViewModel,
                     evidenceCaptureViewModel = evidenceCaptureViewModel,
+                    verificationViewModel = verificationViewModel,
                     activityViewModel = activityViewModel,
                     requesterFundingViewModel = requesterFundingViewModel,
                     walletInteractionHost = walletInteractionHost,

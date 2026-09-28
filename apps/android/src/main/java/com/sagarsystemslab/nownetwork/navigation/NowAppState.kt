@@ -73,6 +73,10 @@ class NowAppState(
         )
     }
 
+    fun navigateToVerification(refreshId: String) {
+        navController.navigate(VerificationRoute(refreshId = refreshId))
+    }
+
     fun navigateBack() {
         navController.popBackStack()
     }

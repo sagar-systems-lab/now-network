@@ -23,6 +23,7 @@ import com.sagarsystemslab.nownetwork.feature.earn.ContributorClaimViewModel
 import com.sagarsystemslab.nownetwork.feature.earn.EarnViewModel
 import com.sagarsystemslab.nownetwork.feature.requester.RequesterFundingViewModel
 import com.sagarsystemslab.nownetwork.feature.state.BrowseViewModel
+import com.sagarsystemslab.nownetwork.feature.verification.VerificationViewModel
 import com.sagarsystemslab.nownetwork.navigation.NowNavHost
 import com.sagarsystemslab.nownetwork.navigation.TopLevelDestination
 import com.sagarsystemslab.nownetwork.navigation.isTopLevel
@@ -35,6 +36,7 @@ fun NowApp(
     earnViewModel: EarnViewModel,
     contributorClaimViewModel: ContributorClaimViewModel,
     evidenceCaptureViewModel: EvidenceCaptureViewModel,
+    verificationViewModel: VerificationViewModel,
     activityViewModel: ActivityViewModel,
     requesterFundingViewModel: RequesterFundingViewModel,
     walletInteractionHost: WalletInteractionHost,
@@ -92,6 +94,7 @@ fun NowApp(
             earnViewModel = earnViewModel,
             contributorClaimViewModel = contributorClaimViewModel,
             evidenceCaptureViewModel = evidenceCaptureViewModel,
+            verificationViewModel = verificationViewModel,
             activityViewModel = activityViewModel,
             requesterFundingViewModel = requesterFundingViewModel,
             walletInteractionHost = walletInteractionHost,

@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-PROGRAM_ID="sE74tJL2pCSWMHhEGvBM5hL2DYmFaUUQCDpC1QkHE3T"
+ROOT="$(git rev-parse --show-toplevel)"
+source "$ROOT/scripts/solana/protocol-flow-common.sh"
+
 RPC_URL="http://127.0.0.1:8899"
 PROGRAM_SO="target/deploy/now_settlement.so"
+readonly SETTLEMENT_REFRESH_ID_HEX="$(printf 'a1%.0s' {1..32})"
+readonly REFUND_REFRESH_ID_HEX="$(printf 'b2%.0s' {1..32})"
 
 test -s "$PROGRAM_SO"
 command -v solana-test-validator >/dev/null
@@ -18,6 +22,8 @@ VALIDATOR_LOG="$WORK_DIR/validator.log"
 RESTART_LOG="$WORK_DIR/validator-restart.log"
 CLI_PAYER="$WORK_DIR/payer.json"
 MINT_KEYPAIR="$WORK_DIR/reward-mint.json"
+FLOW_CLAIMANT="$WORK_DIR/flow-claimant.json"
+FLOW_ADDRESSES="$WORK_DIR/flow-addresses.json"
 STATE_FILE="$WORK_DIR/runtime-state.json"
 SOLANA_CONFIG_FILE="$WORK_DIR/solana-cli.yml"
 export SOLANA_CONFIG_FILE
@@ -78,16 +84,87 @@ spl-token display "$MINT_ADDRESS" >/dev/null
 export NOW_LOCALNET_RPC_URL="$RPC_URL"
 export NOW_LOCALNET_REWARD_MINT="$MINT_ADDRESS"
 export NOW_LOCALNET_STATE_FILE="$STATE_FILE"
+export NOW_LOCALNET_ADMIN_KEYPAIR="$CLI_PAYER"
 export NOW_LOCALNET_MODE="exercise"
 
 deno run \
-  --allow-env=NOW_LOCALNET_RPC_URL,NOW_LOCALNET_REWARD_MINT,NOW_LOCALNET_STATE_FILE,NOW_LOCALNET_MODE \
+  --allow-env=NOW_LOCALNET_RPC_URL,NOW_LOCALNET_REWARD_MINT,NOW_LOCALNET_STATE_FILE,NOW_LOCALNET_ADMIN_KEYPAIR,NOW_LOCALNET_MODE \
   --allow-net=127.0.0.1:8899 \
-  --allow-read=test-vectors/solana-pda-v1.json \
+  --allow-read=test-vectors/solana-pda-v1.json,"$CLI_PAYER" \
   --allow-write="$STATE_FILE" \
   scripts/solana/local-validator-client.ts
 
 solana program show "$PROGRAM_ID" --url "$RPC_URL" >/dev/null
+
+# Exercise the full settlement/refund transaction path on the validator that
+# already passed runtime qualification. Reusing the same validator avoids a
+# second back-to-back validator startup while preserving one authoritative
+# program/config instance for the protocol flow.
+solana-keygen new \
+  --no-bip39-passphrase \
+  --silent \
+  --force \
+  --outfile "$FLOW_CLAIMANT"
+
+FLOW_CLAIMANT_ADDRESS="$(solana-keygen pubkey "$FLOW_CLAIMANT")"
+solana airdrop 2 "$FLOW_CLAIMANT_ADDRESS" >/dev/null
+
+CLI_PAYER_ADDRESS="$(solana-keygen pubkey "$CLI_PAYER")"
+write_flow_addresses \
+  "$CLI_PAYER_ADDRESS" \
+  "$FLOW_CLAIMANT_ADDRESS" \
+  "$MINT_ADDRESS" \
+  "$SETTLEMENT_REFRESH_ID_HEX" \
+  "$REFUND_REFRESH_ID_HEX" \
+  "$FLOW_ADDRESSES"
+
+PAYER_ATA="$(
+  python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["payerAta"])' \
+    "$FLOW_ADDRESSES"
+)"
+CLAIMANT_ATA="$(
+  python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["claimantAta"])' \
+    "$FLOW_ADDRESSES"
+)"
+SETTLEMENT_VAULT="$(
+  python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["settlement"]["vault"])' \
+    "$FLOW_ADDRESSES"
+)"
+REFUND_VAULT="$(
+  python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["refund"]["vault"])' \
+    "$FLOW_ADDRESSES"
+)"
+SETTLEMENT_OWNER="$(
+  python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["settlement"]["refresh"])' \
+    "$FLOW_ADDRESSES"
+)"
+REFUND_OWNER="$(
+  python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["refund"]["refresh"])' \
+    "$FLOW_ADDRESSES"
+)"
+
+ensure_token_account \
+  "$RPC_URL" "$CLI_PAYER" "$CLI_PAYER_ADDRESS" "$MINT_ADDRESS" "$PAYER_ATA"
+ensure_token_account \
+  "$RPC_URL" "$CLI_PAYER" "$FLOW_CLAIMANT_ADDRESS" "$MINT_ADDRESS" "$CLAIMANT_ATA"
+ensure_token_account \
+  "$RPC_URL" "$CLI_PAYER" "$SETTLEMENT_OWNER" "$MINT_ADDRESS" "$SETTLEMENT_VAULT"
+ensure_token_account \
+  "$RPC_URL" "$CLI_PAYER" "$REFUND_OWNER" "$MINT_ADDRESS" "$REFUND_VAULT"
+
+spl-token mint "$MINT_ADDRESS" 10 "$PAYER_ATA" >/dev/null
+
+export NOW_FLOW_RPC_URL="$RPC_URL"
+export NOW_FLOW_PAYER_KEYPAIR="$CLI_PAYER"
+export NOW_FLOW_CLAIMANT_KEYPAIR="$FLOW_CLAIMANT"
+export NOW_FLOW_REWARD_MINT="$MINT_ADDRESS"
+export NOW_FLOW_SETTLEMENT_REFRESH_ID_HEX="$SETTLEMENT_REFRESH_ID_HEX"
+export NOW_FLOW_REFUND_REFRESH_ID_HEX="$REFUND_REFRESH_ID_HEX"
+export NOW_FLOW_ADDRESSES_FILE="$FLOW_ADDRESSES"
+export NOW_FLOW_MODE="exercise"
+
+python3 scripts/solana/protocol-flow-client.py
+echo "LOCAL_PROTOCOL_FLOW=PASS"
 
 kill "$VALIDATOR_PID"
 wait "$VALIDATOR_PID" 2>/dev/null || true
@@ -98,7 +175,7 @@ start_validator "$RESTART_LOG"
 
 export NOW_LOCALNET_MODE="verify"
 deno run \
-  --allow-env=NOW_LOCALNET_RPC_URL,NOW_LOCALNET_REWARD_MINT,NOW_LOCALNET_STATE_FILE,NOW_LOCALNET_MODE \
+  --allow-env=NOW_LOCALNET_RPC_URL,NOW_LOCALNET_REWARD_MINT,NOW_LOCALNET_STATE_FILE,NOW_LOCALNET_ADMIN_KEYPAIR,NOW_LOCALNET_MODE \
   --allow-net=127.0.0.1:8899 \
   --allow-read=test-vectors/solana-pda-v1.json,"$STATE_FILE" \
   scripts/solana/local-validator-client.ts
