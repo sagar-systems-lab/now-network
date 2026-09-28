@@ -35,7 +35,7 @@ class KtorNowApiClient @Inject constructor(
     private val json: Json,
     private val config: PublicRuntimeConfig,
     private val serverClock: ServerClock,
-) : NowApiClient {
+) : NowApiClient, EvidenceReadApiClient, EvidenceApiClient {
     override suspend fun nearbyStates(query: NearbyStateQuery): NearbyStatesDto =
         get(
             path = "/v1/states/nearby",
@@ -120,6 +120,49 @@ class KtorNowApiClient @Inject constructor(
                 request,
             ),
             deserializer = ClaimStatusDto.serializer(),
+        )
+
+    override suspend fun issueEvidenceChallenge(
+        acceptanceId: String,
+        accessToken: String,
+    ): EvidenceChallengeDto =
+        post(
+            path = "/v1/claims/$acceptanceId/challenge",
+            accessToken = accessToken,
+            requestBody = kotlinx.serialization.json.buildJsonObject {},
+            deserializer = EvidenceChallengeDto.serializer(),
+        )
+
+    override suspend fun authorizeEvidenceUpload(
+        challengeId: String,
+        request: EvidenceUploadAuthorizeRequest,
+        accessToken: String,
+    ): EvidenceUploadAuthorizationDto =
+        post(
+            path = "/v1/evidence-challenges/$challengeId/upload",
+            accessToken = accessToken,
+            requestBody = json.encodeToJsonElement(
+                EvidenceUploadAuthorizeRequest.serializer(),
+                request,
+            ),
+            deserializer = EvidenceUploadAuthorizationDto.serializer(),
+        )
+
+    override suspend fun commitEvidence(
+        evidenceId: String,
+        request: EvidenceCommitRequest,
+        idempotencyKey: String,
+        accessToken: String,
+    ): EvidenceCommitDto =
+        post(
+            path = "/v1/evidence/$evidenceId/commit",
+            accessToken = accessToken,
+            idempotencyKey = idempotencyKey,
+            requestBody = json.encodeToJsonElement(
+                EvidenceCommitRequest.serializer(),
+                request,
+            ),
+            deserializer = EvidenceCommitDto.serializer(),
         )
 
     override suspend fun me(accessToken: String): MeDto =

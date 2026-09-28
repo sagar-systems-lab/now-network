@@ -191,6 +191,13 @@ dependencies {
     implementation(libs.hilt.android)
     implementation(libs.mobile.wallet.adapter)
 
+    implementation(libs.androidx.camera.core)
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.view)
+    implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.play.services.location)
+
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)

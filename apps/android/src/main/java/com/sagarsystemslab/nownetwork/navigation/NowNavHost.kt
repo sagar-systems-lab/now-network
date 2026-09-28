@@ -10,6 +10,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import com.sagarsystemslab.nownetwork.feature.activity.ActivityScreen
 import com.sagarsystemslab.nownetwork.feature.activity.ActivityViewModel
+import com.sagarsystemslab.nownetwork.feature.capture.EvidenceCaptureScreen
+import com.sagarsystemslab.nownetwork.feature.capture.EvidenceCaptureViewModel
 import com.sagarsystemslab.nownetwork.feature.earn.ContributorClaimScreen
 import com.sagarsystemslab.nownetwork.feature.earn.ContributorClaimViewModel
 import com.sagarsystemslab.nownetwork.feature.earn.EarnScreen
@@ -27,6 +29,7 @@ fun NowNavHost(
     browseViewModel: BrowseViewModel,
     earnViewModel: EarnViewModel,
     contributorClaimViewModel: ContributorClaimViewModel,
+    evidenceCaptureViewModel: EvidenceCaptureViewModel,
     activityViewModel: ActivityViewModel,
     requesterFundingViewModel: RequesterFundingViewModel,
     walletInteractionHost: WalletInteractionHost,
@@ -118,6 +121,39 @@ fun NowNavHost(
                     contributorClaimViewModel.submit(walletInteractionHost)
                 },
                 onCheck = contributorClaimViewModel::checkConfirmation,
+                onCaptureEvidence = {
+                    val claim = uiState.claim ?: return@ContributorClaimScreen
+                    appState.navigateToEvidence(
+                        acceptanceId = claim.acceptanceId,
+                        refreshId = claim.refreshId,
+                    )
+                },
+            )
+        }
+
+        composable<EvidenceCaptureRoute> { backStackEntry ->
+            val route = backStackEntry.toRoute<EvidenceCaptureRoute>()
+            val uiState by evidenceCaptureViewModel.state.collectAsStateWithLifecycle()
+
+            LaunchedEffect(route.acceptanceId, route.refreshId) {
+                evidenceCaptureViewModel.open(
+                    acceptanceId = route.acceptanceId,
+                    refreshId = route.refreshId,
+                )
+            }
+
+            EvidenceCaptureScreen(
+                uiState = uiState,
+                onBack = appState::navigateBack,
+                onBeginCapture = evidenceCaptureViewModel::beginCapture,
+                onPermissionDenied = evidenceCaptureViewModel::permissionDenied,
+                onPhotoCaptured = evidenceCaptureViewModel::photoCaptured,
+                onCameraError = evidenceCaptureViewModel::cameraFailure,
+                onAnswerChange = evidenceCaptureViewModel::updateAnswer,
+                onRefreshLocation = evidenceCaptureViewModel::refreshLocation,
+                onRecapture = evidenceCaptureViewModel::recapture,
+                onSubmit = evidenceCaptureViewModel::submit,
+                onRetry = evidenceCaptureViewModel::retry,
             )
         }
 
