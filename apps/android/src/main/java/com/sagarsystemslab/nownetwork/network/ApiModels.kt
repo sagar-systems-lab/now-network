@@ -681,3 +681,41 @@ data class PaymentStatusDto(
     @SerialName("updated_at")
     val updatedAt: String,
 )
+
+@Serializable
+data class ReceiptDto(
+    @SerialName("receipt_id")
+    val receiptId: String,
+    @SerialName("refresh_id")
+    val refreshId: String,
+    @SerialName("state_id")
+    val stateId: String,
+    @SerialName("verification_result_id")
+    val verificationResultId: String,
+    @SerialName("settlement_id")
+    val settlementId: String,
+    val status: String,
+    @SerialName("final_value")
+    val finalValue: JsonElement,
+    @SerialName("observed_at")
+    val observedAt: String,
+    @SerialName("verification_class")
+    val verificationClass: String,
+    @SerialName("reward_amount_atomic")
+    val rewardAmountAtomic: String,
+    @SerialName("reward_mint")
+    val rewardMint: String,
+    @SerialName("verification_digest")
+    val verificationDigest: String,
+    @SerialName("settlement_operation_hash")
+    val settlementOperationHash: String,
+    @SerialName("receipt_digest")
+    val receiptDigest: String,
+    @SerialName("settlement_signature")
+    val settlementSignature: String,
+    @SerialName("chain_commitment")
+    val chainCommitment: String,
+    @SerialName("finalized_at")
+    val finalizedAt: String,
+    val revision: Long,
+)

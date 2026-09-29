@@ -20,6 +20,7 @@ import com.sagarsystemslab.nownetwork.network.EvidenceReadApiClient
 import com.sagarsystemslab.nownetwork.network.KtorNowApiClient
 import com.sagarsystemslab.nownetwork.network.NowApiClient
 import com.sagarsystemslab.nownetwork.network.PaymentApiClient
+import com.sagarsystemslab.nownetwork.network.ReceiptApiClient
 import com.sagarsystemslab.nownetwork.network.VerificationApiClient
 import com.sagarsystemslab.nownetwork.solana.KtorSolanaRpcClient
 import com.sagarsystemslab.nownetwork.solana.SolanaRpcClient
@@ -191,6 +192,12 @@ object RuntimeModule {
     fun providePaymentApiClient(
         implementation: KtorNowApiClient,
     ): PaymentApiClient = implementation
+
+    @Provides
+    @Singleton
+    fun provideReceiptApiClient(
+        implementation: KtorNowApiClient,
+    ): ReceiptApiClient = implementation
 
     @Provides
     @Singleton

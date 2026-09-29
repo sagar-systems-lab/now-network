@@ -3,6 +3,7 @@ package com.sagarsystemslab.nownetwork
 import com.sagarsystemslab.nownetwork.navigation.EvidenceCaptureRoute
 import com.sagarsystemslab.nownetwork.navigation.OpportunityRoute
 import com.sagarsystemslab.nownetwork.navigation.PaymentRoute
+import com.sagarsystemslab.nownetwork.navigation.ReceiptRoute
 import com.sagarsystemslab.nownetwork.navigation.StateDetailRoute
 import com.sagarsystemslab.nownetwork.navigation.VerificationRoute
 import com.sagarsystemslab.nownetwork.navigation.TopLevelDestination
@@ -41,6 +42,10 @@ class NavigationContractTest {
         assertEquals(
             "refresh-456",
             PaymentRoute(refreshId = "refresh-456").refreshId,
+        )
+        assertEquals(
+            "refresh-456",
+            ReceiptRoute(refreshId = "refresh-456").refreshId,
         )
     }
 }

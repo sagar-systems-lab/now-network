@@ -13,6 +13,7 @@ import com.sagarsystemslab.nownetwork.feature.capture.EvidenceCaptureViewModel
 import com.sagarsystemslab.nownetwork.feature.earn.ContributorClaimViewModel
 import com.sagarsystemslab.nownetwork.feature.earn.EarnViewModel
 import com.sagarsystemslab.nownetwork.feature.payment.PaymentViewModel
+import com.sagarsystemslab.nownetwork.feature.receipt.ReceiptViewModel
 import com.sagarsystemslab.nownetwork.feature.requester.RequesterFundingViewModel
 import com.sagarsystemslab.nownetwork.feature.state.BrowseViewModel
 import com.sagarsystemslab.nownetwork.feature.verification.VerificationViewModel
@@ -30,6 +31,7 @@ class MainActivity : ComponentActivity() {
     private val evidenceCaptureViewModel: EvidenceCaptureViewModel by viewModels()
     private val verificationViewModel: VerificationViewModel by viewModels()
     private val paymentViewModel: PaymentViewModel by viewModels()
+    private val receiptViewModel: ReceiptViewModel by viewModels()
     private val activityViewModel: ActivityViewModel by viewModels()
     private val requesterFundingViewModel: RequesterFundingViewModel by viewModels()
     private lateinit var walletInteractionHost: AndroidWalletInteractionHost
@@ -59,6 +61,7 @@ class MainActivity : ComponentActivity() {
                     evidenceCaptureViewModel = evidenceCaptureViewModel,
                     verificationViewModel = verificationViewModel,
                     paymentViewModel = paymentViewModel,
+                    receiptViewModel = receiptViewModel,
                     activityViewModel = activityViewModel,
                     requesterFundingViewModel = requesterFundingViewModel,
                     walletInteractionHost = walletInteractionHost,

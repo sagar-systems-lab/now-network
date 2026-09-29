@@ -36,6 +36,7 @@ fun ActivityScreen(
     uiState: ActivityUiState,
     serverNowMillis: () -> Long,
     onPaymentClick: (String) -> Unit,
+    onReceiptClick: (String) -> Unit,
 ) {
     val nowMillis = rememberVisibleServerTime(serverNowMillis)
 
@@ -82,7 +83,11 @@ fun ActivityScreen(
                     item = item,
                     nowMillis = nowMillis,
                     active = true,
-                    onClick = paymentClick(item, onPaymentClick),
+                    onClick = operationClick(
+                        item = item,
+                        onPaymentClick = onPaymentClick,
+                        onReceiptClick = onReceiptClick,
+                    ),
                 )
             }
         }
@@ -103,7 +108,11 @@ fun ActivityScreen(
                     item = item,
                     nowMillis = nowMillis,
                     active = false,
-                    onClick = paymentClick(item, onPaymentClick),
+                    onClick = operationClick(
+                        item = item,
+                        onPaymentClick = onPaymentClick,
+                        onReceiptClick = onReceiptClick,
+                    ),
                 )
             }
         }
@@ -224,12 +233,17 @@ private fun EmptyActivityState() {
     }
 }
 
-private fun paymentClick(
+private fun operationClick(
     item: ActivityItem,
     onPaymentClick: (String) -> Unit,
+    onReceiptClick: (String) -> Unit,
 ): (() -> Unit)? =
     if (item.type.uppercase() in setOf("SETTLEMENT", "PAYOUT")) {
-        { onPaymentClick(item.entityId) }
+        if (item.localState.uppercase() == "PAID") {
+            { onReceiptClick(item.entityId) }
+        } else {
+            { onPaymentClick(item.entityId) }
+        }
     } else {
         null
     }
