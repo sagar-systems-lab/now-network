@@ -507,6 +507,51 @@ class KtorNowApiClientTest {
     }
 
     @Test
+    fun paymentStatusUsesAuthorizedReadRoute() = runBlocking {
+        val refreshId = "81000000-0000-4000-8000-000000000001"
+        val client = client(
+            engine = MockEngine { request ->
+                assertEquals(HttpMethod.Get, request.method)
+                assertEquals("/v1/refreshes/$refreshId/payment", request.url.encodedPath)
+                assertEquals("Bearer token-a", request.headers[HttpHeaders.Authorization])
+
+                respond(
+                    content = """
+                        {
+                          "request_id":"11111111-1111-4111-8111-111111111111",
+                          "server_time":"2026-09-29T10:00:00Z",
+                          "data":{
+                            "refresh_id":"$refreshId",
+                            "verification_result_id":"82000000-0000-4000-8000-000000000001",
+                            "settlement_id":"83000000-0000-4000-8000-000000000001",
+                            "settlement_status":"VERIFYING",
+                            "payment_status":"VERIFYING",
+                            "chain_signature":"signature-a",
+                            "chain_commitment":null,
+                            "confirmed_at":null,
+                            "finalized_at":null,
+                            "updated_at":"2026-09-29T10:00:00Z"
+                          },
+                          "meta":{}
+                        }
+                    """.trimIndent(),
+                    status = HttpStatusCode.OK,
+                    headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                )
+            },
+        )
+
+        val result = client.paymentStatus(
+            refreshId = refreshId,
+            accessToken = "token-a",
+        )
+
+        assertEquals("VERIFYING", result.paymentStatus)
+        assertEquals("VERIFYING", result.settlementStatus)
+        assertEquals("signature-a", result.chainSignature)
+    }
+
+    @Test
     fun unauthorizedResponseMapsToAuthExpired() = runBlocking {
         val client = client(
             engine = MockEngine {

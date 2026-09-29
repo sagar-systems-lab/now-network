@@ -35,7 +35,7 @@ class KtorNowApiClient @Inject constructor(
     private val json: Json,
     private val config: PublicRuntimeConfig,
     private val serverClock: ServerClock,
-) : NowApiClient, EvidenceReadApiClient, EvidenceApiClient, VerificationApiClient {
+) : NowApiClient, EvidenceReadApiClient, EvidenceApiClient, VerificationApiClient, PaymentApiClient {
     override suspend fun nearbyStates(query: NearbyStateQuery): NearbyStatesDto =
         get(
             path = "/v1/states/nearby",
@@ -174,6 +174,16 @@ class KtorNowApiClient @Inject constructor(
             accessToken = accessToken,
             requestBody = kotlinx.serialization.json.buildJsonObject {},
             deserializer = VerificationResultDto.serializer(),
+        )
+
+    override suspend fun paymentStatus(
+        refreshId: String,
+        accessToken: String,
+    ): PaymentStatusDto =
+        get(
+            path = "/v1/refreshes/$refreshId/payment",
+            accessToken = accessToken,
+            deserializer = PaymentStatusDto.serializer(),
         )
 
     override suspend fun me(accessToken: String): MeDto =

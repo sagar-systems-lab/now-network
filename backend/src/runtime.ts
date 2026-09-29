@@ -12,11 +12,13 @@ import { PostgresEvidenceUploadRepository } from "./postgres-evidence-upload-rep
 import { PostgresIdentityRepository } from "./postgres-identity-repository.ts";
 import { OpportunityMatcher } from "./opportunity-matcher.ts";
 import { PostgresOpportunityRepository } from "./postgres-opportunity-repository.ts";
+import { PostgresPaymentStatusRepository } from "./postgres-payment-status-repository.ts";
 import { PostgresReceiptRepository } from "./postgres-receipt-repository.ts";
 import { PostgresRuntimeHealthRepository } from "./postgres-runtime-health-repository.ts";
 import { PostgresRefreshRepository } from "./postgres-refresh-repository.ts";
 import { PostgresStateRepository } from "./postgres-state-repository.ts";
 import { PostgresStateProjectionRepository } from "./postgres-state-projection-repository.ts";
+import { PaymentStatusService } from "./payment-status-service.ts";
 import { ReceiptService } from "./receipt-service.ts";
 import { RefreshCoordinator } from "./refresh-coordinator.ts";
 import { SolanaRpcRefreshChainObserver } from "./solana-refresh-observer.ts";
@@ -69,6 +71,7 @@ export function createProductionHandler(): (request: Request) => Promise<Respons
   const identityRepository = new PostgresIdentityRepository(connectionString);
   const stateRepository = new PostgresStateRepository(connectionString);
   const refreshRepository = new PostgresRefreshRepository(connectionString);
+  const paymentStatusRepository = new PostgresPaymentStatusRepository(connectionString);
   const receiptRepository = new PostgresReceiptRepository(connectionString);
   const runtimeHealthRepository = new PostgresRuntimeHealthRepository(connectionString);
   const claimRepository = new PostgresClaimRepository(connectionString);
@@ -144,6 +147,7 @@ export function createProductionHandler(): (request: Request) => Promise<Respons
   const stateProjectionService = new StateProjectionService(
     stateProjectionRepository,
   );
+  const paymentStatusService = new PaymentStatusService(paymentStatusRepository);
   const receiptService = new ReceiptService(receiptRepository);
   const app = createApp({
     authVerifier,
@@ -157,6 +161,7 @@ export function createProductionHandler(): (request: Request) => Promise<Respons
     evidenceUploadService,
     verificationService,
     stateProjectionService,
+    paymentStatusService,
     receiptService,
     readinessProbe: new RuntimeReadinessProbe(runtimeHealthRepository),
     readinessToken: requiredSecretEnv("NOW_READY_TOKEN"),

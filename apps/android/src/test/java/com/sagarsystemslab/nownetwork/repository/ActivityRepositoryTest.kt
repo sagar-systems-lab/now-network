@@ -45,6 +45,32 @@ class ActivityRepositoryTest {
         assertEquals(false, items[2].active)
     }
 
+    @Test
+    fun paymentPendingStaysActiveAndPaidMovesToCompleted() = runBlocking {
+        val dao = FakeActiveOperationDao(
+            listOf(
+                operation(
+                    id = "pending-payment",
+                    state = "PENDING",
+                    updatedAt = 2_000L,
+                ),
+                operation(
+                    id = "paid-payment",
+                    state = "PAID",
+                    updatedAt = 3_000L,
+                ),
+            ),
+        )
+        val repository = DefaultActivityRepository(dao)
+
+        val items = repository.observeActivity().first()
+        val pending = items.first { it.operationId == "pending-payment" }
+        val paid = items.first { it.operationId == "paid-payment" }
+
+        assertTrue(pending.active)
+        assertEquals(false, paid.active)
+    }
+
     private fun operation(
         id: String,
         state: String,

@@ -17,6 +17,8 @@ import com.sagarsystemslab.nownetwork.feature.earn.ContributorClaimViewModel
 import com.sagarsystemslab.nownetwork.feature.earn.EarnScreen
 import com.sagarsystemslab.nownetwork.feature.earn.EarnViewModel
 import com.sagarsystemslab.nownetwork.feature.home.NowScreen
+import com.sagarsystemslab.nownetwork.feature.payment.PaymentScreen
+import com.sagarsystemslab.nownetwork.feature.payment.PaymentViewModel
 import com.sagarsystemslab.nownetwork.feature.requester.RequesterFundingScreen
 import com.sagarsystemslab.nownetwork.feature.requester.RequesterFundingViewModel
 import com.sagarsystemslab.nownetwork.feature.state.BrowseViewModel
@@ -33,6 +35,7 @@ fun NowNavHost(
     contributorClaimViewModel: ContributorClaimViewModel,
     evidenceCaptureViewModel: EvidenceCaptureViewModel,
     verificationViewModel: VerificationViewModel,
+    paymentViewModel: PaymentViewModel,
     activityViewModel: ActivityViewModel,
     requesterFundingViewModel: RequesterFundingViewModel,
     walletInteractionHost: WalletInteractionHost,
@@ -175,8 +178,29 @@ fun NowNavHost(
                 uiState = uiState,
                 onBack = appState::navigateBack,
                 onRetry = verificationViewModel::retry,
+                onTrackPayment = {
+                    appState.navigateToPayment(route.refreshId)
+                },
                 onDone = {
                     appState.navigateTo(TopLevelDestination.EARN)
+                },
+            )
+        }
+
+        composable<PaymentRoute> { backStackEntry ->
+            val route = backStackEntry.toRoute<PaymentRoute>()
+            val uiState by paymentViewModel.state.collectAsStateWithLifecycle()
+
+            LaunchedEffect(route.refreshId) {
+                paymentViewModel.open(route.refreshId)
+            }
+
+            PaymentScreen(
+                uiState = uiState,
+                onBack = appState::navigateBack,
+                onRetry = paymentViewModel::retry,
+                onDone = {
+                    appState.navigateTo(TopLevelDestination.ACTIVITY)
                 },
             )
         }
@@ -187,6 +211,7 @@ fun NowNavHost(
             ActivityScreen(
                 uiState = uiState,
                 serverNowMillis = activityViewModel::serverNowMillis,
+                onPaymentClick = appState::navigateToPayment,
             )
         }
     }

@@ -11,6 +11,8 @@ import com.sagarsystemslab.nownetwork.evidence.EvidenceObjectUploader
 import com.sagarsystemslab.nownetwork.evidence.FusedEvidenceLocationProvider
 import com.sagarsystemslab.nownetwork.evidence.KtorEvidenceObjectUploader
 import com.sagarsystemslab.nownetwork.repository.DefaultOpportunityRepository
+import com.sagarsystemslab.nownetwork.repository.DefaultPaymentRepository
+import com.sagarsystemslab.nownetwork.repository.PaymentRepository
 import com.sagarsystemslab.nownetwork.repository.DefaultStateRepository
 import com.sagarsystemslab.nownetwork.repository.DefaultVerificationRepository
 import com.sagarsystemslab.nownetwork.repository.VerificationRepository
@@ -37,6 +39,12 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class RepositoryModule {
+    @Binds
+    @Singleton
+    abstract fun bindPaymentRepository(
+        implementation: DefaultPaymentRepository,
+    ): PaymentRepository
+
     @Binds
     @Singleton
     abstract fun bindVerificationRepository(
