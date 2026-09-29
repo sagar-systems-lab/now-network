@@ -1,0 +1,5 @@
+[functions.now-api]
+verify_jwt = false
+
+[functions.now-worker]
+verify_jwt = false
