@@ -597,3 +597,63 @@ data class EvidenceCommittedMediaDto(
     val sizeBytes: Long,
     val mime: String,
 )
+
+
+@Serializable
+data class VerificationResultDto(
+    @SerialName("verification_result_id")
+    val verificationResultId: String,
+    @SerialName("refresh_id")
+    val refreshId: String,
+    val result: String,
+    val status: String,
+    @SerialName("reason_codes")
+    val reasonCodes: List<String> = emptyList(),
+    @SerialName("evidence_ids")
+    val evidenceIds: List<String> = emptyList(),
+    @SerialName("final_answer")
+    val finalAnswer: JsonElement? = null,
+    @SerialName("evidence_set_revision")
+    val evidenceSetRevision: Int,
+    @SerialName("policy_version")
+    val policyVersion: Int,
+    @SerialName("canonical_digest")
+    val canonicalDigest: String? = null,
+    @SerialName("completed_at")
+    val completedAt: String? = null,
+    @SerialName("refresh_status")
+    val refreshStatus: String? = null,
+    @SerialName("refresh_revision")
+    val refreshRevision: Long? = null,
+    val replayed: Boolean,
+    @SerialName("next_step")
+    val nextStep: String,
+    @SerialName("state_projection")
+    val stateProjection: VerificationStateProjectionDto? = null,
+)
+
+@Serializable
+data class VerificationStateProjectionDto(
+    @SerialName("state_id")
+    val stateId: String,
+    @SerialName("refresh_id")
+    val refreshId: String,
+    @SerialName("verification_result_id")
+    val verificationResultId: String,
+    @SerialName("state_revision")
+    val stateRevision: Long,
+    @SerialName("history_id")
+    val historyId: String,
+    @SerialName("observed_at")
+    val observedAt: String,
+    @SerialName("aging_at")
+    val agingAt: String,
+    @SerialName("fresh_until")
+    val freshUntil: String,
+    @SerialName("current_value")
+    val currentValue: JsonElement,
+    val projected: Boolean,
+    val replayed: Boolean,
+    val superseded: Boolean,
+    val freshness: String? = null,
+)

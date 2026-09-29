@@ -21,6 +21,8 @@ import com.sagarsystemslab.nownetwork.feature.requester.RequesterFundingScreen
 import com.sagarsystemslab.nownetwork.feature.requester.RequesterFundingViewModel
 import com.sagarsystemslab.nownetwork.feature.state.BrowseViewModel
 import com.sagarsystemslab.nownetwork.feature.state.StateDetailScreen
+import com.sagarsystemslab.nownetwork.feature.verification.VerificationScreen
+import com.sagarsystemslab.nownetwork.feature.verification.VerificationViewModel
 import com.sagarsystemslab.nownetwork.wallet.WalletInteractionHost
 
 @Composable
@@ -30,6 +32,7 @@ fun NowNavHost(
     earnViewModel: EarnViewModel,
     contributorClaimViewModel: ContributorClaimViewModel,
     evidenceCaptureViewModel: EvidenceCaptureViewModel,
+    verificationViewModel: VerificationViewModel,
     activityViewModel: ActivityViewModel,
     requesterFundingViewModel: RequesterFundingViewModel,
     walletInteractionHost: WalletInteractionHost,
@@ -154,6 +157,27 @@ fun NowNavHost(
                 onRecapture = evidenceCaptureViewModel::recapture,
                 onSubmit = evidenceCaptureViewModel::submit,
                 onRetry = evidenceCaptureViewModel::retry,
+                onContinueVerification = {
+                    appState.navigateToVerification(route.refreshId)
+                },
+            )
+        }
+
+        composable<VerificationRoute> { backStackEntry ->
+            val route = backStackEntry.toRoute<VerificationRoute>()
+            val uiState by verificationViewModel.state.collectAsStateWithLifecycle()
+
+            LaunchedEffect(route.refreshId) {
+                verificationViewModel.open(route.refreshId)
+            }
+
+            VerificationScreen(
+                uiState = uiState,
+                onBack = appState::navigateBack,
+                onRetry = verificationViewModel::retry,
+                onDone = {
+                    appState.navigateTo(TopLevelDestination.EARN)
+                },
             )
         }
 

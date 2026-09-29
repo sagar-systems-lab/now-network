@@ -513,10 +513,13 @@ jobs:
           anchor build
           git diff --exit-code -- Cargo.lock
 
-      - name: Local validator qualification
+      - name: Local validator and protocol qualification
         shell: bash
         run: |
           bash -n scripts/solana/qualify-local-validator.sh
+          bash -n scripts/solana/protocol-flow-common.sh
+          bash -n scripts/solana/qualify-protocol-flow-local.sh
+          python3 -m py_compile scripts/solana/protocol-flow-client.py
           deno check scripts/solana/local-validator-client.ts
           scripts/solana/qualify-local-validator.sh
 
@@ -562,16 +565,6 @@ jobs:
             exit 1
           fi
           grep -Fq "DEVNET_QUALIFICATION_FAIL=PROGRAM_KEYPAIR_INSIDE_REPOSITORY" <<<"$output"
-
-      - name: Protocol transaction qualification
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          python3 -m py_compile scripts/solana/protocol-flow-client.py
-          bash -n scripts/solana/protocol-flow-common.sh
-          bash -n scripts/solana/qualify-protocol-flow-local.sh
-          bash -n scripts/solana/qualify-devnet-flow.sh
-          scripts/solana/qualify-protocol-flow-local.sh
 
   security:
     runs-on: [self-hosted, Linux, X64]

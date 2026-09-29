@@ -3,6 +3,7 @@ package com.sagarsystemslab.nownetwork
 import com.sagarsystemslab.nownetwork.navigation.EvidenceCaptureRoute
 import com.sagarsystemslab.nownetwork.navigation.OpportunityRoute
 import com.sagarsystemslab.nownetwork.navigation.StateDetailRoute
+import com.sagarsystemslab.nownetwork.navigation.VerificationRoute
 import com.sagarsystemslab.nownetwork.navigation.TopLevelDestination
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -32,5 +33,9 @@ class NavigationContractTest {
         )
         assertEquals("acceptance-789", evidenceRoute.acceptanceId)
         assertEquals("refresh-456", evidenceRoute.refreshId)
+        assertEquals(
+            "refresh-456",
+            VerificationRoute(refreshId = "refresh-456").refreshId,
+        )
     }
 }

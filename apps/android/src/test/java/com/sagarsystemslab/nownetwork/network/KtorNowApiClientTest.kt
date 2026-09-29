@@ -433,6 +433,80 @@ class KtorNowApiClientTest {
     }
 
     @Test
+    fun verificationReturnsAuthoritativeProjectedState() = runBlocking {
+        val refreshId = "22222222-2222-4222-8222-222222222222"
+        val verificationId = "66666666-6666-4666-8666-666666666666"
+        val client = client(
+            engine = MockEngine { request ->
+                assertEquals(HttpMethod.Post, request.method)
+                assertEquals("/v1/refreshes/$refreshId/verify", request.url.encodedPath)
+                assertEquals("Bearer token-a", request.headers[HttpHeaders.Authorization])
+
+                respond(
+                    content = """
+                        {
+                          "request_id":"11111111-1111-4111-8111-111111111111",
+                          "server_time":"2026-09-28T09:00:00Z",
+                          "data":{
+                            "verification_result_id":"$verificationId",
+                            "refresh_id":"$refreshId",
+                            "result":"VERIFIED",
+                            "status":"VERIFIED",
+                            "reason_codes":[],
+                            "evidence_ids":[
+                              "55555555-5555-4555-8555-555555555555"
+                            ],
+                            "final_answer":2,
+                            "evidence_set_revision":1,
+                            "policy_version":1,
+                            "canonical_digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                            "completed_at":"2026-09-28T09:00:00Z",
+                            "refresh_status":"VERIFIED",
+                            "refresh_revision":10,
+                            "replayed":false,
+                            "next_step":"PROJECTION",
+                            "state_projection":{
+                              "state_id":"33333333-3333-4333-8333-333333333333",
+                              "refresh_id":"$refreshId",
+                              "verification_result_id":"$verificationId",
+                              "state_revision":8,
+                              "history_id":"77777777-7777-4777-8777-777777777777",
+                              "observed_at":"2026-09-28T09:00:00Z",
+                              "aging_at":"2026-09-28T09:07:00Z",
+                              "fresh_until":"2026-09-28T09:10:00Z",
+                              "current_value":{
+                                "kind":"numeric",
+                                "scaled_value":"2",
+                                "scale":0,
+                                "unit":"spaces"
+                              },
+                              "projected":true,
+                              "replayed":false,
+                              "superseded":false,
+                              "freshness":"LIVE"
+                            }
+                          },
+                          "meta":{}
+                        }
+                    """.trimIndent(),
+                    status = HttpStatusCode.Created,
+                    headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                )
+            },
+        )
+
+        val result = client.verifyRefresh(
+            refreshId = refreshId,
+            accessToken = "token-a",
+        )
+
+        assertEquals("VERIFIED", result.result)
+        assertEquals("LIVE", result.stateProjection?.freshness)
+        assertEquals(8L, result.stateProjection?.stateRevision)
+        assertEquals(1, result.evidenceIds.size)
+    }
+
+    @Test
     fun unauthorizedResponseMapsToAuthExpired() = runBlocking {
         val client = client(
             engine = MockEngine {

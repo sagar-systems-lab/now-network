@@ -32,3 +32,8 @@ data class EvidenceCaptureRoute(
     val acceptanceId: String,
     val refreshId: String,
 )
+
+@Serializable
+data class VerificationRoute(
+    val refreshId: String,
+)

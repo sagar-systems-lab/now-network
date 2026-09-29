@@ -67,6 +67,7 @@ fun EvidenceCaptureScreen(
     onRecapture: () -> Unit,
     onSubmit: () -> Unit,
     onRetry: () -> Unit,
+    onContinueVerification: () -> Unit,
 ) {
     val context = LocalContext.current
     var cameraController by remember { mutableStateOf<EvidenceCameraController?>(null) }
@@ -432,6 +433,12 @@ fun EvidenceCaptureScreen(
                         }
                     },
                 )
+                Button(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onContinueVerification,
+                ) {
+                    Text("Check verification")
+                }
             }
 
             EvidenceCaptureStage.EXPIRED -> {

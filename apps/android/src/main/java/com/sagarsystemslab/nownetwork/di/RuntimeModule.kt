@@ -19,6 +19,7 @@ import com.sagarsystemslab.nownetwork.network.EvidenceApiClient
 import com.sagarsystemslab.nownetwork.network.EvidenceReadApiClient
 import com.sagarsystemslab.nownetwork.network.KtorNowApiClient
 import com.sagarsystemslab.nownetwork.network.NowApiClient
+import com.sagarsystemslab.nownetwork.network.VerificationApiClient
 import com.sagarsystemslab.nownetwork.solana.KtorSolanaRpcClient
 import com.sagarsystemslab.nownetwork.solana.SolanaRpcClient
 import dagger.Module
@@ -177,6 +178,12 @@ object RuntimeModule {
     fun provideEvidenceReadApiClient(
         implementation: KtorNowApiClient,
     ): EvidenceReadApiClient = implementation
+
+    @Provides
+    @Singleton
+    fun provideVerificationApiClient(
+        implementation: KtorNowApiClient,
+    ): VerificationApiClient = implementation
 
     @Provides
     @Singleton

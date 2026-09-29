@@ -1,10 +1,18 @@
 import { Buffer } from "node:buffer";
-import { createHash, generateKeyPairSync, type KeyObject, sign } from "node:crypto";
+import {
+  createHash,
+  createPrivateKey,
+  createPublicKey,
+  generateKeyPairSync,
+  type KeyObject,
+  sign,
+} from "node:crypto";
 
 const RPC_URL = Deno.env.get("NOW_LOCALNET_RPC_URL") ??
   "http://127.0.0.1:8899";
 const REWARD_MINT = requiredEnv("NOW_LOCALNET_REWARD_MINT");
 const STATE_FILE = requiredEnv("NOW_LOCALNET_STATE_FILE");
+const ADMIN_KEYPAIR = Deno.env.get("NOW_LOCALNET_ADMIN_KEYPAIR")?.trim() || null;
 const MODE = Deno.env.get("NOW_LOCALNET_MODE") ?? "exercise";
 
 const PROGRAM_ID = "sE74tJL2pCSWMHhEGvBM5hL2DYmFaUUQCDpC1QkHE3T";
@@ -173,6 +181,64 @@ function equalBytes(left: Uint8Array, right: Uint8Array): boolean {
     if (left[index] !== right[index]) return false;
   }
   return true;
+}
+
+async function loadAdminIdentity(): Promise<{
+  admin: Uint8Array<ArrayBuffer>;
+  adminAddress: string;
+  privateKey: KeyObject;
+}> {
+  if (ADMIN_KEYPAIR === null) {
+    const { publicKey, privateKey } = generateKeyPairSync("ed25519");
+    const publicDer = publicKey.export({ type: "spki", format: "der" });
+    const admin = Uint8Array.from(
+      publicDer.subarray(publicDer.length - 32),
+    );
+    assert(admin.length === 32, "generated Ed25519 public key must be 32 bytes");
+    return {
+      admin,
+      adminAddress: encodeBase58(admin),
+      privateKey,
+    };
+  }
+
+  const parsed = JSON.parse(await Deno.readTextFile(ADMIN_KEYPAIR));
+  assert(
+    Array.isArray(parsed) &&
+      parsed.length === 64 &&
+      parsed.every((value) => Number.isInteger(value) && value >= 0 && value <= 255),
+    "local validator admin keypair is invalid",
+  );
+
+  const keypair = Uint8Array.from(parsed as number[]);
+  const seed = keypair.subarray(0, 32);
+  const expectedPublic = keypair.subarray(32, 64);
+  const pkcs8Prefix = Buffer.from(
+    "302e020100300506032b657004220420",
+    "hex",
+  );
+  const privateKey = createPrivateKey({
+    key: Buffer.concat([pkcs8Prefix, Buffer.from(seed)]),
+    format: "der",
+    type: "pkcs8",
+  });
+  const publicDer = createPublicKey(privateKey).export({
+    type: "spki",
+    format: "der",
+  });
+  const derivedPublic = Uint8Array.from(
+    publicDer.subarray(publicDer.length - 32),
+  );
+  assert(
+    equalBytes(derivedPublic, expectedPublic),
+    "local validator admin keypair public key mismatch",
+  );
+
+  return {
+    admin: Uint8Array.from(expectedPublic),
+    adminAddress: encodeBase58(expectedPublic),
+    privateKey,
+  };
 }
 
 function initializeDiscriminator(): Uint8Array<ArrayBuffer> {
@@ -410,13 +476,7 @@ async function exercise(): Promise<void> {
   const config = hexToBytes(vector.config.pda_hex);
   assert(config.length === 32, "config PDA vector must be 32 bytes");
 
-  const { publicKey, privateKey } = generateKeyPairSync("ed25519");
-  const publicDer = publicKey.export({ type: "spki", format: "der" });
-  const admin = Uint8Array.from(
-    publicDer.subarray(publicDer.length - 32),
-  );
-  assert(admin.length === 32, "generated Ed25519 public key must be 32 bytes");
-  const adminAddress = encodeBase58(admin);
+  const { admin, adminAddress, privateKey } = await loadAdminIdentity();
 
   await requestAirdrop(adminAddress);
 
