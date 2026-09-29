@@ -552,6 +552,60 @@ class KtorNowApiClientTest {
     }
 
     @Test
+    fun receiptUsesAuthorizedReadRouteAndDecodesFinalProof() = runBlocking {
+        val refreshId = "91000000-0000-4000-8000-000000000001"
+        val client = client(
+            engine = MockEngine { request ->
+                assertEquals(HttpMethod.Get, request.method)
+                assertEquals("/v1/refreshes/$refreshId/receipt", request.url.encodedPath)
+                assertEquals("Bearer token-a", request.headers[HttpHeaders.Authorization])
+
+                respond(
+                    content = """
+                        {
+                          "request_id":"11111111-1111-4111-8111-111111111111",
+                          "server_time":"2026-09-29T11:00:00Z",
+                          "data":{
+                            "receipt_id":"95000000-0000-4000-8000-000000000001",
+                            "refresh_id":"$refreshId",
+                            "state_id":"92000000-0000-4000-8000-000000000001",
+                            "verification_result_id":"93000000-0000-4000-8000-000000000001",
+                            "settlement_id":"94000000-0000-4000-8000-000000000001",
+                            "status":"FINAL",
+                            "final_value":{"kind":"numeric","value":12},
+                            "observed_at":"2026-09-29T10:58:00Z",
+                            "verification_class":"FAST",
+                            "reward_amount_atomic":"500000",
+                            "reward_mint":"So11111111111111111111111111111111111111112",
+                            "verification_digest":"abababababababababababababababababababababababababababababababab",
+                            "settlement_operation_hash":"cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+                            "receipt_digest":"efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef",
+                            "settlement_signature":"signature-final",
+                            "chain_commitment":"finalized",
+                            "finalized_at":"2026-09-29T11:00:00Z",
+                            "revision":1
+                          },
+                          "meta":{}
+                        }
+                    """.trimIndent(),
+                    status = HttpStatusCode.OK,
+                    headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                )
+            },
+        )
+
+        val result = client.receipt(
+            refreshId = refreshId,
+            accessToken = "token-a",
+        )
+
+        assertEquals("FINAL", result.status)
+        assertEquals("finalized", result.chainCommitment)
+        assertEquals("500000", result.rewardAmountAtomic)
+        assertEquals(1L, result.revision)
+    }
+
+    @Test
     fun unauthorizedResponseMapsToAuthExpired() = runBlocking {
         val client = client(
             engine = MockEngine {

@@ -19,6 +19,8 @@ import com.sagarsystemslab.nownetwork.feature.earn.EarnViewModel
 import com.sagarsystemslab.nownetwork.feature.home.NowScreen
 import com.sagarsystemslab.nownetwork.feature.payment.PaymentScreen
 import com.sagarsystemslab.nownetwork.feature.payment.PaymentViewModel
+import com.sagarsystemslab.nownetwork.feature.receipt.ReceiptScreen
+import com.sagarsystemslab.nownetwork.feature.receipt.ReceiptViewModel
 import com.sagarsystemslab.nownetwork.feature.requester.RequesterFundingScreen
 import com.sagarsystemslab.nownetwork.feature.requester.RequesterFundingViewModel
 import com.sagarsystemslab.nownetwork.feature.state.BrowseViewModel
@@ -36,6 +38,7 @@ fun NowNavHost(
     evidenceCaptureViewModel: EvidenceCaptureViewModel,
     verificationViewModel: VerificationViewModel,
     paymentViewModel: PaymentViewModel,
+    receiptViewModel: ReceiptViewModel,
     activityViewModel: ActivityViewModel,
     requesterFundingViewModel: RequesterFundingViewModel,
     walletInteractionHost: WalletInteractionHost,
@@ -199,6 +202,27 @@ fun NowNavHost(
                 uiState = uiState,
                 onBack = appState::navigateBack,
                 onRetry = paymentViewModel::retry,
+                onViewReceipt = {
+                    appState.navigateToReceipt(route.refreshId)
+                },
+                onDone = {
+                    appState.navigateTo(TopLevelDestination.ACTIVITY)
+                },
+            )
+        }
+
+        composable<ReceiptRoute> { backStackEntry ->
+            val route = backStackEntry.toRoute<ReceiptRoute>()
+            val uiState by receiptViewModel.state.collectAsStateWithLifecycle()
+
+            LaunchedEffect(route.refreshId) {
+                receiptViewModel.open(route.refreshId)
+            }
+
+            ReceiptScreen(
+                uiState = uiState,
+                onBack = appState::navigateBack,
+                onRetry = receiptViewModel::retry,
                 onDone = {
                     appState.navigateTo(TopLevelDestination.ACTIVITY)
                 },
@@ -212,6 +236,7 @@ fun NowNavHost(
                 uiState = uiState,
                 serverNowMillis = activityViewModel::serverNowMillis,
                 onPaymentClick = appState::navigateToPayment,
+                onReceiptClick = appState::navigateToReceipt,
             )
         }
     }

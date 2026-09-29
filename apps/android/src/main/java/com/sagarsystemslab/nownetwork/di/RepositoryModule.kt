@@ -18,6 +18,8 @@ import com.sagarsystemslab.nownetwork.repository.DefaultVerificationRepository
 import com.sagarsystemslab.nownetwork.repository.VerificationRepository
 import com.sagarsystemslab.nownetwork.repository.ContributorClaimRepository
 import com.sagarsystemslab.nownetwork.repository.DefaultRequesterFundingRepository
+import com.sagarsystemslab.nownetwork.repository.DefaultReceiptRepository
+import com.sagarsystemslab.nownetwork.repository.ReceiptRepository
 import com.sagarsystemslab.nownetwork.repository.StateCache
 import com.sagarsystemslab.nownetwork.repository.StateRepository
 import com.sagarsystemslab.nownetwork.repository.RequesterFundingRepository
@@ -39,6 +41,12 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class RepositoryModule {
+    @Binds
+    @Singleton
+    abstract fun bindReceiptRepository(
+        implementation: DefaultReceiptRepository,
+    ): ReceiptRepository
+
     @Binds
     @Singleton
     abstract fun bindPaymentRepository(

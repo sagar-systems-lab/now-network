@@ -42,3 +42,8 @@ data class VerificationRoute(
 data class PaymentRoute(
     val refreshId: String,
 )
+
+@Serializable
+data class ReceiptRoute(
+    val refreshId: String,
+)

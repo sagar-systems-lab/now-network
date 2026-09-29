@@ -1,4 +1,4 @@
-package com.sagarsystemslab.nownetwork.feature.payment
+package com.sagarsystemslab.nownetwork.feature.receipt
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
@@ -29,13 +29,13 @@ import androidx.compose.ui.unit.dp
 import com.sagarsystemslab.nownetwork.designsystem.NowColors
 import com.sagarsystemslab.nownetwork.designsystem.NowSpacing
 import com.sagarsystemslab.nownetwork.designsystem.NowType
+import com.sagarsystemslab.nownetwork.repository.FinalReceipt
 
 @Composable
-fun PaymentScreen(
-    uiState: PaymentUiState,
+fun ReceiptScreen(
+    uiState: ReceiptUiState,
     onBack: () -> Unit,
     onRetry: () -> Unit,
-    onViewReceipt: () -> Unit,
     onDone: () -> Unit,
 ) {
     Column(
@@ -46,7 +46,7 @@ fun PaymentScreen(
                 horizontal = NowSpacing.PageHorizontal,
                 vertical = NowSpacing.Space3,
             )
-            .testTag("screen-payment"),
+            .testTag("screen-receipt"),
         verticalArrangement = Arrangement.spacedBy(NowSpacing.Space3),
     ) {
         Row(
@@ -60,60 +60,51 @@ fun PaymentScreen(
                 )
             }
             Text(
-                text = "Payment",
+                text = "Final receipt",
                 style = NowType.TitleL,
                 color = NowColors.Ink950,
             )
         }
 
         when (uiState.stage) {
-            PaymentStage.PENDING -> {
-                PaymentStatusCard(
-                    title = "Payment pending",
+            ReceiptStage.FINALIZING -> {
+                ReceiptCard(
+                    title = "Finalizing receipt",
                     body = uiState.message,
                     progress = true,
                 )
-            }
-
-            PaymentStage.VERIFYING -> {
-                PaymentStatusCard(
-                    title = "Verifying payment",
-                    body = uiState.message,
-                    progress = true,
+                Text(
+                    text = "The receipt is generated from finalized settlement authority. No payment action is required.",
+                    style = NowType.BodyS,
+                    color = NowColors.Ink500,
                 )
             }
 
-            PaymentStage.PAID -> {
-                PaymentStatusCard(
-                    title = "Paid",
-                    body = uiState.message,
-                )
-                PaymentAuthorityCard(uiState)
-                Button(
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = onViewReceipt,
-                ) {
-                    Text("View final receipt")
+            ReceiptStage.READY -> {
+                val receipt = uiState.receipt
+                if (receipt == null) {
+                    ReceiptCard(
+                        title = "Receipt unavailable",
+                        body = "Final receipt data is missing.",
+                    )
+                } else {
+                    ReceiptCard(
+                        title = "Final",
+                        body = "Payment proof is finalized and bound to the verified result.",
+                    )
+                    ReceiptDetails(receipt)
+                    Button(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = onDone,
+                    ) {
+                        Text("Done")
+                    }
                 }
             }
 
-            PaymentStage.FAILED -> {
-                PaymentStatusCard(
-                    title = "Payment needs support",
-                    body = uiState.message,
-                )
-                PaymentAuthorityCard(uiState)
-                Button(
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = onDone,
-                ) {
-                    Text("View activity")
-                }
-            }
-
-            PaymentStage.ATTENTION -> {
-                PaymentStatusCard(
-                    title = "Payment status unavailable",
+            ReceiptStage.ATTENTION -> {
+                ReceiptCard(
+                    title = "Receipt needs attention",
                     body = uiState.message,
                 )
                 OutlinedButton(
@@ -125,41 +116,66 @@ fun PaymentScreen(
             }
         }
 
-        if (
-            uiState.stage == PaymentStage.PENDING ||
-            uiState.stage == PaymentStage.VERIFYING
-        ) {
-            Text(
-                text = "You can leave this screen. Payment reconciliation continues independently.",
-                style = NowType.BodyS,
-                color = NowColors.Ink500,
-            )
-        }
-
         Spacer(Modifier.height(NowSpacing.Space3))
     }
 }
 
 @Composable
-private fun PaymentAuthorityCard(uiState: PaymentUiState) {
-    PaymentStatusCard(
-        title = "Settlement",
-        body = buildString {
-            append(uiState.settlementStatus.lowercase().replace('_', ' '))
-            uiState.chainCommitment?.let {
-                append(" · ")
-                append(it)
-            }
-            uiState.chainSignature?.let {
+private fun ReceiptDetails(receipt: FinalReceipt) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(NowSpacing.Space3),
+    ) {
+        ReceiptCard(
+            title = "Verified result",
+            body = buildString {
+                append(receipt.finalValue.toString())
+                append("\nObserved: ")
+                append(receipt.observedAt)
+                append("\nVerification: ")
+                append(receipt.verificationClass)
+            },
+        )
+
+        ReceiptCard(
+            title = "Reward",
+            body = buildString {
+                append(receipt.rewardAmountAtomic)
+                append(" atomic units")
+                append("\nMint: ")
+                append(shorten(receipt.rewardMint))
+            },
+        )
+
+        ReceiptCard(
+            title = "Settlement proof",
+            body = buildString {
+                append("Finalized: ")
+                append(receipt.finalizedAt)
                 append("\nSignature: ")
-                append(shorten(it))
-            }
-        },
-    )
+                append(shorten(receipt.settlementSignature))
+                append("\nOperation hash: ")
+                append(shorten(receipt.settlementOperationHash))
+            },
+        )
+
+        ReceiptCard(
+            title = "Receipt integrity",
+            body = buildString {
+                append("Receipt ID: ")
+                append(shorten(receipt.receiptId))
+                append("\nDigest: ")
+                append(shorten(receipt.receiptDigest))
+                append("\nVerification digest: ")
+                append(shorten(receipt.verificationDigest))
+                append("\nRevision: ")
+                append(receipt.revision)
+            },
+        )
+    }
 }
 
 @Composable
-private fun PaymentStatusCard(
+private fun ReceiptCard(
     title: String,
     body: String,
     progress: Boolean = false,
@@ -198,4 +214,4 @@ private fun PaymentStatusCard(
 }
 
 private fun shorten(value: String): String =
-    if (value.length <= 18) value else "${value.take(8)}…${value.takeLast(8)}"
+    if (value.length <= 24) value else "${value.take(10)}…${value.takeLast(10)}"
