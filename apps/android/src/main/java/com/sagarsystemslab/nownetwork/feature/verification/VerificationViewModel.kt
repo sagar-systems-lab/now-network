@@ -2,6 +2,7 @@ package com.sagarsystemslab.nownetwork.feature.verification
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.sagarsystemslab.nownetwork.repository.PaymentRepository
 import com.sagarsystemslab.nownetwork.repository.VerificationFailure
 import com.sagarsystemslab.nownetwork.repository.VerificationOutcome
 import com.sagarsystemslab.nownetwork.repository.VerificationRepository
@@ -44,6 +45,7 @@ data class VerificationUiState(
 @HiltViewModel
 class VerificationViewModel @Inject constructor(
     private val repository: VerificationRepository,
+    private val paymentRepository: PaymentRepository,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(VerificationUiState())
     val state: StateFlow<VerificationUiState> = mutableState.asStateFlow()
@@ -66,7 +68,11 @@ class VerificationViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                apply(repository.verify(refreshId))
+                val outcome = repository.verify(refreshId)
+                if (outcome.result == "VERIFIED") {
+                    paymentRepository.prime(outcome.refreshId)
+                }
+                apply(outcome)
             } catch (error: CancellationException) {
                 throw error
             } catch (_: VerificationFailure.Expired) {

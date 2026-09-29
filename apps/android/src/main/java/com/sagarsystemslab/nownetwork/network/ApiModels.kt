@@ -657,3 +657,27 @@ data class VerificationStateProjectionDto(
     val superseded: Boolean,
     val freshness: String? = null,
 )
+
+@Serializable
+data class PaymentStatusDto(
+    @SerialName("refresh_id")
+    val refreshId: String,
+    @SerialName("verification_result_id")
+    val verificationResultId: String,
+    @SerialName("settlement_id")
+    val settlementId: String? = null,
+    @SerialName("settlement_status")
+    val settlementStatus: String,
+    @SerialName("payment_status")
+    val paymentStatus: String,
+    @SerialName("chain_signature")
+    val chainSignature: String? = null,
+    @SerialName("chain_commitment")
+    val chainCommitment: String? = null,
+    @SerialName("confirmed_at")
+    val confirmedAt: String? = null,
+    @SerialName("finalized_at")
+    val finalizedAt: String? = null,
+    @SerialName("updated_at")
+    val updatedAt: String,
+)

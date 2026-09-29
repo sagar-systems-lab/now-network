@@ -1,6 +1,7 @@
 package com.sagarsystemslab.nownetwork.feature.activity
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -34,6 +35,7 @@ import com.sagarsystemslab.nownetwork.model.ActivityItem
 fun ActivityScreen(
     uiState: ActivityUiState,
     serverNowMillis: () -> Long,
+    onPaymentClick: (String) -> Unit,
 ) {
     val nowMillis = rememberVisibleServerTime(serverNowMillis)
 
@@ -80,6 +82,7 @@ fun ActivityScreen(
                     item = item,
                     nowMillis = nowMillis,
                     active = true,
+                    onClick = paymentClick(item, onPaymentClick),
                 )
             }
         }
@@ -100,6 +103,7 @@ fun ActivityScreen(
                     item = item,
                     nowMillis = nowMillis,
                     active = false,
+                    onClick = paymentClick(item, onPaymentClick),
                 )
             }
         }
@@ -138,10 +142,14 @@ private fun ActivityRow(
     item: ActivityItem,
     nowMillis: Long,
     active: Boolean,
+    onClick: (() -> Unit)?,
 ) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
+            .then(
+                if (onClick == null) Modifier else Modifier.clickable(onClick = onClick),
+            )
             .testTag("activity-row-${item.operationId}")
             .semantics {
                 stateDescription = activityStatus(item)
@@ -215,6 +223,16 @@ private fun EmptyActivityState() {
         }
     }
 }
+
+private fun paymentClick(
+    item: ActivityItem,
+    onPaymentClick: (String) -> Unit,
+): (() -> Unit)? =
+    if (item.type.uppercase() in setOf("SETTLEMENT", "PAYOUT")) {
+        { onPaymentClick(item.entityId) }
+    } else {
+        null
+    }
 
 private fun activityTitle(item: ActivityItem): String =
     when (item.type.uppercase()) {

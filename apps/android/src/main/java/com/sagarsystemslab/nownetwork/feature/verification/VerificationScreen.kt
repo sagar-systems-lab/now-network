@@ -39,6 +39,7 @@ fun VerificationScreen(
     uiState: VerificationUiState,
     onBack: () -> Unit,
     onRetry: () -> Unit,
+    onTrackPayment: () -> Unit,
     onDone: () -> Unit,
 ) {
     Column(
@@ -109,9 +110,9 @@ fun VerificationScreen(
 
                 Button(
                     modifier = Modifier.fillMaxWidth(),
-                    onClick = onDone,
+                    onClick = onTrackPayment,
                 ) {
-                    Text("Done")
+                    Text("Track payment")
                 }
             }
 

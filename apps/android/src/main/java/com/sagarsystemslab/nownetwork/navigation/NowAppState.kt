@@ -77,6 +77,10 @@ class NowAppState(
         navController.navigate(VerificationRoute(refreshId = refreshId))
     }
 
+    fun navigateToPayment(refreshId: String) {
+        navController.navigate(PaymentRoute(refreshId = refreshId))
+    }
+
     fun navigateBack() {
         navController.popBackStack()
     }
