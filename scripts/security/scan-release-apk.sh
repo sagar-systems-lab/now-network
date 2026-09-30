@@ -24,7 +24,7 @@ if [ "$debuggable" != "false" ]; then
 fi
 
 manifest="$("$APK_ANALYZER" manifest print "$APK")"
-if ! grep -Eq 'usesCleartextTraffic="false"|android:usesCleartextTraffic="false"' <<<"$manifest"; then
+if ! grep -Eq "usesCleartextTraffic=['\"]false['\"]|android:usesCleartextTraffic=['\"]false['\"]" <<<"$manifest"; then
   echo "release APK does not explicitly disable cleartext traffic" >&2
   exit 1
 fi
