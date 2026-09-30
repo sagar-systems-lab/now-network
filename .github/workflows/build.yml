@@ -352,6 +352,14 @@ jobs:
           set -Eeuo pipefail
           docker exec -i "$DB_CONTAINER" psql -X -U postgres -d now_test -v ON_ERROR_STOP=1 < tests/database/runtime_health_guards.sql
 
+      - name: Verify function search-path hardening
+        shell: bash
+        env:
+          DB_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          set -Eeuo pipefail
+          docker exec -i "$DB_CONTAINER" psql -X -U postgres -d now_test -v ON_ERROR_STOP=1 < tests/database/function_search_path_guards.sql
+
       - name: Verify database security baseline
         shell: bash
         env:

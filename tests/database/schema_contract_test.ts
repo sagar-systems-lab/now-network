@@ -42,6 +42,7 @@ const expectedMigrations = [
   "20260925_027_settlement_orchestration.sql",
   "20260926_028_receipts_realtime.sql",
   "20260926_029_runtime_health.sql",
+  "20260930_030_function_search_path_hardening.sql",
 ] as const;
 
 async function readMigration(name: string): Promise<string> {
