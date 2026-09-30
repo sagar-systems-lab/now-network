@@ -495,6 +495,16 @@ jobs:
           bash -n scripts/recovery/qualify-transaction-recovery.sh
           bash scripts/recovery/qualify-transaction-recovery.sh
 
+      - name: Qualify lifecycle reconstruction
+        shell: bash
+        env:
+          DB_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          set -Eeuo pipefail
+          bash -n scripts/ops/reconstruct-lifecycle.sh
+          bash -n scripts/ops/qualify-lifecycle-reconstruction.sh
+          bash scripts/ops/qualify-lifecycle-reconstruction.sh
+
   program:
     needs: [api, database, security]
     runs-on: [self-hosted, Linux, X64]

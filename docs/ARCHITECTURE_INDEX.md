@@ -42,3 +42,5 @@ The Solana program is a settlement authority. It does not establish physical-wor
 - CI: `.github/workflows/build.yml`
 - Environment setup: `docs/ENVIRONMENTS.md`
 - Build and test commands: `docs/BUILD.md`
+- Operational runbooks: `docs/runbooks/README.md`
+- Lifecycle reconstruction: `scripts/ops/reconstruct-lifecycle.sh`
