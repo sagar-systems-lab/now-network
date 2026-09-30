@@ -153,3 +153,35 @@ Generate profiles on a connected API 33+ physical device with:
 Generated profile files are consumed by the app through the Baseline Profile Gradle plugin.
 
 After generation, rebuild the benchmark/release target and compare the cold no-compilation benchmark with the cold Baseline-Profile benchmark. Keep profile generation and performance measurement as separate evidence steps.
+
+
+## Physical-device fallback for restricted ART compilation
+
+Some Android 13 vendor builds reject `cmd package compile` even when the target package is installed. When that happens, do not treat a failed `CompilationMode.Partial` run as an application-performance regression.
+
+Keep Baseline Profile generation on a clean AOSP-compatible device. For physical timing on the affected device, use the dedicated classes that run with `CompilationMode.Ignore` so Macrobenchmark does not reset or compile the target package.
+
+Before a long run, verify the journey with AndroidX dry-run mode:
+
+```bash
+./gradlew --no-daemon :benchmark:connectedCheck \
+  -Pandroid.testInstrumentationRunnerArguments.class=com.sagarsystemslab.nownetwork.benchmark.PhysicalDeviceStartupBenchmark \
+  -Pandroid.testInstrumentationRunnerArguments.androidx.benchmark.enabledRules=Macrobenchmark \
+  -Pandroid.testInstrumentationRunnerArguments.androidx.benchmark.dryRunMode.enable=true
+```
+
+Then run the physical startup and frame suites separately without dry-run mode:
+
+```bash
+./gradlew --no-daemon :benchmark:connectedCheck \
+  -Pandroid.testInstrumentationRunnerArguments.class=com.sagarsystemslab.nownetwork.benchmark.PhysicalDeviceStartupBenchmark \
+  -Pandroid.testInstrumentationRunnerArguments.androidx.benchmark.enabledRules=Macrobenchmark
+```
+
+```bash
+./gradlew --no-daemon :benchmark:connectedCheck \
+  -Pandroid.testInstrumentationRunnerArguments.class=com.sagarsystemslab.nownetwork.benchmark.PhysicalTopLevelNavigationBenchmark \
+  -Pandroid.testInstrumentationRunnerArguments.androidx.benchmark.enabledRules=Macrobenchmark
+```
+
+Results from this fallback are valid physical-device timing observations for the device's existing compilation state. They are not evidence of Baseline Profile uplift because the device compiler state was not reset or forced.
