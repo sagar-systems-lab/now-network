@@ -1,7 +1,4 @@
-import {
-  parseCsv,
-  summarize,
-} from "./summarize-latency.ts";
+import { parseCsv, summarize } from "./summarize-latency.ts";
 
 function assertEquals(actual: unknown, expected: unknown): void {
   const left = JSON.stringify(actual);
