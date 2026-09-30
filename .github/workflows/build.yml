@@ -253,7 +253,12 @@ jobs:
         run: |
           set -Eeuo pipefail
           out="$RUNNER_TEMP/now-performance-plans"
-          bash scripts/performance/capture-db-plans.sh             --lat 30.0             --lng 77.0             --radius-m 3000             --limit 25             --out "$out"
+          bash scripts/performance/capture-db-plans.sh \
+            --lat 30.0 \
+            --lng 77.0 \
+            --radius-m 3000 \
+            --limit 25 \
+            --out "$out"
           test -s "$out/nearby-states-plan.json"
           test -s "$out/nearby-opportunities-plan.json"
 
