@@ -48,6 +48,7 @@ psql_root -c "
     audience_type,
     audience_actor_id,
     payload,
+    created_at,
     expires_at
   ) values
   (
@@ -58,6 +59,7 @@ psql_root -c "
     'PUBLIC_ENTITY',
     null,
     '{}'::jsonb,
+    now(),
     now() + interval '5 minutes'
   ),
   (
@@ -68,6 +70,7 @@ psql_root -c "
     'ACTOR_PRIVATE',
     '93000000-0000-4000-8000-000000000001',
     '{}'::jsonb,
+    now(),
     now() + interval '5 minutes'
   ),
   (
@@ -78,6 +81,7 @@ psql_root -c "
     'PUBLIC_AREA',
     null,
     '{}'::jsonb,
+    now() - interval '2 seconds',
     now() - interval '1 second'
   );
   commit;
