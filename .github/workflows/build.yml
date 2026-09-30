@@ -45,8 +45,10 @@ jobs:
         run: |
           test -s gradle/verification-metadata.xml
           chmod +x ./gradlew
-          ./gradlew --no-daemon :app:testDebugUnitTest :app:assembleDebugAndroidTest :app:assembleDebug :app:assembleRelease
+          ./gradlew --no-daemon :app:testDebugUnitTest :app:assembleDebugAndroidTest :app:assembleDebug :app:assembleBenchmark :app:assembleRelease
           test -s apps/android/schemas/com.sagarsystemslab.nownetwork.data.local.NowDatabase/1.json
+          test -s apps/android/build/outputs/apk/benchmark/app-benchmark.apk
+          test "$(apkanalyzer manifest debuggable apps/android/build/outputs/apk/benchmark/app-benchmark.apk | tr -d '\r[:space:]')" = "false"
           bash -n scripts/security/scan-release-apk.sh
           bash scripts/security/scan-release-apk.sh
           git diff --exit-code -- gradle/verification-metadata.xml apps/android/schemas
@@ -156,8 +158,12 @@ jobs:
       - name: Checks
         shell: bash
         run: |
-          deno fmt --check backend packages/contracts packages/domain packages/policy supabase/functions/now-api supabase/functions/now-worker tests scripts/solana/local-validator-client.ts
-          deno lint backend packages/contracts packages/domain packages/policy supabase/functions/now-api supabase/functions/now-worker tests scripts/solana/local-validator-client.ts
+          deno fmt --check backend packages/contracts packages/domain packages/policy supabase/functions/now-api supabase/functions/now-worker tests scripts/solana/local-validator-client.ts scripts/performance
+          deno lint backend packages/contracts packages/domain packages/policy supabase/functions/now-api supabase/functions/now-worker tests scripts/solana/local-validator-client.ts scripts/performance
+          deno test scripts/performance/summarize_latency_test.ts
+          bash -n scripts/performance/android-device-baseline.sh
+          bash -n scripts/performance/capture-db-plans.sh
+          bash -n scripts/performance/sample-http-latency.sh
           cd backend
           deno task check
           deno task test
@@ -239,6 +245,22 @@ jobs:
             echo "Applying $migration"
             docker exec -i "$DB_CONTAINER" psql -X -U postgres -d now_test -v ON_ERROR_STOP=1 < "$migration"
           done < <(find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort)
+
+      - name: Exercise performance query-plan capture
+        shell: bash
+        env:
+          DB_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          set -Eeuo pipefail
+          out="$RUNNER_TEMP/now-performance-plans"
+          bash scripts/performance/capture-db-plans.sh \
+            --lat 30.0 \
+            --lng 77.0 \
+            --radius-m 3000 \
+            --limit 25 \
+            --out "$out"
+          test -s "$out/nearby-states-plan.json"
+          test -s "$out/nearby-opportunities-plan.json"
 
       - name: Verify financial replay guards
         shell: bash
