@@ -1,11 +1,30 @@
 import {
-  assertEquals,
-  assertThrows,
-} from "jsr:@std/assert@1";
-import {
   parseCsv,
   summarize,
 } from "./summarize-latency.ts";
+
+function assertEquals(actual: unknown, expected: unknown): void {
+  const left = JSON.stringify(actual);
+  const right = JSON.stringify(expected);
+
+  if (left !== right) {
+    throw new Error(`assertEquals failed: ${left} != ${right}`);
+  }
+}
+
+function assertThrows(fn: () => unknown, expectedMessage: string): void {
+  try {
+    fn();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!message.includes(expectedMessage)) {
+      throw new Error(`unexpected error: ${message}`);
+    }
+    return;
+  }
+
+  throw new Error("expected function to throw");
+}
 
 Deno.test("parseCsv reads metric samples", () => {
   assertEquals(
@@ -52,7 +71,6 @@ Deno.test("summarize computes p95 after ten observations", () => {
 Deno.test("invalid samples fail closed", () => {
   assertThrows(
     () => summarize([{ metric: "cold", valueMs: -1 }]),
-    Error,
     "invalid sample",
   );
 });
