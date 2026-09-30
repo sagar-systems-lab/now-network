@@ -5,7 +5,33 @@ set -Eeuo pipefail
 
 DB_NAME="${DB_NAME:-now_test}"
 TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
+
+cleanup() {
+  docker exec "$DB_CONTAINER" psql -XAtq -U postgres -d "$DB_NAME" -v ON_ERROR_STOP=1 -c "
+    begin;
+    set local session_replication_role = replica;
+    delete from app.refresh_acceptances
+      where acceptance_id in (
+        'a1000000-0000-4000-8000-000000000001',
+        'a1000000-0000-4000-8000-000000000002'
+      );
+    delete from app.settlement_operations
+      where settlement_id in (
+        'b1000000-0000-4000-8000-000000000001',
+        'b1000000-0000-4000-8000-000000000002'
+      );
+    delete from app.evidence_packets
+      where evidence_id in (
+        'c1000000-0000-4000-8000-000000000001',
+        'c1000000-0000-4000-8000-000000000002'
+      );
+    commit;
+  " >/dev/null 2>&1 || true
+  rm -rf "$TMP"
+}
+cleanup
+TMP="$(mktemp -d)"
+trap cleanup EXIT
 
 psql_sql() {
   local sql="$1"
