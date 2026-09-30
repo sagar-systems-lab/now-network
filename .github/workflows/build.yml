@@ -486,6 +486,15 @@ jobs:
           bash -n scripts/security/qualify-database-races.sh
           bash scripts/security/qualify-database-races.sh
 
+      - name: Exercise transactional recovery
+        shell: bash
+        env:
+          DB_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          set -Eeuo pipefail
+          bash -n scripts/recovery/qualify-transaction-recovery.sh
+          bash scripts/recovery/qualify-transaction-recovery.sh
+
   program:
     needs: [api, database, security]
     runs-on: [self-hosted, Linux, X64]

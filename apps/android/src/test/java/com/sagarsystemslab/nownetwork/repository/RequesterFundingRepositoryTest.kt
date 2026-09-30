@@ -122,6 +122,94 @@ class RequesterFundingRepositoryTest {
         assertEquals(1, api.observeCalls)
     }
 
+    @Test
+    fun processRestartAfterSubmissionReconcilesPersistedSignatureWithoutWalletResend() = runBlocking {
+        val operationDao = FundingOperationDao()
+        val api = FundingApi()
+        val walletAddress = "wallet-a"
+        var walletSendCalls = 0
+        val wallet = WalletRequestCoordinator(
+            object : WalletGateway {
+                override suspend fun connect(
+                    host: WalletInteractionHost,
+                ): WalletResult<WalletAccount> =
+                    WalletResult.Success(WalletAccount(walletAddress, "Requester"))
+
+                override suspend fun disconnect(
+                    host: WalletInteractionHost,
+                ): WalletResult<Unit> = WalletResult.Success(Unit)
+
+                override suspend fun signWalletProof(
+                    host: WalletInteractionHost,
+                    message: String,
+                ): WalletResult<WalletProof> =
+                    error("not used")
+
+                override suspend fun signAndSend(
+                    host: WalletInteractionHost,
+                    transaction: ByteArray,
+                ): WalletResult<WalletSubmission> {
+                    walletSendCalls += 1
+                    return WalletResult.Success(
+                        WalletSubmission(
+                            account = WalletAccount(walletAddress, "Requester"),
+                            signatureBase58 = "signature-a",
+                        ),
+                    )
+                }
+            },
+        )
+
+        val config = SolanaRuntimeConfig(
+            cluster = "devnet",
+            rpcUrl = "https://api.devnet.solana.com",
+            programId = "program-a",
+            walletIdentityUri = "https://example.test",
+            walletIconUri = "icon.png",
+        )
+
+        fun repository() = DefaultRequesterFundingRepository(
+            auth = FundingAuth(),
+            api = api,
+            wallet = wallet,
+            walletMetadataDao = FundingWalletMetadataDao(),
+            operationDao = operationDao,
+            rpc = FundingRpc(),
+            transactionBuilder = SolanaTransactionBuilder(
+                config = config,
+                rewardConfig = RewardDisplayConfig(
+                    mint = "mint-a",
+                    symbol = "USDC",
+                    decimals = 6,
+                ),
+            ),
+            serverClock = ServerClock(),
+            solanaConfig = config,
+        )
+
+        val prepared = prepared(walletAddress)
+        operationDao.upsert(prepared.operation)
+
+        val beforeRestart = repository().submit(
+            host = object : WalletInteractionHost {},
+            prepared = prepared,
+        )
+
+        assertTrue(beforeRestart is FundingReconciliation.Confirming)
+        assertEquals(1, walletSendCalls)
+        assertEquals(1, api.observeCalls)
+
+        val afterRestart = repository().recoverLatest()
+
+        assertTrue(afterRestart is FundingReconciliation.Confirming)
+        assertEquals(1, walletSendCalls)
+        assertEquals(2, api.observeCalls)
+
+        val persisted = requireNotNull(operationDao.get(prepared.operation.operationId))
+        assertEquals("CONFIRMING", persisted.localState)
+        assertEquals("signature-a", persisted.chainSignature)
+    }
+
     private fun prepared(walletAddress: String): PreparedRequesterFunding {
         val operation = ActiveOperationEntity(
             operationId = "11111111-1111-4111-8111-111111111111",

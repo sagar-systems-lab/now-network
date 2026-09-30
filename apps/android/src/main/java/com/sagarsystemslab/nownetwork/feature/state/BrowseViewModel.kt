@@ -69,8 +69,7 @@ class BrowseViewModel @Inject constructor(
     val detailState: StateFlow<StateDetailUiState> = mutableDetailState.asStateFlow()
 
     private var activeSnapshotIds: Set<String>? = null
-    private var realtimeConnectedOnce = false
-    private var realtimeDisconnectedAfterConnect = false
+    private val realtimeResyncPolicy = RealtimeResyncPolicy()
     private var foregroundCount = 0
 
     init {
@@ -100,17 +99,13 @@ class BrowseViewModel @Inject constructor(
             realtimeGateway.signals().collect { signal ->
                 when (signal) {
                     NowRealtimeSignal.Connected -> {
-                        if (realtimeConnectedOnce && realtimeDisconnectedAfterConnect) {
-                            realtimeDisconnectedAfterConnect = false
+                        if (realtimeResyncPolicy.onConnected()) {
                             refreshHome()
                         }
-                        realtimeConnectedOnce = true
                     }
 
                     NowRealtimeSignal.Disconnected -> {
-                        if (realtimeConnectedOnce) {
-                            realtimeDisconnectedAfterConnect = true
-                        }
+                        realtimeResyncPolicy.onDisconnected()
                     }
 
                     NowRealtimeSignal.Unavailable -> Unit
