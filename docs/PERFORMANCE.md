@@ -111,3 +111,45 @@ Use the tooling in this order:
 6. rerun the same measurement set after each material optimization
 
 Benchmark or profiling results are environment-specific. Always preserve the device, build, network, sample count, and APK/source identity with the result.
+
+
+## Formal Android Macrobenchmark
+
+The `:benchmark` module measures the release-like `benchmark` target from outside the app process.
+
+Run formal benchmarks on a physical Android device:
+
+```bash
+./gradlew :benchmark:connectedCheck
+```
+
+The startup suite records:
+
+- cold startup without AOT compilation
+- cold startup with the Baseline Profile
+- warm startup with the Baseline Profile
+- hot startup with the Baseline Profile
+
+The top-level navigation benchmark records `FrameTimingMetric` while traversing NOW → EARN → ACTIVITY → NOW.
+
+Macrobenchmark JSON and Perfetto traces are written under the benchmark module's connected-test additional-output directory. Preserve the exact APK/source SHA and device metadata with every accepted result.
+
+Do not use emulator timing as release-performance evidence.
+
+## Baseline and Startup Profiles
+
+The benchmark module also contains two profile generators:
+
+- startup-only profile collection, included in the Startup Profile
+- NOW/EARN/ACTIVITY critical navigation, included in the Baseline Profile but not the Startup Profile
+
+Generate profiles on a connected API 33+ physical device with:
+
+```bash
+./gradlew :app:generateBaselineProfile \
+  -Pandroid.testInstrumentationRunnerArguments.androidx.benchmark.enabledRules=BaselineProfile
+```
+
+Generated profile files are consumed by the app through the Baseline Profile Gradle plugin.
+
+After generation, rebuild the benchmark/release target and compare the cold no-compilation benchmark with the cold Baseline-Profile benchmark. Keep profile generation and performance measurement as separate evidence steps.
