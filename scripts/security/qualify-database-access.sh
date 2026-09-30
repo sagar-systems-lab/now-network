@@ -38,6 +38,8 @@ for role in anon authenticated; do
 done
 
 psql_root -c "
+  begin;
+  set local session_replication_role = replica;
   insert into public.realtime_events_v1(
     realtime_event_id,
     event_type,
@@ -78,6 +80,7 @@ psql_root -c "
     '{}'::jsonb,
     now() - interval '1 second'
   );
+  commit;
 "
 
 for role in anon authenticated; do
