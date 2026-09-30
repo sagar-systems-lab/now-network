@@ -21,3 +21,6 @@ project(":app").projectDir = file("apps/android")
 
 include(":core:designsystem")
 project(":core:designsystem").projectDir = file("core/designsystem")
+
+include(":benchmark")
+project(":benchmark").projectDir = file("benchmark")
