@@ -76,6 +76,7 @@ export NOW_PERF_APK_SHA="$apk_sha256"
 export NOW_PERF_APK_SIZE="$apk_size_bytes"
 export NOW_PERF_RUNS="$RUNS"
 export NOW_PERF_PACKAGE="$PACKAGE_NAME"
+export NOW_PERF_METADATA_OUT="$OUT_DIR/device-metadata.json"
 
 deno eval --allow-env --allow-write="$OUT_DIR/device-metadata.json" '
 const read = (name) => Deno.env.get(name) ?? "";
@@ -104,10 +105,10 @@ const payload = {
   startup_runs: Number(read("NOW_PERF_RUNS")),
 };
 await Deno.writeTextFile(
-  Deno.args[0],
+  read("NOW_PERF_METADATA_OUT"),
   JSON.stringify(payload, null, 2) + "\n",
 );
-' "$OUT_DIR/device-metadata.json"
+'
 
 printf 'metric,value_ms\n' > "$OUT_DIR/startup.csv"
 
