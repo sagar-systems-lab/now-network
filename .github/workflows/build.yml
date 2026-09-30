@@ -221,15 +221,8 @@ jobs:
           create schema if not exists extensions;
           create extension postgis with schema extensions;
 
-          do $ begin
-            create role anon nologin;
-          exception when duplicate_object then null;
-          end $;
-
-          do $ begin
-            create role authenticated nologin;
-          exception when duplicate_object then null;
-          end $;
+          create role anon nologin;
+          create role authenticated nologin;
           SQL
 
           postgis_schema="$(
