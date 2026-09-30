@@ -57,7 +57,7 @@ psql_root -c "
 "
 
 set +e
-docker exec "$DB_CONTAINER" psql -X -U postgres -d "$DB_NAME" -v ON_ERROR_STOP=1 >/dev/null 2>&1 <<SQL
+docker exec -i "$DB_CONTAINER" psql -X -U postgres -d "$DB_NAME" -v ON_ERROR_STOP=1 >/dev/null 2>&1 <<SQL
 begin;
 
 update app.outbox_events
