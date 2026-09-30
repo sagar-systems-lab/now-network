@@ -40,17 +40,6 @@ jobs:
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager "platforms;android-36" "build-tools;36.0.0"
 
-      - name: Generate dependency verification metadata for benchmark toolchain
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          chmod +x ./gradlew
-          ./gradlew --no-daemon --write-verification-metadata sha256 :benchmark:assemble :app:assembleBenchmark
-          echo "=== VERIFICATION_METADATA_DIFF_BEGIN ==="
-          git diff --unified=0 -- gradle/verification-metadata.xml
-          echo "=== VERIFICATION_METADATA_DIFF_END ==="
-          exit 1
-
       - name: Gradle checks
         shell: bash
         run: |
