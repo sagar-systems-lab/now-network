@@ -75,10 +75,10 @@ if [ -n "$SETTLEMENT_SIGNATURE" ]; then
   fi
 
   REFRESH_ID="$(
-    psql_now       -v "settlement_signature=$SETTLEMENT_SIGNATURE"       -c "select refresh_id
-          from app.settlement_operations
-          where chain_signature = :'settlement_signature'
-          limit 1;"
+    psql_now -c "select refresh_id
+      from app.settlement_operations
+      where chain_signature = '$SETTLEMENT_SIGNATURE'
+      limit 1;"
   )"
 
   if [ -z "$REFRESH_ID" ]; then
@@ -88,7 +88,9 @@ if [ -n "$SETTLEMENT_SIGNATURE" ]; then
 fi
 
 exists="$(
-  psql_now     -v "refresh_id=$REFRESH_ID"     -c "select count(*) from app.refresh_requests where refresh_id = :'refresh_id'::uuid;"
+  psql_now -c "select count(*)
+    from app.refresh_requests
+    where refresh_id = '$REFRESH_ID'::uuid;"
 )"
 
 if [ "$exists" != "1" ]; then
@@ -96,33 +98,33 @@ if [ "$exists" != "1" ]; then
   exit 3
 fi
 
-psql_now -v "refresh_id=$REFRESH_ID" <<'SQL'
+psql_now <<SQL
 with
 target_refresh as (
   select *
   from app.refresh_requests
-  where refresh_id = :'refresh_id'::uuid
+  where refresh_id = '$REFRESH_ID'::uuid
 ),
 related_entities as (
   select refresh_id as entity_id from target_refresh
   union
-  select contribution_id from app.refresh_contributions where refresh_id = :'refresh_id'::uuid
+  select contribution_id from app.refresh_contributions where refresh_id = '$REFRESH_ID'::uuid
   union
-  select acceptance_id from app.refresh_acceptances where refresh_id = :'refresh_id'::uuid
+  select acceptance_id from app.refresh_acceptances where refresh_id = '$REFRESH_ID'::uuid
   union
-  select evidence_id from app.evidence_packets where refresh_id = :'refresh_id'::uuid
+  select evidence_id from app.evidence_packets where refresh_id = '$REFRESH_ID'::uuid
   union
-  select verification_result_id from app.verification_results where refresh_id = :'refresh_id'::uuid
+  select verification_result_id from app.verification_results where refresh_id = '$REFRESH_ID'::uuid
   union
-  select settlement_id from app.settlement_operations where refresh_id = :'refresh_id'::uuid
+  select settlement_id from app.settlement_operations where refresh_id = '$REFRESH_ID'::uuid
   union
-  select receipt_id from app.receipts where refresh_id = :'refresh_id'::uuid
+  select receipt_id from app.receipts where refresh_id = '$REFRESH_ID'::uuid
 ),
 related_events as (
   select d.*
   from app.domain_events d
   where d.entity_id in (select entity_id from related_entities)
-     or d.payload ->> 'refresh_id' = :'refresh_id'
+     or d.payload ->> 'refresh_id' = '$REFRESH_ID'
 ),
 refresh_json as (
   select jsonb_build_object(
@@ -162,7 +164,7 @@ funding_json as (
     '[]'::jsonb
   ) as value
   from app.refresh_contributions c
-  where c.refresh_id = :'refresh_id'::uuid
+  where c.refresh_id = '$REFRESH_ID'::uuid
 ),
 claims_json as (
   select coalesce(
@@ -183,7 +185,7 @@ claims_json as (
     '[]'::jsonb
   ) as value
   from app.refresh_acceptances a
-  where a.refresh_id = :'refresh_id'::uuid
+  where a.refresh_id = '$REFRESH_ID'::uuid
 ),
 evidence_json as (
   select coalesce(
@@ -204,7 +206,7 @@ evidence_json as (
     '[]'::jsonb
   ) as value
   from app.evidence_packets e
-  where e.refresh_id = :'refresh_id'::uuid
+  where e.refresh_id = '$REFRESH_ID'::uuid
 ),
 verification_json as (
   select coalesce(
@@ -223,7 +225,7 @@ verification_json as (
     '[]'::jsonb
   ) as value
   from app.verification_results v
-  where v.refresh_id = :'refresh_id'::uuid
+  where v.refresh_id = '$REFRESH_ID'::uuid
 ),
 settlement_json as (
   select coalesce(
@@ -247,7 +249,7 @@ settlement_json as (
     '[]'::jsonb
   ) as value
   from app.settlement_operations s
-  where s.refresh_id = :'refresh_id'::uuid
+  where s.refresh_id = '$REFRESH_ID'::uuid
 ),
 receipt_json as (
   select coalesce(
@@ -269,7 +271,7 @@ receipt_json as (
     '[]'::jsonb
   ) as value
   from app.receipts r
-  where r.refresh_id = :'refresh_id'::uuid
+  where r.refresh_id = '$REFRESH_ID'::uuid
 ),
 events_json as (
   select coalesce(
