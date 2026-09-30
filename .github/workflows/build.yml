@@ -47,6 +47,8 @@ jobs:
           chmod +x ./gradlew
           ./gradlew --no-daemon :app:testDebugUnitTest :app:assembleDebugAndroidTest :app:assembleDebug :app:assembleRelease
           test -s apps/android/schemas/com.sagarsystemslab.nownetwork.data.local.NowDatabase/1.json
+          bash -n scripts/security/scan-release-apk.sh
+          bash scripts/security/scan-release-apk.sh
           git diff --exit-code -- gradle/verification-metadata.xml apps/android/schemas
 
 
@@ -218,6 +220,16 @@ jobs:
           drop extension if exists postgis cascade;
           create schema if not exists extensions;
           create extension postgis with schema extensions;
+
+          do $ begin
+            create role anon nologin;
+          exception when duplicate_object then null;
+          end $;
+
+          do $ begin
+            create role authenticated nologin;
+          exception when duplicate_object then null;
+          end $;
           SQL
 
           postgis_schema="$(
@@ -463,6 +475,24 @@ jobs:
             exit 1
           fi
 
+      - name: Exercise client-role attack surface
+        shell: bash
+        env:
+          DB_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          set -Eeuo pipefail
+          bash -n scripts/security/qualify-database-access.sh
+          bash scripts/security/qualify-database-access.sh
+
+      - name: Exercise concurrent database races
+        shell: bash
+        env:
+          DB_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          set -Eeuo pipefail
+          bash -n scripts/security/qualify-database-races.sh
+          bash scripts/security/qualify-database-races.sh
+
   program:
     needs: [api, database, security]
     runs-on: [self-hosted, Linux, X64]
@@ -574,6 +604,14 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+
+      - name: Security script syntax
+        shell: bash
+        run: |
+          bash -n scripts/security/scan-secrets.sh
+          bash -n scripts/security/qualify-database-access.sh
+          bash -n scripts/security/qualify-database-races.sh
+          bash -n scripts/security/scan-release-apk.sh
 
       - name: Secret scan
         shell: bash
