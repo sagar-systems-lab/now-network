@@ -81,7 +81,9 @@ if (import.meta.main) {
   const outputIndex = Deno.args.indexOf("--output");
 
   if (inputIndex < 0 || !Deno.args[inputIndex + 1]) {
-    console.error("usage: deno run --allow-read --allow-write scripts/performance/summarize-latency.ts --input samples.csv [--output summary.json]");
+    console.error(
+      "usage: deno run --allow-read --allow-write scripts/performance/summarize-latency.ts --input samples.csv [--output summary.json]",
+    );
     Deno.exit(2);
   }
 
