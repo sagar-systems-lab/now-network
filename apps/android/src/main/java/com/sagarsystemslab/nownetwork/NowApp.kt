@@ -1,7 +1,12 @@
 package com.sagarsystemslab.nownetwork
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
@@ -18,13 +23,16 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.sagarsystemslab.nownetwork.designsystem.NowColors
+import com.sagarsystemslab.nownetwork.designsystem.NowMotion
 import com.sagarsystemslab.nownetwork.feature.activity.ActivityViewModel
 import com.sagarsystemslab.nownetwork.feature.capture.EvidenceCaptureViewModel
 import com.sagarsystemslab.nownetwork.feature.earn.ContributorClaimViewModel
@@ -75,7 +83,7 @@ fun NowApp(
                     ) {
                         TopLevelDestination.entries.forEach { destination ->
                             val selected = currentDestination.isTopLevel(destination)
-                            LowLatencyNavigationItem(
+                            LiveNavigationItem(
                                 destination = destination,
                                 selected = selected,
                                 onClick = { appState.navigateTo(destination) },
@@ -105,15 +113,28 @@ fun NowApp(
     }
 }
 
-
 @Composable
-private fun RowScope.LowLatencyNavigationItem(
+private fun RowScope.LiveNavigationItem(
     destination: TopLevelDestination,
     selected: Boolean,
     onClick: () -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val foreground = if (selected) NowColors.Blue600 else NowColors.Ink500
+    val foreground by animateColorAsState(
+        targetValue = if (selected) NowColors.Blue700 else NowColors.Ink500,
+        animationSpec = tween(NowMotion.FastMillis),
+        label = "nav-foreground",
+    )
+    val indicator by animateColorAsState(
+        targetValue = if (selected) NowColors.Blue50 else NowColors.SurfacePrimary,
+        animationSpec = tween(NowMotion.FastMillis),
+        label = "nav-indicator",
+    )
+    val iconScale by animateFloatAsState(
+        targetValue = if (selected) 1.06f else 1f,
+        animationSpec = tween(NowMotion.FastMillis),
+        label = "nav-icon-scale",
+    )
 
     Column(
         modifier = Modifier
@@ -127,15 +148,26 @@ private fun RowScope.LowLatencyNavigationItem(
                 interactionSource = interactionSource,
                 indication = null,
             )
-            .padding(vertical = 8.dp),
+            .padding(vertical = 7.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Icon(
-            imageVector = destination.icon,
-            contentDescription = null,
-            tint = foreground,
-        )
+        Box(
+            modifier = Modifier
+                .background(
+                    color = indicator,
+                    shape = MaterialTheme.shapes.extraLarge,
+                )
+                .padding(horizontal = 12.dp, vertical = 5.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = destination.icon,
+                contentDescription = null,
+                tint = foreground,
+                modifier = Modifier.scale(iconScale),
+            )
+        }
         Text(
             text = destination.label,
             style = MaterialTheme.typography.labelMedium,
