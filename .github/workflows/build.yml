@@ -53,6 +53,14 @@ jobs:
           bash scripts/security/scan-release-apk.sh
           git diff --exit-code -- gradle/verification-metadata.xml apps/android/schemas
 
+      - name: Upload debug APK
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: now-network-debug-apk
+          path: apps/android/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
+
 
   android-instrumented:
     needs: [android]
