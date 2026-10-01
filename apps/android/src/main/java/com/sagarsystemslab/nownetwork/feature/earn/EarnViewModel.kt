@@ -70,18 +70,18 @@ class EarnViewModel @Inject constructor(
             opportunityRepository.observeCached()
                 .flowOn(Dispatchers.IO)
                 .collectLatest { cached ->
-                val visible = activeSnapshotIds?.let { ids ->
-                    cached.filter { it.refreshId in ids }
-                } ?: cached
+                    val visible = activeSnapshotIds?.let { ids ->
+                        cached.filter { it.refreshId in ids }
+                    } ?: cached
 
-                mutableState.update { current ->
-                    if (current.refreshing && current.opportunities.isNotEmpty()) {
-                        current
-                    } else {
-                        current.copy(opportunities = rank(visible))
+                    mutableState.update { current ->
+                        if (current.refreshing && current.opportunities.isNotEmpty()) {
+                            current
+                        } else {
+                            current.copy(opportunities = rank(visible))
+                        }
                     }
                 }
-            }
         }
 
         if (
