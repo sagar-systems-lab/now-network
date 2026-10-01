@@ -82,24 +82,24 @@ class BrowseViewModel @Inject constructor(
             stateRepository.observeCachedStates()
                 .flowOn(Dispatchers.IO)
                 .collectLatest { states ->
-                val visible = activeSnapshotIds?.let { ids ->
-                    states.filter { it.stateId in ids }
-                } ?: states
+                    val visible = activeSnapshotIds?.let { ids ->
+                        states.filter { it.stateId in ids }
+                    } ?: states
 
-                mutableHomeState.update { current ->
-                    current.copy(states = visible.sortedWith(stateOrder))
-                }
+                    mutableHomeState.update { current ->
+                        current.copy(states = visible.sortedWith(stateOrder))
+                    }
 
-                val selectedId = mutableDetailState.value.stateId
-                if (selectedId != null) {
-                    mutableDetailState.update { current ->
-                        current.copy(
-                            cachedSummary = states.firstOrNull { it.stateId == selectedId }
-                                ?: current.cachedSummary,
-                        )
+                    val selectedId = mutableDetailState.value.stateId
+                    if (selectedId != null) {
+                        mutableDetailState.update { current ->
+                            current.copy(
+                                cachedSummary = states.firstOrNull { it.stateId == selectedId }
+                                    ?: current.cachedSummary,
+                            )
+                        }
                     }
                 }
-            }
         }
 
         viewModelScope.launch {
@@ -164,12 +164,12 @@ class BrowseViewModel @Inject constructor(
             try {
                 val page = withContext(Dispatchers.IO) {
                     repository.get().refreshNearby(
-                    NearbyStateQuery(
-                        latitude = requireNotNull(browseArea.latitude),
-                        longitude = requireNotNull(browseArea.longitude),
-                        radiusMeters = browseArea.radiusMeters,
-                    ),
-                )
+                        NearbyStateQuery(
+                            latitude = requireNotNull(browseArea.latitude),
+                            longitude = requireNotNull(browseArea.longitude),
+                            radiusMeters = browseArea.radiusMeters,
+                        ),
+                    )
                 }
                 activeSnapshotIds = page.items.mapTo(linkedSetOf()) { it.stateId }
                 mutableHomeState.update {
