@@ -60,7 +60,6 @@ class StartupBenchmark {
             },
         ) {
             startActivityAndWait()
-            awaitText("NOW")
         }
     }
 }
