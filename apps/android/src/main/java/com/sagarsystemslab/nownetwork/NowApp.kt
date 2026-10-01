@@ -1,21 +1,29 @@
 package com.sagarsystemslab.nownetwork
 
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.dp
 import com.sagarsystemslab.nownetwork.designsystem.NowColors
 import com.sagarsystemslab.nownetwork.feature.activity.ActivityViewModel
 import com.sagarsystemslab.nownetwork.feature.capture.EvidenceCaptureViewModel
@@ -61,30 +69,16 @@ fun NowApp(
                 Column {
                     HorizontalDivider(color = NowColors.BorderSubtle)
                     NavigationBar(
+                        modifier = Modifier.selectableGroup(),
                         containerColor = NowColors.SurfacePrimary,
                         contentColor = MaterialTheme.colorScheme.onSurface,
                     ) {
                         TopLevelDestination.entries.forEach { destination ->
                             val selected = currentDestination.isTopLevel(destination)
-                            NavigationBarItem(
-                                modifier = Modifier.testTag(destination.testTag),
+                            LowLatencyNavigationItem(
+                                destination = destination,
                                 selected = selected,
                                 onClick = { appState.navigateTo(destination) },
-                                icon = {
-                                    Icon(
-                                        imageVector = destination.icon,
-                                        contentDescription = null,
-                                    )
-                                },
-                                label = { Text(destination.label) },
-                                alwaysShowLabel = true,
-                                colors = NavigationBarItemDefaults.colors(
-                                    selectedIconColor = NowColors.Blue600,
-                                    selectedTextColor = NowColors.Blue600,
-                                    indicatorColor = NowColors.Blue50,
-                                    unselectedIconColor = NowColors.Ink500,
-                                    unselectedTextColor = NowColors.Ink500,
-                                ),
                             )
                         }
                     }
@@ -107,6 +101,45 @@ fun NowApp(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
+        )
+    }
+}
+
+
+@Composable
+private fun RowScope.LowLatencyNavigationItem(
+    destination: TopLevelDestination,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val foreground = if (selected) NowColors.Blue600 else NowColors.Ink500
+
+    Column(
+        modifier = Modifier
+            .weight(1f)
+            .height(64.dp)
+            .testTag(destination.testTag)
+            .selectable(
+                selected = selected,
+                onClick = onClick,
+                role = Role.Tab,
+                interactionSource = interactionSource,
+                indication = null,
+            )
+            .padding(vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Icon(
+            imageVector = destination.icon,
+            contentDescription = null,
+            tint = foreground,
+        )
+        Text(
+            text = destination.label,
+            style = MaterialTheme.typography.labelMedium,
+            color = foreground,
         )
     }
 }
