@@ -13,15 +13,19 @@ import com.sagarsystemslab.nownetwork.repository.OpportunityRepository
 import com.sagarsystemslab.nownetwork.repository.ServerClock
 import com.sagarsystemslab.nownetwork.repository.SessionBootstrapState
 import com.sagarsystemslab.nownetwork.repository.SessionRepository
+import dagger.Lazy
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 enum class EarnNotice {
     NONE,
@@ -41,12 +45,12 @@ data class EarnUiState(
 
 @HiltViewModel
 class EarnViewModel @Inject constructor(
-    private val repository: OpportunityRepository,
+    private val repository: Lazy<OpportunityRepository>,
     private val browseArea: BrowseAreaConfig,
     private val runtimeConfig: PublicRuntimeConfig,
     private val rewardConfig: RewardDisplayConfig,
     private val serverClock: ServerClock,
-    private val sessionRepository: SessionRepository,
+    private val sessionRepository: Lazy<SessionRepository>,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(
         EarnUiState(
@@ -62,7 +66,10 @@ class EarnViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            repository.observeCached().collectLatest { cached ->
+            val opportunityRepository = withContext(Dispatchers.IO) { repository.get() }
+            opportunityRepository.observeCached()
+                .flowOn(Dispatchers.IO)
+                .collectLatest { cached ->
                 val visible = activeSnapshotIds?.let { ids ->
                     cached.filter { it.refreshId in ids }
                 } ?: cached
@@ -85,7 +92,8 @@ class EarnViewModel @Inject constructor(
             mutableState.update { it.copy(notice = EarnNotice.AUTH_REQUIRED) }
 
             viewModelScope.launch {
-                sessionRepository.state.collectLatest { sessionState ->
+                val sessions = withContext(Dispatchers.IO) { sessionRepository.get() }
+                sessions.state.collectLatest { sessionState ->
                     when (sessionState) {
                         is SessionBootstrapState.Ready -> {
                             sessionReady = true
@@ -133,7 +141,9 @@ class EarnViewModel @Inject constructor(
         if (!sessionReady) {
             mutableState.update { it.copy(refreshing = false, notice = EarnNotice.AUTH_REQUIRED) }
             viewModelScope.launch {
-                sessionRepository.bootstrap()
+                withContext(Dispatchers.IO) {
+                    sessionRepository.get().bootstrap()
+                }
             }
             return
         }
@@ -142,13 +152,15 @@ class EarnViewModel @Inject constructor(
             mutableState.update { it.copy(refreshing = true, notice = EarnNotice.NONE) }
 
             try {
-                val page = repository.refreshNearby(
-                    NearbyOpportunityQuery(
-                        latitude = requireNotNull(browseArea.latitude),
-                        longitude = requireNotNull(browseArea.longitude),
-                        radiusMeters = browseArea.radiusMeters,
-                    ),
-                )
+                val page = withContext(Dispatchers.IO) {
+                    repository.get().refreshNearby(
+                        NearbyOpportunityQuery(
+                            latitude = requireNotNull(browseArea.latitude),
+                            longitude = requireNotNull(browseArea.longitude),
+                            radiusMeters = browseArea.radiusMeters,
+                        ),
+                    )
+                }
                 activeSnapshotIds = page.items.mapTo(linkedSetOf()) { it.refreshId }
                 mutableState.update {
                     it.copy(
