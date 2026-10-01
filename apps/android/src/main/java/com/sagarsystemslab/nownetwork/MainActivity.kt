@@ -22,6 +22,8 @@ import com.sagarsystemslab.nownetwork.wallet.AndroidWalletInteractionHost
 import dagger.Lazy
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -50,7 +52,9 @@ class MainActivity : ComponentActivity() {
             NowTheme {
                 LaunchedEffect(Unit) {
                     if (runtimeConfig.apiConfigured && runtimeConfig.authConfigured) {
-                        sessionRepository.get().bootstrap()
+                        withContext(Dispatchers.IO) {
+                            sessionRepository.get().bootstrap()
+                        }
                     }
                 }
 
