@@ -1,5 +1,7 @@
 package com.sagarsystemslab.nownetwork.feature.state
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -15,6 +17,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -24,6 +27,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import com.sagarsystemslab.nownetwork.designsystem.NowColors
+import com.sagarsystemslab.nownetwork.designsystem.NowElevation
+import com.sagarsystemslab.nownetwork.designsystem.NowMotion
 import com.sagarsystemslab.nownetwork.designsystem.NowSpacing
 import com.sagarsystemslab.nownetwork.designsystem.NowType
 import com.sagarsystemslab.nownetwork.model.StateSummary
@@ -34,6 +39,26 @@ fun FreshnessChip(
     modifier: Modifier = Modifier,
 ) {
     val palette = freshnessPalette(freshness)
+    val textColor by animateColorAsState(
+        targetValue = palette.text,
+        animationSpec = tween(NowMotion.StateMillis),
+        label = "freshness-text",
+    )
+    val backgroundColor by animateColorAsState(
+        targetValue = palette.background,
+        animationSpec = tween(NowMotion.StateMillis),
+        label = "freshness-background",
+    )
+    val borderColor by animateColorAsState(
+        targetValue = palette.border,
+        animationSpec = tween(NowMotion.StateMillis),
+        label = "freshness-border",
+    )
+    val dotColor by animateColorAsState(
+        targetValue = palette.dot,
+        animationSpec = tween(NowMotion.StateMillis),
+        label = "freshness-dot",
+    )
 
     Surface(
         modifier = modifier.semantics {
@@ -41,8 +66,8 @@ fun FreshnessChip(
             stateDescription = freshness.name
         },
         shape = MaterialTheme.shapes.extraLarge,
-        color = palette.background,
-        border = BorderStroke(1.dp, palette.border),
+        color = backgroundColor,
+        border = BorderStroke(1.dp, borderColor),
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
@@ -51,13 +76,13 @@ fun FreshnessChip(
             Surface(
                 modifier = Modifier.size(7.dp),
                 shape = MaterialTheme.shapes.extraLarge,
-                color = palette.dot,
+                color = dotColor,
             ) {}
             Spacer(Modifier.width(NowSpacing.Space1))
             Text(
                 text = freshness.name,
                 style = NowType.LabelM,
-                color = palette.text,
+                color = textColor,
             )
         }
     }
@@ -71,6 +96,12 @@ fun StateCard(
     modifier: Modifier = Modifier,
 ) {
     val freshness = state.freshnessAt(nowMillis)
+    val palette = freshnessPalette(freshness)
+    val cardBorder by animateColorAsState(
+        targetValue = palette.border,
+        animationSpec = tween(NowMotion.StateMillis),
+        label = "state-card-border",
+    )
 
     Card(
         onClick = onClick,
@@ -79,8 +110,8 @@ fun StateCard(
             .testTag("state-card-${state.stateId}"),
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(containerColor = NowColors.SurfacePrimary),
-        border = BorderStroke(1.dp, NowColors.BorderSubtle),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        border = BorderStroke(1.dp, cardBorder),
+        elevation = CardDefaults.cardElevation(defaultElevation = NowElevation.Elevation1),
     ) {
         Column(
             modifier = Modifier
