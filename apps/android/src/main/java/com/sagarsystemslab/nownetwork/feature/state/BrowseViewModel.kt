@@ -12,15 +12,19 @@ import com.sagarsystemslab.nownetwork.repository.ServerClock
 import com.sagarsystemslab.nownetwork.repository.StateRepository
 import com.sagarsystemslab.nownetwork.realtime.NowRealtimeGateway
 import com.sagarsystemslab.nownetwork.realtime.NowRealtimeSignal
+import dagger.Lazy
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 enum class BrowseNotice {
     NONE,
@@ -47,11 +51,11 @@ data class StateDetailUiState(
 
 @HiltViewModel
 class BrowseViewModel @Inject constructor(
-    private val repository: StateRepository,
+    private val repository: Lazy<StateRepository>,
     private val browseArea: BrowseAreaConfig,
     private val runtimeConfig: PublicRuntimeConfig,
     private val serverClock: ServerClock,
-    private val realtimeGateway: NowRealtimeGateway,
+    private val realtimeGateway: Lazy<NowRealtimeGateway>,
 ) : ViewModel() {
     private val mutableHomeState = MutableStateFlow(
         HomeUiState(
@@ -74,7 +78,10 @@ class BrowseViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            repository.observeCachedStates().collectLatest { states ->
+            val stateRepository = withContext(Dispatchers.IO) { repository.get() }
+            stateRepository.observeCachedStates()
+                .flowOn(Dispatchers.IO)
+                .collectLatest { states ->
                 val visible = activeSnapshotIds?.let { ids ->
                     states.filter { it.stateId in ids }
                 } ?: states
@@ -96,7 +103,10 @@ class BrowseViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            realtimeGateway.signals().collect { signal ->
+            val gateway = withContext(Dispatchers.IO) { realtimeGateway.get() }
+            gateway.signals()
+                .flowOn(Dispatchers.IO)
+                .collect { signal ->
                 when (signal) {
                     NowRealtimeSignal.Connected -> {
                         if (realtimeResyncPolicy.onConnected()) {
@@ -152,13 +162,15 @@ class BrowseViewModel @Inject constructor(
             mutableHomeState.update { it.copy(refreshing = true, notice = BrowseNotice.NONE) }
 
             try {
-                val page = repository.refreshNearby(
+                val page = withContext(Dispatchers.IO) {
+                    repository.get().refreshNearby(
                     NearbyStateQuery(
                         latitude = requireNotNull(browseArea.latitude),
                         longitude = requireNotNull(browseArea.longitude),
                         radiusMeters = browseArea.radiusMeters,
                     ),
                 )
+                }
                 activeSnapshotIds = page.items.mapTo(linkedSetOf()) { it.stateId }
                 mutableHomeState.update {
                     it.copy(
@@ -200,7 +212,9 @@ class BrowseViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                val detail = repository.getState(stateId)
+                val detail = withContext(Dispatchers.IO) {
+                    repository.get().getState(stateId)
+                }
                 mutableDetailState.update {
                     it.copy(
                         detail = detail,
@@ -240,10 +254,12 @@ class BrowseViewModel @Inject constructor(
         }
 
         try {
-            val detail = repository.reconcileRealtimeState(
-                stateId = signal.entityId,
-                incomingRevision = signal.entityRevision,
-            )
+            val detail = withContext(Dispatchers.IO) {
+                repository.get().reconcileRealtimeState(
+                    stateId = signal.entityId,
+                    incomingRevision = signal.entityRevision,
+                )
+            }
 
             if (detail != null && signal.entityId == selectedId) {
                 mutableDetailState.update {
