@@ -7,6 +7,5 @@
         <item name="android:windowActionModeOverlay">true</item>
         <item name="android:windowSplashScreenBackground">#050816</item>
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/now_brand_mark</item>
-        <item name="android:windowSplashScreenAnimationDuration">200</item>
     </style>
 </resources>
