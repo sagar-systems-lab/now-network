@@ -55,15 +55,15 @@ class MainActivity : ComponentActivity() {
                 }
 
                 NowApp(
-                    browseViewModel = browseViewModel,
-                    earnViewModel = earnViewModel,
-                    contributorClaimViewModel = contributorClaimViewModel,
-                    evidenceCaptureViewModel = evidenceCaptureViewModel,
-                    verificationViewModel = verificationViewModel,
-                    paymentViewModel = paymentViewModel,
-                    receiptViewModel = receiptViewModel,
-                    activityViewModel = activityViewModel,
-                    requesterFundingViewModel = requesterFundingViewModel,
+                    browseViewModelProvider = { browseViewModel },
+                    earnViewModelProvider = { earnViewModel },
+                    contributorClaimViewModelProvider = { contributorClaimViewModel },
+                    evidenceCaptureViewModelProvider = { evidenceCaptureViewModel },
+                    verificationViewModelProvider = { verificationViewModel },
+                    paymentViewModelProvider = { paymentViewModel },
+                    receiptViewModelProvider = { receiptViewModel },
+                    activityViewModelProvider = { activityViewModel },
+                    requesterFundingViewModelProvider = { requesterFundingViewModel },
                     walletInteractionHost = walletInteractionHost,
                 )
             }

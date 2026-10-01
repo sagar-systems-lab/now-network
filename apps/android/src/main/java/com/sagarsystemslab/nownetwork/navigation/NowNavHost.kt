@@ -32,15 +32,15 @@ import com.sagarsystemslab.nownetwork.wallet.WalletInteractionHost
 @Composable
 fun NowNavHost(
     appState: NowAppState,
-    browseViewModel: BrowseViewModel,
-    earnViewModel: EarnViewModel,
-    contributorClaimViewModel: ContributorClaimViewModel,
-    evidenceCaptureViewModel: EvidenceCaptureViewModel,
-    verificationViewModel: VerificationViewModel,
-    paymentViewModel: PaymentViewModel,
-    receiptViewModel: ReceiptViewModel,
-    activityViewModel: ActivityViewModel,
-    requesterFundingViewModel: RequesterFundingViewModel,
+    browseViewModelProvider: () -> BrowseViewModel,
+    earnViewModelProvider: () -> EarnViewModel,
+    contributorClaimViewModelProvider: () -> ContributorClaimViewModel,
+    evidenceCaptureViewModelProvider: () -> EvidenceCaptureViewModel,
+    verificationViewModelProvider: () -> VerificationViewModel,
+    paymentViewModelProvider: () -> PaymentViewModel,
+    receiptViewModelProvider: () -> ReceiptViewModel,
+    activityViewModelProvider: () -> ActivityViewModel,
+    requesterFundingViewModelProvider: () -> RequesterFundingViewModel,
     walletInteractionHost: WalletInteractionHost,
     modifier: Modifier = Modifier,
 ) {
@@ -50,6 +50,7 @@ fun NowNavHost(
         modifier = modifier,
     ) {
         composable<NowRoute> {
+            val browseViewModel = browseViewModelProvider()
             val uiState by browseViewModel.homeState.collectAsStateWithLifecycle()
 
             NowScreen(
@@ -61,6 +62,7 @@ fun NowNavHost(
         }
 
         composable<StateDetailRoute> { backStackEntry ->
+            val browseViewModel = browseViewModelProvider()
             val route = backStackEntry.toRoute<StateDetailRoute>()
             val uiState by browseViewModel.detailState.collectAsStateWithLifecycle()
 
@@ -78,6 +80,7 @@ fun NowNavHost(
         }
 
         composable<RequesterFundingRoute> { backStackEntry ->
+            val requesterFundingViewModel = requesterFundingViewModelProvider()
             val route = backStackEntry.toRoute<RequesterFundingRoute>()
             val uiState by requesterFundingViewModel.state.collectAsStateWithLifecycle()
 
@@ -100,6 +103,7 @@ fun NowNavHost(
         }
 
         composable<EarnRoute> {
+            val earnViewModel = earnViewModelProvider()
             val uiState by earnViewModel.state.collectAsStateWithLifecycle()
 
             EarnScreen(
@@ -112,6 +116,7 @@ fun NowNavHost(
         }
 
         composable<OpportunityRoute> { backStackEntry ->
+            val contributorClaimViewModel = contributorClaimViewModelProvider()
             val route = backStackEntry.toRoute<OpportunityRoute>()
             val uiState by contributorClaimViewModel.state.collectAsStateWithLifecycle()
 
@@ -141,6 +146,7 @@ fun NowNavHost(
         }
 
         composable<EvidenceCaptureRoute> { backStackEntry ->
+            val evidenceCaptureViewModel = evidenceCaptureViewModelProvider()
             val route = backStackEntry.toRoute<EvidenceCaptureRoute>()
             val uiState by evidenceCaptureViewModel.state.collectAsStateWithLifecycle()
 
@@ -170,6 +176,7 @@ fun NowNavHost(
         }
 
         composable<VerificationRoute> { backStackEntry ->
+            val verificationViewModel = verificationViewModelProvider()
             val route = backStackEntry.toRoute<VerificationRoute>()
             val uiState by verificationViewModel.state.collectAsStateWithLifecycle()
 
@@ -191,6 +198,7 @@ fun NowNavHost(
         }
 
         composable<PaymentRoute> { backStackEntry ->
+            val paymentViewModel = paymentViewModelProvider()
             val route = backStackEntry.toRoute<PaymentRoute>()
             val uiState by paymentViewModel.state.collectAsStateWithLifecycle()
 
@@ -212,6 +220,7 @@ fun NowNavHost(
         }
 
         composable<ReceiptRoute> { backStackEntry ->
+            val receiptViewModel = receiptViewModelProvider()
             val route = backStackEntry.toRoute<ReceiptRoute>()
             val uiState by receiptViewModel.state.collectAsStateWithLifecycle()
 
@@ -230,6 +239,7 @@ fun NowNavHost(
         }
 
         composable<ActivityRoute> {
+            val activityViewModel = activityViewModelProvider()
             val uiState by activityViewModel.state.collectAsStateWithLifecycle()
 
             ActivityScreen(

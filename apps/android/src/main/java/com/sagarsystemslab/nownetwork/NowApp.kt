@@ -34,15 +34,15 @@ import com.sagarsystemslab.nownetwork.wallet.WalletInteractionHost
 
 @Composable
 fun NowApp(
-    browseViewModel: BrowseViewModel,
-    earnViewModel: EarnViewModel,
-    contributorClaimViewModel: ContributorClaimViewModel,
-    evidenceCaptureViewModel: EvidenceCaptureViewModel,
-    verificationViewModel: VerificationViewModel,
-    paymentViewModel: PaymentViewModel,
-    receiptViewModel: ReceiptViewModel,
-    activityViewModel: ActivityViewModel,
-    requesterFundingViewModel: RequesterFundingViewModel,
+    browseViewModelProvider: () -> BrowseViewModel,
+    earnViewModelProvider: () -> EarnViewModel,
+    contributorClaimViewModelProvider: () -> ContributorClaimViewModel,
+    evidenceCaptureViewModelProvider: () -> EvidenceCaptureViewModel,
+    verificationViewModelProvider: () -> VerificationViewModel,
+    paymentViewModelProvider: () -> PaymentViewModel,
+    receiptViewModelProvider: () -> ReceiptViewModel,
+    activityViewModelProvider: () -> ActivityViewModel,
+    requesterFundingViewModelProvider: () -> RequesterFundingViewModel,
     walletInteractionHost: WalletInteractionHost,
 ) {
     val appState = rememberNowAppState()
@@ -94,15 +94,15 @@ fun NowApp(
     ) { innerPadding ->
         NowNavHost(
             appState = appState,
-            browseViewModel = browseViewModel,
-            earnViewModel = earnViewModel,
-            contributorClaimViewModel = contributorClaimViewModel,
-            evidenceCaptureViewModel = evidenceCaptureViewModel,
-            verificationViewModel = verificationViewModel,
-            paymentViewModel = paymentViewModel,
-            receiptViewModel = receiptViewModel,
-            activityViewModel = activityViewModel,
-            requesterFundingViewModel = requesterFundingViewModel,
+            browseViewModelProvider = browseViewModelProvider,
+            earnViewModelProvider = earnViewModelProvider,
+            contributorClaimViewModelProvider = contributorClaimViewModelProvider,
+            evidenceCaptureViewModelProvider = evidenceCaptureViewModelProvider,
+            verificationViewModelProvider = verificationViewModelProvider,
+            paymentViewModelProvider = paymentViewModelProvider,
+            receiptViewModelProvider = receiptViewModelProvider,
+            activityViewModelProvider = activityViewModelProvider,
+            requesterFundingViewModelProvider = requesterFundingViewModelProvider,
             walletInteractionHost = walletInteractionHost,
             modifier = Modifier
                 .fillMaxSize()
