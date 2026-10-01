@@ -14,10 +14,10 @@ fun rememberVisibleServerTime(
 ): Long {
     var nowMillis by remember { mutableLongStateOf(serverNowMillis()) }
 
-    LaunchedEffect(serverNowMillis) {
+    LaunchedEffect(Unit) {
         while (true) {
-            nowMillis = serverNowMillis()
             delay(1_000L)
+            nowMillis = serverNowMillis()
         }
     }
 
