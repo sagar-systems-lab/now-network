@@ -1,5 +1,7 @@
 package com.sagarsystemslab.nownetwork.navigation
 
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -48,6 +50,10 @@ fun NowNavHost(
         navController = appState.navController,
         startDestination = NowRoute,
         modifier = modifier,
+        enterTransition = { EnterTransition.None },
+        exitTransition = { ExitTransition.None },
+        popEnterTransition = { EnterTransition.None },
+        popExitTransition = { ExitTransition.None },
     ) {
         composable<NowRoute> {
             val browseViewModel = browseViewModelProvider()
