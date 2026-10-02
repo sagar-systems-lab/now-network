@@ -84,10 +84,14 @@ fun VerificationScreen(
             animationSpec = tween(transitionDuration),
             label = "verification-stage",
         ) { stage ->
-            when (stage) {
-                VerificationStage.VERIFYING -> {
-                VerifyingCard(uiState)
-            }
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(NowSpacing.Space4),
+            ) {
+                when (stage) {
+                    VerificationStage.VERIFYING -> {
+                        VerifyingCard(uiState)
+                    }
 
             VerificationStage.VERIFIED -> {
                 VerifiedResult(
@@ -155,18 +159,19 @@ fun VerificationScreen(
                 )
             }
 
-                VerificationStage.ERROR -> {
-                    ResultNotice(
-                        title = "Verification needs attention",
-                        body = uiState.message
-                            ?: "The authoritative verification result could not be confirmed safely.",
-                        tone = NowNoticeTone.ERROR,
-                    )
-                    NowSecondaryButton(
-                        text = "Check again",
-                        onClick = onRetry,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
+                    VerificationStage.ERROR -> {
+                        ResultNotice(
+                            title = "Verification needs attention",
+                            body = uiState.message
+                                ?: "The authoritative verification result could not be confirmed safely.",
+                            tone = NowNoticeTone.ERROR,
+                        )
+                        NowSecondaryButton(
+                            text = "Check again",
+                            onClick = onRetry,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
                 }
             }
         }
