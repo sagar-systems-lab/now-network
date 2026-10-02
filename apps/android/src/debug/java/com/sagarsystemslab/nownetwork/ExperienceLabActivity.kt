@@ -59,7 +59,14 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import com.sagarsystemslab.nownetwork.designsystem.NowColors
+import com.sagarsystemslab.nownetwork.designsystem.NowNotice
+import com.sagarsystemslab.nownetwork.designsystem.NowNoticeTone
+import com.sagarsystemslab.nownetwork.designsystem.NowPrimaryButton
+import com.sagarsystemslab.nownetwork.designsystem.NowSecondaryButton
 import com.sagarsystemslab.nownetwork.designsystem.NowSpacing
+import com.sagarsystemslab.nownetwork.designsystem.NowStatusChip
+import com.sagarsystemslab.nownetwork.designsystem.NowStatusTone
+import com.sagarsystemslab.nownetwork.designsystem.NowTextField
 import com.sagarsystemslab.nownetwork.designsystem.NowTheme
 import com.sagarsystemslab.nownetwork.designsystem.NowType
 
@@ -121,6 +128,13 @@ private val scenarios = listOf(
         title = "Light / dark theme",
         description = "Theme tokens, semantic surfaces, status colors, and manual preference.",
         icon = Icons.Outlined.DarkMode,
+        availability = LabAvailability.READY,
+    ),
+    LabScenario(
+        id = "components",
+        title = "Design primitives",
+        description = "Buttons, status chips, notices, and inputs used by production screens.",
+        icon = Icons.Outlined.Science,
         availability = LabAvailability.READY,
     ),
     LabScenario(
@@ -387,6 +401,157 @@ private fun ScenarioScreen(
                     .fillMaxSize()
                     .padding(NowSpacing.PageHorizontal),
             )
+
+            "components" -> DesignPrimitivesScenario(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(NowSpacing.PageHorizontal),
+            )
+        }
+    }
+}
+
+@Composable
+private fun DesignPrimitivesScenario(
+    modifier: Modifier = Modifier,
+) {
+    var inputValue by rememberSaveable { mutableStateOf("Sector 7 parking") }
+
+    LazyColumn(
+        modifier = modifier,
+        contentPadding = PaddingValues(
+            top = NowSpacing.Space4,
+            bottom = NowSpacing.Space8,
+        ),
+        verticalArrangement = Arrangement.spacedBy(NowSpacing.Space4),
+    ) {
+        item {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(NowSpacing.Space1),
+            ) {
+                Text(
+                    text = "Production primitives",
+                    style = NowType.TitleM,
+                    color = NowColors.Ink950,
+                )
+                Text(
+                    text = "These components are shared with real product screens, not duplicate mock styling.",
+                    style = NowType.BodyM,
+                    color = NowColors.Ink600,
+                )
+            }
+        }
+
+        item {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
+            ) {
+                Text(
+                    text = "Actions",
+                    style = NowType.TitleS,
+                    color = NowColors.Ink950,
+                )
+                NowPrimaryButton(
+                    text = "Refresh this state",
+                    onClick = {},
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                NowSecondaryButton(
+                    text = "View evidence",
+                    onClick = {},
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                NowPrimaryButton(
+                    text = "Unavailable action",
+                    onClick = {},
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = false,
+                )
+            }
+        }
+
+        item {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
+            ) {
+                Text(
+                    text = "Status",
+                    style = NowType.TitleS,
+                    color = NowColors.Ink950,
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
+                ) {
+                    NowStatusChip(label = "LIVE", tone = NowStatusTone.LIVE)
+                    NowStatusChip(label = "AGING", tone = NowStatusTone.AGING)
+                    NowStatusChip(label = "STALE", tone = NowStatusTone.STALE)
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
+                ) {
+                    NowStatusChip(label = "CONFLICT", tone = NowStatusTone.CONFLICT)
+                    NowStatusChip(label = "VERIFYING", tone = NowStatusTone.INFO)
+                }
+            }
+        }
+
+        item {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
+            ) {
+                Text(
+                    text = "Notices",
+                    style = NowType.TitleS,
+                    color = NowColors.Ink950,
+                )
+                NowNotice(
+                    title = "Checking previous transaction",
+                    body = "Do not submit again while the existing funding attempt is reconciled.",
+                    tone = NowNoticeTone.INFO,
+                )
+                NowNotice(
+                    body = "Live connection unavailable · saved verified states are still shown.",
+                    tone = NowNoticeTone.NEUTRAL,
+                )
+                NowNotice(
+                    body = "Evidence verified and the state is live.",
+                    tone = NowNoticeTone.SUCCESS,
+                )
+                NowNotice(
+                    body = "This opportunity expires soon.",
+                    tone = NowNoticeTone.WARNING,
+                )
+                NowNotice(
+                    body = "Evidence conflicts with the current verified state.",
+                    tone = NowNoticeTone.ERROR,
+                )
+            }
+        }
+
+        item {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
+            ) {
+                Text(
+                    text = "Input",
+                    style = NowType.TitleS,
+                    color = NowColors.Ink950,
+                )
+                NowTextField(
+                    value = inputValue,
+                    onValueChange = { inputValue = it },
+                    label = "Location",
+                    supportingText = "Structured input remains readable in both themes.",
+                )
+                NowTextField(
+                    value = "Unavailable",
+                    onValueChange = {},
+                    label = "Disabled field",
+                    enabled = false,
+                )
+            }
         }
     }
 }
