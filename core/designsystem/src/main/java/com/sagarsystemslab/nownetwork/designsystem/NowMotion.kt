@@ -30,18 +30,19 @@ fun Modifier.nowPulseOnChange(
     key: Any?,
     maxScale: Float = NowMotion.ChangeScale,
     durationMillis: Int = NowMotion.BaseMillis,
+    pulseOnInitial: Boolean = false,
 ): Modifier {
     val motionEnabled = rememberNowMotionEnabled()
     val scale = remember { Animatable(1f) }
     var initialized by remember { mutableStateOf(false) }
 
     LaunchedEffect(key, motionEnabled) {
-        if (!initialized) {
+        val firstRun = !initialized
+        if (firstRun) {
             initialized = true
-            return@LaunchedEffect
         }
 
-        if (!motionEnabled) {
+        if (!motionEnabled || (firstRun && !pulseOnInitial)) {
             scale.snapTo(1f)
             return@LaunchedEffect
         }
