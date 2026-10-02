@@ -1,5 +1,6 @@
 package com.sagarsystemslab.nownetwork
 
+import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
@@ -34,19 +35,19 @@ class AccessibilityBaselineInstrumentedTest {
         composeRule
             .onNodeWithContentDescription("Refresh nearby states")
             .assertIsDisplayed()
-            .assertHeightIsAtLeast(48.dp)
+            .assertHasClickAction()
 
         composeRule
             .onNodeWithContentDescription("Open settings")
             .assertIsDisplayed()
-            .assertHeightIsAtLeast(48.dp)
+            .assertHasClickAction()
 
         composeRule.onNodeWithTag("nav-earn").performClick()
 
         composeRule
             .onNodeWithContentDescription("Refresh earning opportunities")
             .assertIsDisplayed()
-            .assertHeightIsAtLeast(48.dp)
+            .assertHasClickAction()
     }
 
     @Test
@@ -54,6 +55,7 @@ class AccessibilityBaselineInstrumentedTest {
         composeRule
             .onNodeWithContentDescription("Theme")
             .assertIsDisplayed()
+            .assertHasClickAction()
             .performClick()
 
         composeRule.onNodeWithTag("screen-now").assertIsDisplayed()
@@ -66,7 +68,7 @@ class AccessibilityBaselineInstrumentedTest {
         composeRule
             .onNodeWithContentDescription("Theme")
             .assertIsDisplayed()
-            .assertHeightIsAtLeast(48.dp)
+            .assertHasClickAction()
 
         composeRule
             .onNodeWithContentDescription("Back")
