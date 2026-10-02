@@ -70,6 +70,9 @@ import com.sagarsystemslab.nownetwork.designsystem.NowStatusTone
 import com.sagarsystemslab.nownetwork.designsystem.NowTextField
 import com.sagarsystemslab.nownetwork.designsystem.NowTheme
 import com.sagarsystemslab.nownetwork.designsystem.NowType
+import com.sagarsystemslab.nownetwork.designsystem.nowLivePulse
+import com.sagarsystemslab.nownetwork.designsystem.nowPulseOnChange
+import com.sagarsystemslab.nownetwork.designsystem.rememberNowMotionEnabled
 import com.sagarsystemslab.nownetwork.feature.capture.EvidenceCaptureScreen
 import com.sagarsystemslab.nownetwork.feature.capture.EvidenceCaptureStage
 import com.sagarsystemslab.nownetwork.feature.capture.EvidenceCaptureUiState
@@ -180,6 +183,13 @@ private val scenarios = listOf(
         title = "Design primitives",
         description = "Buttons, status chips, notices, and inputs used by production screens.",
         icon = Icons.Outlined.Science,
+        availability = LabAvailability.READY,
+    ),
+    LabScenario(
+        id = "motion",
+        title = "Motion & liveness",
+        description = "State transitions, value emphasis, LIVE pulse, and reduced-motion behavior.",
+        icon = Icons.Outlined.TouchApp,
         availability = LabAvailability.READY,
     ),
     LabScenario(
@@ -525,6 +535,12 @@ private fun ScenarioScreen(
             )
 
             "components" -> DesignPrimitivesScenario(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(NowSpacing.PageHorizontal),
+            )
+
+            "motion" -> MotionScenario(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(NowSpacing.PageHorizontal),
@@ -1350,6 +1366,110 @@ private fun sampleTemplateKey(): String =
         "available_spaces",
         "v1",
     ).joinToString(".")
+
+@Composable
+private fun MotionScenario(
+    modifier: Modifier = Modifier,
+) {
+    var step by rememberSaveable { mutableIntStateOf(0) }
+    val motionEnabled = rememberNowMotionEnabled()
+    val labels = listOf("STALE", "VERIFYING", "LIVE")
+    val tones = listOf(
+        NowStatusTone.STALE,
+        NowStatusTone.INFO,
+        NowStatusTone.LIVE,
+    )
+    val values = listOf("12 spaces", "14 spaces", "18 spaces")
+    val rewards = listOf("0.30 USDC", "0.40 USDC", "0.50 USDC")
+
+    LazyColumn(
+        modifier = modifier,
+        contentPadding = PaddingValues(
+            top = NowSpacing.Space4,
+            bottom = NowSpacing.Space8,
+        ),
+        verticalArrangement = Arrangement.spacedBy(NowSpacing.Space4),
+    ) {
+        item {
+            NowNotice(
+                title = if (motionEnabled) {
+                    "System motion enabled"
+                } else {
+                    "Reduced motion active"
+                },
+                body = if (motionEnabled) {
+                    "Transitions use the frozen NOW motion tokens."
+                } else {
+                    "State changes remain immediate and readable without animation.",
+                },
+                tone = NowNoticeTone.NEUTRAL,
+            )
+        }
+
+        item {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                color = NowColors.SurfacePrimary,
+                border = BorderStroke(1.dp, NowColors.BorderSubtle),
+            ) {
+                Column(
+                    modifier = Modifier.padding(NowSpacing.Space4),
+                    verticalArrangement = Arrangement.spacedBy(NowSpacing.Space3),
+                ) {
+                    Text(
+                        text = "State transition",
+                        style = NowType.TitleS,
+                        color = NowColors.Ink950,
+                    )
+
+                    NowStatusChip(
+                        label = labels[step],
+                        tone = tones[step],
+                        accessibilityLabel = "Motion sample " + labels[step],
+                        modifier = Modifier.nowLivePulse(
+                            active = labels[step] == "LIVE",
+                        ),
+                    )
+
+                    Text(
+                        text = values[step],
+                        style = NowType.DataHero,
+                        color = NowColors.Ink950,
+                        modifier = Modifier.nowPulseOnChange(
+                            key = values[step],
+                        ),
+                    )
+
+                    Text(
+                        text = rewards[step],
+                        style = NowType.DataMedium,
+                        color = NowColors.Ink800,
+                        modifier = Modifier.nowPulseOnChange(
+                            key = rewards[step],
+                        ),
+                    )
+
+                    Text(
+                        text = "Only real state/value changes animate. Navigation remains instant.",
+                        style = NowType.BodyS,
+                        color = NowColors.Ink500,
+                    )
+                }
+            }
+        }
+
+        item {
+            NowPrimaryButton(
+                text = "Advance state",
+                onClick = {
+                    step = (step + 1) % labels.size
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
 
 @Composable
 private fun DesignPrimitivesScenario(
