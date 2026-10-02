@@ -1,5 +1,7 @@
 package com.sagarsystemslab.nownetwork.feature.verification
 
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.sagarsystemslab.nownetwork.designsystem.NowColors
+import com.sagarsystemslab.nownetwork.designsystem.NowMotion
 import com.sagarsystemslab.nownetwork.designsystem.NowNotice
 import com.sagarsystemslab.nownetwork.designsystem.NowNoticeTone
 import com.sagarsystemslab.nownetwork.designsystem.NowPrimaryButton
@@ -41,6 +44,9 @@ import com.sagarsystemslab.nownetwork.designsystem.NowSpacing
 import com.sagarsystemslab.nownetwork.designsystem.NowStatusChip
 import com.sagarsystemslab.nownetwork.designsystem.NowStatusTone
 import com.sagarsystemslab.nownetwork.designsystem.NowType
+import com.sagarsystemslab.nownetwork.designsystem.nowMotionDuration
+import com.sagarsystemslab.nownetwork.designsystem.nowPulseOnChange
+import com.sagarsystemslab.nownetwork.designsystem.rememberNowMotionEnabled
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
@@ -54,6 +60,12 @@ fun VerificationScreen(
     onTrackPayment: () -> Unit,
     onDone: () -> Unit,
 ) {
+    val motionEnabled = rememberNowMotionEnabled()
+    val transitionDuration = nowMotionDuration(
+        enabled = motionEnabled,
+        durationMillis = NowMotion.VerifyMillis,
+    )
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -67,8 +79,13 @@ fun VerificationScreen(
     ) {
         VerificationTopBar(onBack = onBack)
 
-        when (uiState.stage) {
-            VerificationStage.VERIFYING -> {
+        Crossfade(
+            targetState = uiState.stage,
+            animationSpec = tween(transitionDuration),
+            label = "verification-stage",
+        ) { stage ->
+            when (stage) {
+                VerificationStage.VERIFYING -> {
                 VerifyingCard(uiState)
             }
 
@@ -138,18 +155,19 @@ fun VerificationScreen(
                 )
             }
 
-            VerificationStage.ERROR -> {
-                ResultNotice(
-                    title = "Verification needs attention",
-                    body = uiState.message
-                        ?: "The authoritative verification result could not be confirmed safely.",
-                    tone = NowNoticeTone.ERROR,
-                )
-                NowSecondaryButton(
-                    text = "Check again",
-                    onClick = onRetry,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                VerificationStage.ERROR -> {
+                    ResultNotice(
+                        title = "Verification needs attention",
+                        body = uiState.message
+                            ?: "The authoritative verification result could not be confirmed safely.",
+                        tone = NowNoticeTone.ERROR,
+                    )
+                    NowSecondaryButton(
+                        text = "Check again",
+                        onClick = onRetry,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
         }
 
@@ -329,10 +347,16 @@ private fun VerifiedResult(
                 }
 
                 uiState.projectedValue?.let { value ->
+                    val displayValue = displayJson(value)
                     Text(
-                        text = displayJson(value),
+                        text = displayValue,
                         style = NowType.DataHero,
                         color = NowColors.Ink950,
+                        modifier = Modifier.nowPulseOnChange(
+                            key = uiState.projectedStateRevision ?: displayValue,
+                            durationMillis = NowMotion.StateMillis,
+                            pulseOnInitial = true,
+                        ),
                     )
                 }
 
