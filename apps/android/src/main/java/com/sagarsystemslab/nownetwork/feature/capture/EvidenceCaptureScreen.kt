@@ -467,7 +467,9 @@ private fun CameraCaptureSurface(
             EvidenceCameraPreview(
                 modifier = Modifier.fillMaxSize(),
                 onControllerReady = onControllerReady,
-                onCameraError = onCameraError,
+                onCameraError = { _ ->
+                    onCameraError()
+                },
             )
         }
 
