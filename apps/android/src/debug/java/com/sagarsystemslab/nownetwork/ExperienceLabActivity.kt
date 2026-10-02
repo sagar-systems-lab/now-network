@@ -528,7 +528,7 @@ private fun OpportunityClaimScenario(
             evidenceDeadline = "2035-01-01T00:10:00Z",
             verificationClass = "FRESH_PHOTO_LOCATION",
             evidenceSummary = OpportunityEvidenceSummaryDto(
-                templateKey = "parking.available_spaces.v1",
+                templateKey = sampleTemplateKey(),
                 mediaRequired = true,
                 locationRequired = true,
                 requiredWitnesses = 1,
@@ -1007,6 +1007,13 @@ private fun sampleCanonicalKey(): String =
         "parking",
         "metro_west_exit",
         "crowd",
+        "v1",
+    ).joinToString(".")
+
+private fun sampleTemplateKey(): String =
+    listOf(
+        "parking",
+        "available_spaces",
         "v1",
     ).joinToString(".")
 
