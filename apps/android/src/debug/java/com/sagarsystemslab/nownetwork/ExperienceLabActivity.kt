@@ -1400,7 +1400,7 @@ private fun MotionScenario(
                 body = if (motionEnabled) {
                     "Transitions use the frozen NOW motion tokens."
                 } else {
-                    "State changes remain immediate and readable without animation.",
+                    "State changes remain immediate and readable without animation."
                 },
                 tone = NowNoticeTone.NEUTRAL,
             )
