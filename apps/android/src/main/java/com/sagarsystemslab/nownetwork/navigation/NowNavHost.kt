@@ -25,6 +25,7 @@ import com.sagarsystemslab.nownetwork.feature.receipt.ReceiptScreen
 import com.sagarsystemslab.nownetwork.feature.receipt.ReceiptViewModel
 import com.sagarsystemslab.nownetwork.feature.requester.RequesterFundingScreen
 import com.sagarsystemslab.nownetwork.feature.requester.RequesterFundingViewModel
+import com.sagarsystemslab.nownetwork.feature.settings.SettingsScreen
 import com.sagarsystemslab.nownetwork.feature.state.BrowseViewModel
 import com.sagarsystemslab.nownetwork.feature.state.StateDetailScreen
 import com.sagarsystemslab.nownetwork.feature.verification.VerificationScreen
@@ -71,6 +72,7 @@ fun NowNavHost(
                 onEarnClick = {
                     appState.navigateTo(TopLevelDestination.EARN)
                 },
+                onSettingsClick = appState::navigateToSettings,
             )
         }
 
@@ -260,6 +262,14 @@ fun NowNavHost(
                 serverNowMillis = activityViewModel::serverNowMillis,
                 onPaymentClick = appState::navigateToPayment,
                 onReceiptClick = appState::navigateToReceipt,
+            )
+        }
+
+        composable<SettingsRoute> {
+            SettingsScreen(
+                darkTheme = darkTheme,
+                onDarkThemeChange = onDarkThemeChange,
+                onBack = appState::navigateBack,
             )
         }
     }

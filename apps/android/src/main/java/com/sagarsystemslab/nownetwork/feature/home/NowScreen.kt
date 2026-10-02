@@ -18,6 +18,7 @@ import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.LightMode
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.WorkOutline
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -57,6 +58,7 @@ fun NowScreen(
     onRefresh: () -> Unit,
     onStateClick: (String) -> Unit,
     onEarnClick: () -> Unit,
+    onSettingsClick: () -> Unit,
 ) {
     val nowMillis = rememberVisibleServerTime(serverNowMillis)
     val refreshCandidate = uiState.states.firstOrNull { it.needsRefresh() }
@@ -79,6 +81,7 @@ fun NowScreen(
                 refreshEnabled = uiState.notice != BrowseNotice.AREA_REQUIRED,
                 onDarkThemeChange = onDarkThemeChange,
                 onRefresh = onRefresh,
+                onSettingsClick = onSettingsClick,
             )
         }
 
@@ -166,6 +169,7 @@ private fun HomeHeader(
     refreshEnabled: Boolean,
     onDarkThemeChange: (Boolean) -> Unit,
     onRefresh: () -> Unit,
+    onSettingsClick: () -> Unit,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -224,6 +228,16 @@ private fun HomeHeader(
             Icon(
                 imageVector = Icons.Outlined.Refresh,
                 contentDescription = "Refresh nearby states",
+                tint = NowColors.Ink600,
+            )
+        }
+
+        IconButton(
+            onClick = onSettingsClick,
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Settings,
+                contentDescription = "Open settings",
                 tint = NowColors.Ink600,
             )
         }

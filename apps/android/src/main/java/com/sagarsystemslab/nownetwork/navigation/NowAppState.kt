@@ -85,6 +85,10 @@ class NowAppState(
         navController.navigate(ReceiptRoute(refreshId = refreshId))
     }
 
+    fun navigateToSettings() {
+        navController.navigate(SettingsRoute)
+    }
+
     fun navigateBack() {
         navController.popBackStack()
     }
