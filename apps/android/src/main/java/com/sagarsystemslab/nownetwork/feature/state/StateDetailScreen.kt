@@ -2,15 +2,22 @@ package com.sagarsystemslab.nownetwork.feature.state
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.LocationOn
+import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Verified
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -23,14 +30,20 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.sagarsystemslab.nownetwork.designsystem.NowColors
+import com.sagarsystemslab.nownetwork.designsystem.NowNotice
+import com.sagarsystemslab.nownetwork.designsystem.NowNoticeTone
+import com.sagarsystemslab.nownetwork.designsystem.NowPrimaryButton
+import com.sagarsystemslab.nownetwork.designsystem.NowSecondaryButton
 import com.sagarsystemslab.nownetwork.designsystem.NowSpacing
 import com.sagarsystemslab.nownetwork.designsystem.NowType
+import com.sagarsystemslab.nownetwork.model.ActiveRefresh
 import com.sagarsystemslab.nownetwork.model.StateDetail
 import com.sagarsystemslab.nownetwork.model.StateSummary
 
@@ -46,26 +59,16 @@ fun StateDetailScreen(
 
     LazyColumn(
         modifier = Modifier.testTag("screen-state-detail"),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+        contentPadding = PaddingValues(
             start = NowSpacing.PageHorizontal,
             top = NowSpacing.Space2,
             end = NowSpacing.PageHorizontal,
-            bottom = NowSpacing.Space6,
+            bottom = NowSpacing.Space8,
         ),
-        verticalArrangement = Arrangement.spacedBy(NowSpacing.Space3),
+        verticalArrangement = Arrangement.spacedBy(NowSpacing.Space4),
     ) {
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-                        contentDescription = "Back",
-                        tint = NowColors.Ink700,
-                    )
-                }
-            }
+            StateDetailTopBar(onBack = onBack)
         }
 
         if (uiState.loading) {
@@ -96,68 +99,50 @@ fun StateDetailScreen(
 
         when {
             detail != null -> {
+                val freshness = detail.freshnessAt(nowMillis)
+
                 item {
-                    StateDetailHeader(
+                    StateHero(
                         detail = detail,
                         nowMillis = nowMillis,
                     )
                 }
+
                 item {
                     VerificationCard(detail)
                 }
+
                 detail.activeRefresh?.let { refresh ->
                     item {
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = MaterialTheme.shapes.large,
-                            color = NowColors.InfoSoft,
-                            border = BorderStroke(1.dp, NowColors.InfoBorder),
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(NowSpacing.Space4),
-                                verticalArrangement = Arrangement.spacedBy(NowSpacing.Space1),
-                            ) {
-                                Text(
-                                    text = "Refreshing now",
-                                    style = NowType.TitleS,
-                                    color = NowColors.InfoText,
-                                )
-                                Text(
-                                    text = humanizeStatus(refresh.status),
-                                    style = NowType.BodyM,
-                                    color = NowColors.Ink700,
-                                )
+                        ActiveRefreshCard(
+                            refresh = refresh,
+                            stateId = detail.stateId,
+                            onRefreshRequest = onRefreshRequest,
+                        )
+                    }
+                }
 
-                                if (refresh.status == "DRAFT" || refresh.status == "AWAITING_FUNDING") {
-                                    TextButton(
-                                        onClick = { onRefreshRequest(detail.stateId) },
-                                    ) {
-                                        Text("Continue funding")
-                                    }
-                                }
-                            }
-                        }
+                if (freshness == FreshnessKind.CONFLICT) {
+                    item {
+                        NowNotice(
+                            title = "Conflicting proof",
+                            body = "Recent evidence does not agree yet. This state is not presented as current truth until the conflict is resolved.",
+                            tone = NowNoticeTone.ERROR,
+                        )
                     }
                 }
 
                 if (
                     detail.activeRefresh == null &&
-                    detail.freshnessAt(nowMillis) != FreshnessKind.LIVE &&
-                    detail.freshnessAt(nowMillis) != FreshnessKind.CONFLICT
+                    freshness != FreshnessKind.LIVE &&
+                    freshness != FreshnessKind.CONFLICT
                 ) {
                     item {
-                        Button(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("refresh-state"),
-                            onClick = { onRefreshRequest(detail.stateId) },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = NowColors.Blue600,
-                                contentColor = MaterialTheme.colorScheme.onPrimary,
-                            ),
-                        ) {
-                            Text("Refresh this state")
-                        }
+                        RefreshActionCard(
+                            stateId = detail.stateId,
+                            freshness = freshness,
+                            onRefreshRequest = onRefreshRequest,
+                        )
                     }
                 }
 
@@ -183,31 +168,9 @@ fun StateDetailScreen(
 
             else -> {
                 item {
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = MaterialTheme.shapes.large,
-                        color = NowColors.SurfacePrimary,
-                        border = BorderStroke(1.dp, NowColors.BorderSubtle),
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(NowSpacing.Space4),
-                            verticalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
-                        ) {
-                            Text(
-                                text = "State unavailable",
-                                style = NowType.TitleM,
-                                color = NowColors.Ink950,
-                            )
-                            Text(
-                                text = "This state could not be loaded.",
-                                style = NowType.BodyM,
-                                color = NowColors.Ink500,
-                            )
-                            TextButton(onClick = onRetry) {
-                                Text("Try again")
-                            }
-                        }
-                    }
+                    UnavailableState(
+                        onRetry = onRetry,
+                    )
                 }
             }
         }
@@ -215,53 +178,102 @@ fun StateDetailScreen(
 }
 
 @Composable
-private fun StateDetailHeader(
+private fun StateDetailTopBar(
+    onBack: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClick = onBack) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                contentDescription = "Back",
+                tint = NowColors.Ink700,
+            )
+        }
+        Text(
+            text = "State detail",
+            style = NowType.TitleM,
+            color = NowColors.Ink950,
+        )
+    }
+}
+
+@Composable
+private fun StateHero(
     detail: StateDetail,
     nowMillis: Long,
 ) {
     val freshness = detail.freshnessAt(nowMillis)
 
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("state-detail-hero"),
+        shape = MaterialTheme.shapes.large,
+        color = NowColors.SurfacePrimary,
+        border = BorderStroke(1.dp, NowColors.BorderSubtle),
     ) {
-        FreshnessChip(freshness)
+        Column(
+            modifier = Modifier.padding(NowSpacing.Space4),
+            verticalArrangement = Arrangement.spacedBy(NowSpacing.Space3),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
+            ) {
+                FreshnessChip(freshness)
+                Spacer(Modifier.weight(1f))
+                Text(
+                    text = relativeObservedTime(detail.observedAtMillis, nowMillis),
+                    style = NowType.LabelM,
+                    color = freshnessTextColor(freshness),
+                )
+            }
 
-        Text(
-            text = detail.title,
-            style = NowType.TitleXL,
-            color = NowColors.Ink950,
-        )
+            Column(
+                verticalArrangement = Arrangement.spacedBy(NowSpacing.Space1),
+            ) {
+                Text(
+                    text = detail.title,
+                    style = NowType.TitleXL,
+                    color = NowColors.Ink950,
+                )
 
-        Text(
-            text = buildLocationLabel(detail),
-            style = NowType.BodyM,
-            color = NowColors.Ink500,
-        )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(NowSpacing.Space1),
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.LocationOn,
+                        contentDescription = null,
+                        tint = NowColors.Ink500,
+                        modifier = Modifier.size(17.dp),
+                    )
+                    Text(
+                        text = buildLocationLabel(detail),
+                        style = NowType.BodyS,
+                        color = NowColors.Ink500,
+                    )
+                }
+            }
 
-        Text(
-            text = formatStateValue(detail.valueJson, detail.unitCode),
-            style = NowType.DataHero,
-            color = NowColors.Ink950,
-        )
+            HorizontalDivider(color = NowColors.BorderSubtle)
 
-        Text(
-            text = relativeObservedTime(detail.observedAtMillis, nowMillis),
-            style = NowType.LabelL,
-            color = when (freshness) {
-                FreshnessKind.LIVE -> NowColors.LiveText
-                FreshnessKind.AGING -> NowColors.AgingText
-                FreshnessKind.STALE -> NowColors.StaleText
-                FreshnessKind.CONFLICT -> NowColors.ConflictText
-                FreshnessKind.UNKNOWN -> NowColors.Ink500
-            },
-        )
+            Text(
+                text = formatStateValue(detail.valueJson, detail.unitCode),
+                style = NowType.DataHero,
+                color = NowColors.Ink950,
+            )
 
-        Text(
-            text = detail.question,
-            style = NowType.BodyM,
-            color = NowColors.Ink600,
-        )
+            Text(
+                text = detail.question,
+                style = NowType.BodyM,
+                color = NowColors.Ink600,
+            )
+        }
     }
 }
 
@@ -270,20 +282,51 @@ private fun VerificationCard(detail: StateDetail) {
     val verification = detail.verification
 
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("state-detail-verification"),
         shape = MaterialTheme.shapes.large,
         color = NowColors.SurfacePrimary,
         border = BorderStroke(1.dp, NowColors.BorderSubtle),
     ) {
         Column(
             modifier = Modifier.padding(NowSpacing.Space4),
-            verticalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
+            verticalArrangement = Arrangement.spacedBy(NowSpacing.Space3),
         ) {
-            Text(
-                text = "Verification",
-                style = NowType.TitleS,
-                color = NowColors.Ink950,
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
+            ) {
+                Surface(
+                    modifier = Modifier.size(38.dp),
+                    shape = MaterialTheme.shapes.medium,
+                    color = NowColors.LiveSoft,
+                    border = BorderStroke(1.dp, NowColors.LiveBorder),
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Outlined.Verified,
+                            contentDescription = null,
+                            tint = NowColors.LiveText,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+                }
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    Text(
+                        text = "Verification",
+                        style = NowType.TitleS,
+                        color = NowColors.Ink950,
+                    )
+                    Text(
+                        text = "Why this state can be trusted",
+                        style = NowType.BodyS,
+                        color = NowColors.Ink500,
+                    )
+                }
+            }
 
             if (verification == null) {
                 Text(
@@ -292,12 +335,21 @@ private fun VerificationCard(detail: StateDetail) {
                     color = NowColors.Ink500,
                 )
             } else {
-                val reportWord = if (verification.evidenceCount == 1) "report" else "reports"
-                Text(
-                    text = "${detail.verificationClass ?: verification.status} · ${verification.evidenceCount} fresh $reportWord",
-                    style = NowType.BodyL,
-                    color = NowColors.Ink800,
+                val reportWord = if (verification.evidenceCount == 1) "fresh report" else "fresh reports"
+
+                VerificationRow(
+                    label = humanizeStatus(verification.status),
                 )
+                VerificationRow(
+                    label = "${verification.evidenceCount} $reportWord",
+                )
+                detail.verificationClass
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { verificationClass ->
+                        VerificationRow(
+                            label = humanizeStatus(verificationClass),
+                        )
+                    }
 
                 if (verification.reasonCodes.isNotEmpty()) {
                     Text(
@@ -309,6 +361,139 @@ private fun VerificationCard(detail: StateDetail) {
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun VerificationRow(
+    label: String,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.CheckCircle,
+            contentDescription = null,
+            tint = NowColors.LiveText,
+            modifier = Modifier.size(18.dp),
+        )
+        Text(
+            text = label,
+            style = NowType.BodyM,
+            color = NowColors.Ink700,
+        )
+    }
+}
+
+@Composable
+private fun ActiveRefreshCard(
+    refresh: ActiveRefresh,
+    stateId: String,
+    onRefreshRequest: (String) -> Unit,
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("state-detail-active-refresh"),
+        shape = MaterialTheme.shapes.large,
+        color = NowColors.InfoSoft,
+        border = BorderStroke(1.dp, NowColors.InfoBorder),
+    ) {
+        Column(
+            modifier = Modifier.padding(NowSpacing.Space4),
+            verticalArrangement = Arrangement.spacedBy(NowSpacing.Space3),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Refresh,
+                    contentDescription = null,
+                    tint = NowColors.InfoText,
+                    modifier = Modifier.size(20.dp),
+                )
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    Text(
+                        text = "Refreshing now",
+                        style = NowType.TitleS,
+                        color = NowColors.InfoText,
+                    )
+                    Text(
+                        text = humanizeStatus(refresh.status),
+                        style = NowType.BodyM,
+                        color = NowColors.Ink700,
+                    )
+                }
+            }
+
+            if (refresh.status == "DRAFT" || refresh.status == "AWAITING_FUNDING") {
+                NowPrimaryButton(
+                    text = "Continue funding",
+                    onClick = { onRefreshRequest(stateId) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            } else {
+                Text(
+                    text = "Fresh proof is in progress. This state will update when verification completes.",
+                    style = NowType.BodyS,
+                    color = NowColors.Ink600,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RefreshActionCard(
+    stateId: String,
+    freshness: FreshnessKind,
+    onRefreshRequest: (String) -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        color = NowColors.SurfacePrimary,
+        border = BorderStroke(1.dp, NowColors.BorderSubtle),
+    ) {
+        Column(
+            modifier = Modifier.padding(NowSpacing.Space4),
+            verticalArrangement = Arrangement.spacedBy(NowSpacing.Space3),
+        ) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(NowSpacing.Space1),
+            ) {
+                Text(
+                    text = if (freshness == FreshnessKind.STALE) {
+                        "Need current proof?"
+                    } else {
+                        "Refresh this state"
+                    },
+                    style = NowType.TitleS,
+                    color = NowColors.Ink950,
+                )
+                Text(
+                    text = if (freshness == FreshnessKind.STALE) {
+                        "This value is no longer fresh. Fund a nearby contributor to verify what is true now."
+                    } else {
+                        "Request a new observation before this value becomes stale."
+                    },
+                    style = NowType.BodyM,
+                    color = NowColors.Ink600,
+                )
+            }
+
+            NowPrimaryButton(
+                text = "Refresh this state",
+                onClick = { onRefreshRequest(stateId) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("refresh-state"),
+            )
         }
     }
 }
@@ -335,23 +520,42 @@ private fun TechnicalDetails(detail: StateDetail) {
             }
 
             if (expanded) {
-                Text(
-                    text = "State ID · ${detail.stateId}",
-                    style = NowType.BodyS,
-                    color = NowColors.Ink500,
+                HorizontalDivider(color = NowColors.BorderSubtle)
+                TechnicalRow(
+                    label = "State ID",
+                    value = detail.stateId,
                 )
-                Text(
-                    text = "Revision · ${detail.revision}",
-                    style = NowType.BodyS,
-                    color = NowColors.Ink500,
+                TechnicalRow(
+                    label = "Revision",
+                    value = detail.revision.toString(),
                 )
-                Text(
-                    text = detail.canonicalKey,
-                    style = NowType.BodyS,
-                    color = NowColors.Ink500,
+                TechnicalRow(
+                    label = "Canonical key",
+                    value = detail.canonicalKey,
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun TechnicalRow(
+    label: String,
+    value: String,
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Text(
+            text = label,
+            style = NowType.LabelM,
+            color = NowColors.Ink500,
+        )
+        Text(
+            text = value,
+            style = NowType.BodyS,
+            color = NowColors.Ink700,
+        )
     }
 }
 
@@ -370,9 +574,21 @@ private fun CachedStateDetail(
     ) {
         Column(
             modifier = Modifier.padding(NowSpacing.Space4),
-            verticalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
+            verticalArrangement = Arrangement.spacedBy(NowSpacing.Space3),
         ) {
-            FreshnessChip(freshness)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                FreshnessChip(freshness)
+                Spacer(Modifier.weight(1f))
+                Text(
+                    text = relativeObservedTime(state.observedAtMillis, nowMillis),
+                    style = NowType.LabelM,
+                    color = freshnessTextColor(freshness),
+                )
+            }
+
             Text(
                 text = state.title,
                 style = NowType.TitleXL,
@@ -384,14 +600,14 @@ private fun CachedStateDetail(
                 color = NowColors.Ink950,
             )
             Text(
-                text = relativeObservedTime(state.observedAtMillis, nowMillis),
-                style = NowType.LabelL,
+                text = state.question,
+                style = NowType.BodyM,
                 color = NowColors.Ink600,
             )
-            Text(
-                text = "Showing saved state while live detail is unavailable.",
-                style = NowType.BodyM,
-                color = NowColors.Ink500,
+
+            NowNotice(
+                body = "Showing the latest state saved on this device while live detail is unavailable.",
+                tone = NowNoticeTone.NEUTRAL,
             )
         }
     }
@@ -417,6 +633,54 @@ private fun DetailLoadingCard() {
         }
     }
 }
+
+@Composable
+private fun UnavailableState(
+    onRetry: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        color = NowColors.SurfacePrimary,
+        border = BorderStroke(1.dp, NowColors.BorderSubtle),
+    ) {
+        Column(
+            modifier = Modifier.padding(NowSpacing.Space4),
+            verticalArrangement = Arrangement.spacedBy(NowSpacing.Space3),
+        ) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(NowSpacing.Space1),
+            ) {
+                Text(
+                    text = "State unavailable",
+                    style = NowType.TitleM,
+                    color = NowColors.Ink950,
+                )
+                Text(
+                    text = "Current state details could not be loaded.",
+                    style = NowType.BodyM,
+                    color = NowColors.Ink500,
+                )
+            }
+
+            NowSecondaryButton(
+                text = "Try again",
+                onClick = onRetry,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
+@Composable
+private fun freshnessTextColor(freshness: FreshnessKind) =
+    when (freshness) {
+        FreshnessKind.LIVE -> NowColors.LiveText
+        FreshnessKind.AGING -> NowColors.AgingText
+        FreshnessKind.STALE -> NowColors.StaleText
+        FreshnessKind.CONFLICT -> NowColors.ConflictText
+        FreshnessKind.UNKNOWN -> NowColors.Ink500
+    }
 
 private fun buildLocationLabel(detail: StateDetail): String =
     listOfNotNull(

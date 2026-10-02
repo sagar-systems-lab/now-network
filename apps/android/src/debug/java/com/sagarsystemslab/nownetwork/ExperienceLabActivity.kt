@@ -72,7 +72,12 @@ import com.sagarsystemslab.nownetwork.designsystem.NowType
 import com.sagarsystemslab.nownetwork.feature.home.NowScreen
 import com.sagarsystemslab.nownetwork.feature.state.BrowseNotice
 import com.sagarsystemslab.nownetwork.feature.state.HomeUiState
+import com.sagarsystemslab.nownetwork.feature.state.StateDetailScreen
+import com.sagarsystemslab.nownetwork.feature.state.StateDetailUiState
+import com.sagarsystemslab.nownetwork.model.StateDetail
+import com.sagarsystemslab.nownetwork.model.StateLocation
 import com.sagarsystemslab.nownetwork.model.StateSummary
+import com.sagarsystemslab.nownetwork.model.StateVerification
 
 class ExperienceLabActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -146,6 +151,13 @@ private val scenarios = listOf(
         title = "NOW / Home",
         description = "Live, aging, stale, conflict, loading, empty, and offline home states.",
         icon = Icons.Outlined.Home,
+        availability = LabAvailability.READY,
+    ),
+    LabScenario(
+        id = "state-detail",
+        title = "State detail",
+        description = "Value, freshness, location, verification, refresh action, and technical disclosure.",
+        icon = Icons.Outlined.Visibility,
         availability = LabAvailability.READY,
     ),
     LabScenario(
@@ -365,6 +377,14 @@ private fun ScenarioScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    if (scenario.id == "state-detail") {
+        StateDetailScenario(
+            onBack = onBack,
+            modifier = modifier.fillMaxSize(),
+        )
+        return
+    }
+
     Column(
         modifier = modifier,
     ) {
@@ -417,6 +437,95 @@ private fun ScenarioScreen(
                 onDarkThemeChange = onDarkThemeChange,
                 modifier = Modifier.fillMaxSize(),
             )
+        }
+    }
+}
+
+@Composable
+private fun StateDetailScenario(
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val nowMillis = 1_800_000_000_000L
+    var lastAction by rememberSaveable { mutableStateOf<String?>(null) }
+
+    val sampleState = remember {
+        StateDetailUiState(
+            stateId = "metro-exit",
+            detail = StateDetail(
+                stateId = "metro-exit",
+                version = 1,
+                canonicalKey = sampleCanonicalKey(),
+                title = "Metro exit crowd",
+                question = "How crowded is the west exit right now?",
+                stateType = "VISUAL",
+                valueJson = "Busy",
+                unitCode = null,
+                freshnessStatus = "STALE",
+                observedAtMillis = nowMillis - 2_700_000L,
+                observationEarliestMillis = nowMillis - 2_760_000L,
+                observationLatestMillis = nowMillis - 2_700_000L,
+                agingAtMillis = nowMillis - 1_800_000L,
+                freshUntilMillis = nowMillis - 900_000L,
+                verificationClass = "FRESH_PHOTO_LOCATION",
+                conflictActive = false,
+                revision = 5L,
+                location = StateLocation(
+                    locationId = "metro-west-exit",
+                    name = "West metro exit",
+                    locationType = "POINT",
+                    displayAddress = "Sector 7",
+                ),
+                verification = StateVerification(
+                    status = "VERIFIED",
+                    reasonCodes = listOf(
+                        "fresh_capture",
+                        "location_match",
+                    ),
+                    evidenceCount = 2,
+                ),
+                activeRefresh = null,
+            ),
+            loading = false,
+            notice = BrowseNotice.NONE,
+        )
+    }
+
+    Box(modifier = modifier) {
+        StateDetailScreen(
+            uiState = sampleState,
+            serverNowMillis = { nowMillis },
+            onBack = onBack,
+            onRetry = {
+                lastAction = "Retry invoked"
+            },
+            onRefreshRequest = { stateId ->
+                lastAction = "Refresh flow invoked · $stateId"
+            },
+        )
+
+        lastAction?.let { action ->
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(
+                        start = NowSpacing.Space4,
+                        end = NowSpacing.Space4,
+                        bottom = NowSpacing.Space4,
+                    ),
+                shape = MaterialTheme.shapes.medium,
+                color = NowColors.Ink950,
+            ) {
+                Text(
+                    text = action,
+                    style = NowType.BodyS,
+                    color = NowColors.SurfacePrimary,
+                    modifier = Modifier.padding(
+                        horizontal = NowSpacing.Space3,
+                        vertical = NowSpacing.Space2,
+                    ),
+                )
+            }
         }
     }
 }
@@ -533,6 +642,14 @@ private fun HomeScenario(
         }
     }
 }
+
+private fun sampleCanonicalKey(): String =
+    listOf(
+        "parking",
+        "metro_west_exit",
+        "crowd",
+        "v1",
+    ).joinToString(".")
 
 @Composable
 private fun DesignPrimitivesScenario(
