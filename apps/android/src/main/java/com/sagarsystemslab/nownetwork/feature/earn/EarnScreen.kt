@@ -33,7 +33,11 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import com.sagarsystemslab.nownetwork.designsystem.NowColors
+import com.sagarsystemslab.nownetwork.designsystem.NowNotice
+import com.sagarsystemslab.nownetwork.designsystem.NowNoticeTone
 import com.sagarsystemslab.nownetwork.designsystem.NowSpacing
+import com.sagarsystemslab.nownetwork.designsystem.NowStatusChip
+import com.sagarsystemslab.nownetwork.designsystem.NowStatusTone
 import com.sagarsystemslab.nownetwork.designsystem.NowType
 import com.sagarsystemslab.nownetwork.feature.state.rememberVisibleServerTime
 import com.sagarsystemslab.nownetwork.model.OpportunitySummary
@@ -262,27 +266,15 @@ private fun OpportunityCard(
 
 @Composable
 private fun AvailabilityChip(claimable: Boolean) {
-    val text = if (claimable) "AVAILABLE" else "FILLED"
-    val background = if (claimable) NowColors.LiveSoft else NowColors.StaleSoft
-    val border = if (claimable) NowColors.LiveBorder else NowColors.StaleBorder
-    val foreground = if (claimable) NowColors.LiveText else NowColors.StaleText
-
-    Surface(
-        modifier = Modifier.semantics {
-            stateDescription = text
-            contentDescription = "Availability $text"
+    NowStatusChip(
+        label = if (claimable) "AVAILABLE" else "FILLED",
+        tone = if (claimable) NowStatusTone.LIVE else NowStatusTone.STALE,
+        accessibilityLabel = if (claimable) {
+            "Availability available"
+        } else {
+            "Availability filled"
         },
-        shape = MaterialTheme.shapes.extraLarge,
-        color = background,
-        border = BorderStroke(1.dp, border),
-    ) {
-        Text(
-            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
-            text = text,
-            style = NowType.LabelM,
-            color = foreground,
-        )
-    }
+    )
 }
 
 @Composable
@@ -316,36 +308,17 @@ private fun EarnNoticeCard(
         EarnNotice.NONE -> return
     }
 
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.medium,
-        color = if (
+    NowNotice(
+        body = message,
+        tone = if (
             notice == EarnNotice.AREA_REQUIRED ||
             notice == EarnNotice.AUTH_REQUIRED
         ) {
-            NowColors.InfoSoft
+            NowNoticeTone.INFO
         } else {
-            NowColors.StaleSoft
+            NowNoticeTone.NEUTRAL
         },
-        border = BorderStroke(
-            1.dp,
-            if (
-                notice == EarnNotice.AREA_REQUIRED ||
-                notice == EarnNotice.AUTH_REQUIRED
-            ) {
-                NowColors.InfoBorder
-            } else {
-                NowColors.StaleBorder
-            },
-        ),
-    ) {
-        Text(
-            modifier = Modifier.padding(NowSpacing.Space3),
-            text = message,
-            style = NowType.BodyM,
-            color = NowColors.Ink600,
-        )
-    }
+    )
 }
 
 @Composable
