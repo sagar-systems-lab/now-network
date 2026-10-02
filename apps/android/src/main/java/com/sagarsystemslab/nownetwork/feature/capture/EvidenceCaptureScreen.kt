@@ -497,8 +497,7 @@ private fun CameraCaptureSurface(
         NowPrimaryButton(
             text = "Capture now",
             onClick = {
-                val activeController = controller ?: return@NowPrimaryButton
-                activeController.capture(
+                controller?.capture(
                     file = File(localFilePath),
                     onSuccess = onPhotoCaptured,
                     onError = { onCameraError() },
@@ -548,6 +547,9 @@ private fun EvidenceReview(
                     label = "Answer",
                     supportingText = "Enter the value visible in your fresh observation.",
                     modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number,
+                    ),
                     visualTransformation = androidx.compose.ui.text.input.VisualTransformation.None,
                 )
             }
