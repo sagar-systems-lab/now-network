@@ -43,6 +43,8 @@ import com.sagarsystemslab.nownetwork.designsystem.NowPrimaryButton
 import com.sagarsystemslab.nownetwork.designsystem.NowSecondaryButton
 import com.sagarsystemslab.nownetwork.designsystem.NowSpacing
 import com.sagarsystemslab.nownetwork.designsystem.NowType
+import com.sagarsystemslab.nownetwork.designsystem.nowLivePulse
+import com.sagarsystemslab.nownetwork.designsystem.nowPulseOnChange
 import com.sagarsystemslab.nownetwork.model.ActiveRefresh
 import com.sagarsystemslab.nownetwork.model.StateDetail
 import com.sagarsystemslab.nownetwork.model.StateSummary
@@ -206,6 +208,7 @@ private fun StateHero(
     nowMillis: Long,
 ) {
     val freshness = detail.freshnessAt(nowMillis)
+    val displayValue = formatStateValue(detail.valueJson, detail.unitCode)
 
     Surface(
         modifier = Modifier
@@ -224,7 +227,12 @@ private fun StateHero(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
             ) {
-                FreshnessChip(freshness)
+                FreshnessChip(
+                    freshness = freshness,
+                    modifier = Modifier.nowLivePulse(
+                        active = freshness == FreshnessKind.LIVE,
+                    ),
+                )
                 Spacer(Modifier.weight(1f))
                 Text(
                     text = relativeObservedTime(detail.observedAtMillis, nowMillis),
@@ -263,9 +271,13 @@ private fun StateHero(
             HorizontalDivider(color = NowColors.BorderSubtle)
 
             Text(
-                text = formatStateValue(detail.valueJson, detail.unitCode),
+                text = displayValue,
                 style = NowType.DataHero,
                 color = NowColors.Ink950,
+                modifier = Modifier.nowPulseOnChange(
+                    key = displayValue,
+                    durationMillis = com.sagarsystemslab.nownetwork.designsystem.NowMotion.StateMillis,
+                ),
             )
 
             Text(

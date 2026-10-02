@@ -1,5 +1,6 @@
 package com.sagarsystemslab.nownetwork.feature.home
 
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -38,10 +39,13 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import com.sagarsystemslab.nownetwork.designsystem.NowColors
+import com.sagarsystemslab.nownetwork.designsystem.NowMotion
 import com.sagarsystemslab.nownetwork.designsystem.NowPrimaryButton
 import com.sagarsystemslab.nownetwork.designsystem.NowSecondaryButton
 import com.sagarsystemslab.nownetwork.designsystem.NowSpacing
 import com.sagarsystemslab.nownetwork.designsystem.NowType
+import com.sagarsystemslab.nownetwork.designsystem.nowMotionDuration
+import com.sagarsystemslab.nownetwork.designsystem.rememberNowMotionEnabled
 import com.sagarsystemslab.nownetwork.feature.state.BrowseNotice
 import com.sagarsystemslab.nownetwork.feature.state.BrowseNoticeCard
 import com.sagarsystemslab.nownetwork.feature.state.HomeUiState
@@ -62,6 +66,10 @@ fun NowScreen(
 ) {
     val nowMillis = rememberVisibleServerTime(serverNowMillis)
     val refreshCandidate = uiState.states.firstOrNull { it.needsRefresh() }
+    val listMotionDuration = nowMotionDuration(
+        enabled = rememberNowMotionEnabled(),
+        durationMillis = NowMotion.StateMillis,
+    )
 
     LazyColumn(
         modifier = Modifier.testTag("screen-now"),
@@ -149,6 +157,11 @@ fun NowScreen(
                     state = state,
                     nowMillis = nowMillis,
                     onClick = { onStateClick(state.stateId) },
+                    modifier = Modifier.animateItem(
+                        fadeInSpec = tween(listMotionDuration),
+                        placementSpec = tween(listMotionDuration),
+                        fadeOutSpec = tween(listMotionDuration),
+                    ),
                 )
             }
         }

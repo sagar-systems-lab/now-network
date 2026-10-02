@@ -1,5 +1,6 @@
 package com.sagarsystemslab.nownetwork.feature.activity
 
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -28,10 +29,13 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import com.sagarsystemslab.nownetwork.designsystem.NowColors
+import com.sagarsystemslab.nownetwork.designsystem.NowMotion
 import com.sagarsystemslab.nownetwork.designsystem.NowSpacing
 import com.sagarsystemslab.nownetwork.designsystem.NowStatusChip
 import com.sagarsystemslab.nownetwork.designsystem.NowStatusTone
 import com.sagarsystemslab.nownetwork.designsystem.NowType
+import com.sagarsystemslab.nownetwork.designsystem.nowMotionDuration
+import com.sagarsystemslab.nownetwork.designsystem.rememberNowMotionEnabled
 import com.sagarsystemslab.nownetwork.feature.state.humanizeStatus
 import com.sagarsystemslab.nownetwork.feature.state.rememberVisibleServerTime
 import com.sagarsystemslab.nownetwork.model.ActivityItem
@@ -44,6 +48,10 @@ fun ActivityScreen(
     onReceiptClick: (String) -> Unit,
 ) {
     val nowMillis = rememberVisibleServerTime(serverNowMillis)
+    val listMotionDuration = nowMotionDuration(
+        enabled = rememberNowMotionEnabled(),
+        durationMillis = NowMotion.StateMillis,
+    )
 
     LazyColumn(
         modifier = Modifier.testTag("screen-activity"),
@@ -88,6 +96,11 @@ fun ActivityScreen(
                     item = item,
                     nowMillis = nowMillis,
                     active = true,
+                    modifier = Modifier.animateItem(
+                        fadeInSpec = tween(listMotionDuration),
+                        placementSpec = tween(listMotionDuration),
+                        fadeOutSpec = tween(listMotionDuration),
+                    ),
                     onClick = operationClick(
                         item = item,
                         onPaymentClick = onPaymentClick,
@@ -113,6 +126,11 @@ fun ActivityScreen(
                     item = item,
                     nowMillis = nowMillis,
                     active = false,
+                    modifier = Modifier.animateItem(
+                        fadeInSpec = tween(listMotionDuration),
+                        placementSpec = tween(listMotionDuration),
+                        fadeOutSpec = tween(listMotionDuration),
+                    ),
                     onClick = operationClick(
                         item = item,
                         onPaymentClick = onPaymentClick,
@@ -157,10 +175,11 @@ private fun ActivityRow(
     nowMillis: Long,
     active: Boolean,
     onClick: (() -> Unit)?,
+    modifier: Modifier = Modifier,
 ) {
     val status = activityStatus(item)
     Surface(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .then(
                 if (onClick == null) Modifier else Modifier.clickable(onClick = onClick),

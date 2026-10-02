@@ -1,5 +1,6 @@
 package com.sagarsystemslab.nownetwork.feature.earn
 
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -36,6 +37,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.sagarsystemslab.nownetwork.designsystem.NowColors
+import com.sagarsystemslab.nownetwork.designsystem.NowMotion
 import com.sagarsystemslab.nownetwork.designsystem.NowNotice
 import com.sagarsystemslab.nownetwork.designsystem.NowNoticeTone
 import com.sagarsystemslab.nownetwork.designsystem.NowPrimaryButton
@@ -44,6 +46,9 @@ import com.sagarsystemslab.nownetwork.designsystem.NowSpacing
 import com.sagarsystemslab.nownetwork.designsystem.NowStatusChip
 import com.sagarsystemslab.nownetwork.designsystem.NowStatusTone
 import com.sagarsystemslab.nownetwork.designsystem.NowType
+import com.sagarsystemslab.nownetwork.designsystem.nowMotionDuration
+import com.sagarsystemslab.nownetwork.designsystem.rememberNowMotionEnabled
+import com.sagarsystemslab.nownetwork.designsystem.nowPulseOnChange
 import com.sagarsystemslab.nownetwork.feature.state.rememberVisibleServerTime
 import com.sagarsystemslab.nownetwork.model.OpportunitySummary
 
@@ -56,6 +61,10 @@ fun EarnScreen(
     onOpportunityClick: (String) -> Unit,
 ) {
     val nowMillis = rememberVisibleServerTime(serverNowMillis)
+    val listMotionDuration = nowMotionDuration(
+        enabled = rememberNowMotionEnabled(),
+        durationMillis = NowMotion.StateMillis,
+    )
     val visibleOpportunities = uiState.opportunities.filter {
         it.expiresAtMillis > nowMillis
     }
@@ -154,6 +163,11 @@ fun EarnScreen(
                     reward = rewardText(opportunity),
                     nowMillis = nowMillis,
                     onOpen = { onOpportunityClick(opportunity.refreshId) },
+                    modifier = Modifier.animateItem(
+                        fadeInSpec = tween(listMotionDuration),
+                        placementSpec = tween(listMotionDuration),
+                        fadeOutSpec = tween(listMotionDuration),
+                    ),
                 )
             }
         }
@@ -217,11 +231,12 @@ private fun OpportunityCard(
     reward: String,
     nowMillis: Long,
     onOpen: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val timeText = formatOpportunityTime(opportunity.expiresAtMillis, nowMillis)
 
     Card(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .testTag("opportunity-card-" + opportunity.refreshId),
         shape = MaterialTheme.shapes.large,
@@ -255,6 +270,10 @@ private fun OpportunityCard(
                         text = reward,
                         style = NowType.DataMedium,
                         color = NowColors.Ink950,
+                        modifier = Modifier.nowPulseOnChange(
+                            key = reward,
+                            durationMillis = com.sagarsystemslab.nownetwork.designsystem.NowMotion.BaseMillis,
+                        ),
                     )
                 }
 
