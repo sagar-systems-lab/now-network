@@ -1,5 +1,7 @@
 package com.sagarsystemslab.nownetwork.designsystem
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -17,6 +19,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -112,6 +115,31 @@ fun NowStatusChip(
     accessibilityLabel: String = label,
 ) {
     val palette = nowStatusPalette(tone)
+    val motionEnabled = rememberNowMotionEnabled()
+    val duration = nowMotionDuration(
+        enabled = motionEnabled,
+        durationMillis = NowMotion.StateMillis,
+    )
+    val foreground by animateColorAsState(
+        targetValue = palette.foreground,
+        animationSpec = tween(duration),
+        label = "now-status-foreground",
+    )
+    val background by animateColorAsState(
+        targetValue = palette.background,
+        animationSpec = tween(duration),
+        label = "now-status-background",
+    )
+    val border by animateColorAsState(
+        targetValue = palette.border,
+        animationSpec = tween(duration),
+        label = "now-status-border",
+    )
+    val dot by animateColorAsState(
+        targetValue = palette.dot,
+        animationSpec = tween(duration),
+        label = "now-status-dot",
+    )
 
     Surface(
         modifier = modifier.semantics {
@@ -119,8 +147,8 @@ fun NowStatusChip(
             stateDescription = label
         },
         shape = NowShapes.extraLarge,
-        color = palette.background,
-        border = BorderStroke(1.dp, palette.border),
+        color = background,
+        border = BorderStroke(1.dp, border),
     ) {
         Row(
             modifier = Modifier.padding(
@@ -133,12 +161,12 @@ fun NowStatusChip(
             Surface(
                 modifier = Modifier.size(7.dp),
                 shape = NowShapes.extraLarge,
-                color = palette.dot,
+                color = dot,
             ) {}
             Text(
                 text = label,
                 style = NowType.LabelM,
-                color = palette.foreground,
+                color = foreground,
             )
         }
     }
