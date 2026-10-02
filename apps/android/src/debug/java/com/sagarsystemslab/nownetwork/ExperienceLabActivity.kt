@@ -79,7 +79,16 @@ import com.sagarsystemslab.nownetwork.feature.earn.ContributorClaimUiState
 import com.sagarsystemslab.nownetwork.feature.earn.EarnNotice
 import com.sagarsystemslab.nownetwork.feature.earn.EarnScreen
 import com.sagarsystemslab.nownetwork.feature.earn.EarnUiState
+import com.sagarsystemslab.nownetwork.feature.activity.ActivityScreen
+import com.sagarsystemslab.nownetwork.feature.activity.ActivityUiState
 import com.sagarsystemslab.nownetwork.feature.home.NowScreen
+import com.sagarsystemslab.nownetwork.feature.payment.PaymentScreen
+import com.sagarsystemslab.nownetwork.feature.payment.PaymentStage
+import com.sagarsystemslab.nownetwork.feature.payment.PaymentUiState
+import com.sagarsystemslab.nownetwork.feature.receipt.ReceiptScreen
+import com.sagarsystemslab.nownetwork.feature.receipt.ReceiptStage
+import com.sagarsystemslab.nownetwork.feature.receipt.ReceiptUiState
+import com.sagarsystemslab.nownetwork.feature.settings.SettingsScreen
 import com.sagarsystemslab.nownetwork.feature.requester.RequesterFundingScreen
 import com.sagarsystemslab.nownetwork.feature.requester.RequesterFundingStage
 import com.sagarsystemslab.nownetwork.feature.requester.RequesterFundingUiState
@@ -90,6 +99,7 @@ import com.sagarsystemslab.nownetwork.feature.state.StateDetailUiState
 import com.sagarsystemslab.nownetwork.feature.verification.VerificationScreen
 import com.sagarsystemslab.nownetwork.feature.verification.VerificationStage
 import com.sagarsystemslab.nownetwork.feature.verification.VerificationUiState
+import com.sagarsystemslab.nownetwork.model.ActivityItem
 import com.sagarsystemslab.nownetwork.model.OpportunitySummary
 import com.sagarsystemslab.nownetwork.network.ClaimStatusDto
 import com.sagarsystemslab.nownetwork.network.OpportunityAvailabilityDto
@@ -101,6 +111,7 @@ import com.sagarsystemslab.nownetwork.model.StateDetail
 import com.sagarsystemslab.nownetwork.model.StateLocation
 import com.sagarsystemslab.nownetwork.model.StateSummary
 import com.sagarsystemslab.nownetwork.model.StateVerification
+import com.sagarsystemslab.nownetwork.repository.FinalReceipt
 import java.io.File
 import kotlinx.serialization.json.JsonPrimitive
 
@@ -214,11 +225,18 @@ private val scenarios = listOf(
         availability = LabAvailability.READY,
     ),
     LabScenario(
-        id = "payment",
-        title = "Payment & receipt",
-        description = "Pending, checking, paid, retry, and durable receipt states.",
+        id = "settlement",
+        title = "Settlement & recovery",
+        description = "Payment reconciliation, PAID, final receipt, and Activity recovery.",
         icon = Icons.Outlined.Payments,
-        availability = LabAvailability.UPCOMING,
+        availability = LabAvailability.READY,
+    ),
+    LabScenario(
+        id = "settings",
+        title = "Settings",
+        description = "Appearance, privacy/permissions, version, and network context.",
+        icon = Icons.Outlined.DarkMode,
+        availability = LabAvailability.READY,
     ),
 )
 
@@ -448,6 +466,23 @@ private fun ScenarioScreen(
         return
     }
 
+    if (scenario.id == "settlement") {
+        SettlementRecoveryScenario(
+            onBack = onBack,
+            modifier = modifier.fillMaxSize(),
+        )
+        return
+    }
+
+    if (scenario.id == "settings") {
+        SettingsScreen(
+            darkTheme = darkTheme,
+            onDarkThemeChange = onDarkThemeChange,
+            onBack = onBack,
+        )
+        return
+    }
+
     Column(
         modifier = modifier,
     ) {
@@ -503,6 +538,135 @@ private fun ScenarioScreen(
 
             "earn" -> EarnScenario(
                 modifier = Modifier.fillMaxSize(),
+            )
+        }
+    }
+}
+
+@Composable
+private fun SettlementRecoveryScenario(
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val nowMillis = 1_800_000_000_000L
+    var phase by rememberSaveable { mutableIntStateOf(0) }
+
+    when (phase) {
+        0 -> {
+            Box(modifier = modifier) {
+                PaymentScreen(
+                    uiState = PaymentUiState(
+                        stage = PaymentStage.VERIFYING,
+                        refreshId = "lab-refresh",
+                        settlementId = "lab-settlement",
+                        settlementStatus = "SUBMITTED",
+                        chainSignature = "LabSettlementSignature0123456789",
+                        chainCommitment = "confirmed",
+                        confirmedAt = "2035-01-01T00:11:00Z",
+                        finalizedAt = null,
+                        message = "NOW is checking Solana before allowing any retry. No action is needed yet.",
+                    ),
+                    onBack = onBack,
+                    onRetry = {},
+                    onViewReceipt = { phase = 2 },
+                    onDone = { phase = 3 },
+                )
+
+                NowSecondaryButton(
+                    text = "Lab · resolve PAID",
+                    onClick = { phase = 1 },
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(
+                            start = NowSpacing.Space4,
+                            end = NowSpacing.Space4,
+                            bottom = NowSpacing.Space4,
+                        )
+                        .fillMaxWidth(),
+                )
+            }
+        }
+
+        1 -> {
+            PaymentScreen(
+                uiState = PaymentUiState(
+                    stage = PaymentStage.PAID,
+                    refreshId = "lab-refresh",
+                    settlementId = "lab-settlement",
+                    settlementStatus = "FINALIZED",
+                    chainSignature = "LabSettlementSignature0123456789",
+                    chainCommitment = "finalized",
+                    confirmedAt = "2035-01-01T00:11:00Z",
+                    finalizedAt = "2035-01-01T00:12:00Z",
+                    message = "Payment is finalized on Solana.",
+                ),
+                onBack = { phase = 0 },
+                onRetry = {},
+                onViewReceipt = { phase = 2 },
+                onDone = { phase = 3 },
+            )
+        }
+
+        2 -> {
+            ReceiptScreen(
+                uiState = ReceiptUiState(
+                    stage = ReceiptStage.READY,
+                    refreshId = "lab-refresh",
+                    receipt = FinalReceipt(
+                        receiptId = "lab-receipt",
+                        refreshId = "lab-refresh",
+                        stateId = "lab-state",
+                        verificationResultId = "lab-verification",
+                        settlementId = "lab-settlement",
+                        finalValue = JsonPrimitive(18),
+                        observedAt = "2035-01-01T00:09:00Z",
+                        verificationClass = "FRESH_PHOTO_LOCATION",
+                        rewardAmountAtomic = "500000",
+                        rewardMint = "USDC",
+                        verificationDigest = "abcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcdabcd",
+                        settlementOperationHash = "1234123412341234123412341234123412341234123412341234123412341234",
+                        receiptDigest = "dcba" + "dcba".repeat(15),
+                        settlementSignature = "LabSettlementSignature0123456789",
+                        finalizedAt = "2035-01-01T00:12:00Z",
+                        revision = 1L,
+                    ),
+                    message = "Final receipt is ready.",
+                ),
+                onBack = { phase = 1 },
+                onRetry = {},
+                onDone = { phase = 3 },
+            )
+        }
+
+        else -> {
+            ActivityScreen(
+                uiState = ActivityUiState(
+                    active = listOf(
+                        ActivityItem(
+                            operationId = "active-payment",
+                            entityId = "lab-refresh-pending",
+                            type = "SETTLEMENT",
+                            localState = "VERIFYING",
+                            remoteState = "VERIFYING",
+                            updatedAtMillis = nowMillis - 45_000L,
+                            active = true,
+                        ),
+                    ),
+                    completed = listOf(
+                        ActivityItem(
+                            operationId = "paid-payment",
+                            entityId = "lab-refresh",
+                            type = "SETTLEMENT",
+                            localState = "PAID",
+                            remoteState = "PAID",
+                            updatedAtMillis = nowMillis - 180_000L,
+                            active = false,
+                        ),
+                    ),
+                ),
+                serverNowMillis = { nowMillis },
+                onPaymentClick = { phase = 0 },
+                onReceiptClick = { phase = 2 },
             )
         }
     }
@@ -1140,6 +1304,9 @@ private fun HomeScenario(
             },
             onEarnClick = {
                 lastAction = "EARN navigation invoked"
+            },
+            onSettingsClick = {
+                lastAction = "Settings navigation invoked"
             },
         )
 
