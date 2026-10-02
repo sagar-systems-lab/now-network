@@ -191,6 +191,7 @@ private data class FreshnessPalette(
     val dot: Color,
 )
 
+@Composable
 private fun freshnessPalette(kind: FreshnessKind): FreshnessPalette =
     when (kind) {
         FreshnessKind.LIVE -> FreshnessPalette(
