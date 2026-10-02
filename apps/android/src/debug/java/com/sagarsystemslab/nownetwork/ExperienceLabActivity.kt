@@ -41,6 +41,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -55,6 +56,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import com.sagarsystemslab.nownetwork.designsystem.NowColors
 import com.sagarsystemslab.nownetwork.designsystem.NowSpacing
@@ -65,10 +67,29 @@ class ExperienceLabActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        val initialDarkTheme = NowThemePreferenceStore.readDarkTheme(this)
 
         setContent {
-            NowTheme {
-                ExperienceLab()
+            var darkTheme by rememberSaveable {
+                mutableStateOf(initialDarkTheme)
+            }
+
+            ApplyNowSystemBars(
+                activity = this@ExperienceLabActivity,
+                darkTheme = darkTheme,
+            )
+
+            NowTheme(darkTheme = darkTheme) {
+                ExperienceLab(
+                    darkTheme = darkTheme,
+                    onDarkThemeChange = { enabled ->
+                        darkTheme = enabled
+                        NowThemePreferenceStore.writeDarkTheme(
+                            context = this@ExperienceLabActivity,
+                            enabled = enabled,
+                        )
+                    },
+                )
             }
         }
     }
@@ -100,7 +121,7 @@ private val scenarios = listOf(
         title = "Light / dark theme",
         description = "Theme tokens, semantic surfaces, status colors, and manual preference.",
         icon = Icons.Outlined.DarkMode,
-        availability = LabAvailability.UPCOMING,
+        availability = LabAvailability.READY,
     ),
     LabScenario(
         id = "home",
@@ -133,7 +154,10 @@ private val scenarios = listOf(
 )
 
 @Composable
-private fun ExperienceLab() {
+private fun ExperienceLab(
+    darkTheme: Boolean,
+    onDarkThemeChange: (Boolean) -> Unit,
+) {
     var selectedScenarioId by rememberSaveable { mutableStateOf<String?>(null) }
     val selectedScenario = scenarios.firstOrNull { it.id == selectedScenarioId }
 
@@ -159,6 +183,8 @@ private fun ExperienceLab() {
         } else {
             ScenarioScreen(
                 scenario = selectedScenario,
+                darkTheme = darkTheme,
+                onDarkThemeChange = onDarkThemeChange,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
@@ -316,6 +342,8 @@ private fun ScenarioCard(
 @Composable
 private fun ScenarioScreen(
     scenario: LabScenario,
+    darkTheme: Boolean,
+    onDarkThemeChange: (Boolean) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -345,13 +373,200 @@ private fun ScenarioScreen(
 
         HorizontalDivider(color = NowColors.BorderSubtle)
 
-        if (scenario.id == "shell") {
-            ShellScenario(
+        when (scenario.id) {
+            "shell" -> ShellScenario(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(NowSpacing.PageHorizontal),
+            )
+
+            "theme" -> ThemeScenario(
+                darkTheme = darkTheme,
+                onDarkThemeChange = onDarkThemeChange,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(NowSpacing.PageHorizontal),
             )
         }
+    }
+}
+
+@Composable
+private fun ThemeScenario(
+    darkTheme: Boolean,
+    onDarkThemeChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    LazyColumn(
+        modifier = modifier,
+        contentPadding = PaddingValues(
+            top = NowSpacing.Space4,
+            bottom = NowSpacing.Space8,
+        ),
+        verticalArrangement = Arrangement.spacedBy(NowSpacing.Space4),
+    ) {
+        item {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                color = NowColors.SurfacePrimary,
+                border = BorderStroke(1.dp, NowColors.BorderSubtle),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(NowSpacing.Space4),
+                    horizontalArrangement = Arrangement.spacedBy(NowSpacing.Space3),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(NowSpacing.Space1),
+                    ) {
+                        Text(
+                            text = "Manual theme",
+                            style = NowType.TitleS,
+                            color = NowColors.Ink950,
+                        )
+                        Text(
+                            text = if (darkTheme) {
+                                "Dark · deep navy operational surfaces"
+                            } else {
+                                "Light · cool white operational surfaces"
+                            },
+                            style = NowType.BodyS,
+                            color = NowColors.Ink500,
+                        )
+                    }
+
+                    Switch(
+                        checked = darkTheme,
+                        onCheckedChange = onDarkThemeChange,
+                        modifier = Modifier.semantics {
+                            stateDescription = if (darkTheme) {
+                                "Dark theme"
+                            } else {
+                                "Light theme"
+                            }
+                        },
+                    )
+                }
+            }
+        }
+
+        item {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
+            ) {
+                Text(
+                    text = "Semantic surfaces",
+                    style = NowType.TitleS,
+                    color = NowColors.Ink950,
+                )
+                Text(
+                    text = "Canvas, card, border, text, and primary action should all change together.",
+                    style = NowType.BodyS,
+                    color = NowColors.Ink500,
+                )
+            }
+        }
+
+        item {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                color = NowColors.SurfacePrimary,
+                border = BorderStroke(1.dp, NowColors.BorderSubtle),
+            ) {
+                Column(
+                    modifier = Modifier.padding(NowSpacing.Space4),
+                    verticalArrangement = Arrangement.spacedBy(NowSpacing.Space3),
+                ) {
+                    Text(
+                        text = "Primary surface",
+                        style = NowType.TitleM,
+                        color = NowColors.Ink950,
+                    )
+                    Text(
+                        text = "Secondary copy remains quieter without losing contrast.",
+                        style = NowType.BodyM,
+                        color = NowColors.Ink600,
+                    )
+                    Button(
+                        onClick = {},
+                    ) {
+                        Text("Primary action")
+                    }
+                }
+            }
+        }
+
+        item {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
+            ) {
+                Text(
+                    text = "Operational status colors",
+                    style = NowType.TitleS,
+                    color = NowColors.Ink950,
+                )
+                ThemeStatusChip(
+                    label = "LIVE",
+                    foreground = NowColors.LiveText,
+                    background = NowColors.LiveSoft,
+                    border = NowColors.LiveBorder,
+                )
+                ThemeStatusChip(
+                    label = "AGING",
+                    foreground = NowColors.AgingText,
+                    background = NowColors.AgingSoft,
+                    border = NowColors.AgingBorder,
+                )
+                ThemeStatusChip(
+                    label = "STALE",
+                    foreground = NowColors.StaleText,
+                    background = NowColors.StaleSoft,
+                    border = NowColors.StaleBorder,
+                )
+                ThemeStatusChip(
+                    label = "CONFLICT",
+                    foreground = NowColors.ConflictText,
+                    background = NowColors.ConflictSoft,
+                    border = NowColors.ConflictBorder,
+                )
+                ThemeStatusChip(
+                    label = "INFO / VERIFYING",
+                    foreground = NowColors.InfoText,
+                    background = NowColors.InfoSoft,
+                    border = NowColors.InfoBorder,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ThemeStatusChip(
+    label: String,
+    foreground: androidx.compose.ui.graphics.Color,
+    background: androidx.compose.ui.graphics.Color,
+    border: androidx.compose.ui.graphics.Color,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        color = background,
+        border = BorderStroke(1.dp, border),
+    ) {
+        Text(
+            text = label,
+            style = NowType.LabelL,
+            color = foreground,
+            modifier = Modifier.padding(
+                horizontal = NowSpacing.Space3,
+                vertical = NowSpacing.Space2,
+            ),
+        )
     }
 }
 

@@ -153,7 +153,7 @@ fun StateDetailScreen(
                             onClick = { onRefreshRequest(detail.stateId) },
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = NowColors.Blue600,
-                                contentColor = NowColors.SurfacePrimary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary,
                             ),
                         ) {
                             Text("Refresh this state")

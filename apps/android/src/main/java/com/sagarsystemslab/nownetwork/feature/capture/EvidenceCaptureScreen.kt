@@ -39,6 +39,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -236,7 +237,7 @@ fun EvidenceCaptureScreen(
                             .fillMaxWidth()
                             .aspectRatio(3f / 4f),
                         shape = MaterialTheme.shapes.large,
-                        color = NowColors.Ink950,
+                        color = Color(0xFF050816),
                     ) {
                         EvidenceCameraPreview(
                             modifier = Modifier.fillMaxSize(),

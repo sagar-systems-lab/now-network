@@ -57,13 +57,22 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         val showIntroOnLaunch = savedInstanceState == null
+        val initialDarkTheme = NowThemePreferenceStore.readDarkTheme(this)
 
         setContent {
             var showBrandIntro by rememberSaveable {
                 mutableStateOf(showIntroOnLaunch)
             }
+            var darkTheme by rememberSaveable {
+                mutableStateOf(initialDarkTheme)
+            }
 
-            NowTheme {
+            ApplyNowSystemBars(
+                activity = this@MainActivity,
+                darkTheme = darkTheme,
+            )
+
+            NowTheme(darkTheme = darkTheme) {
                 LaunchedEffect(Unit) {
                     if (runtimeConfig.apiConfigured && runtimeConfig.authConfigured) {
                         withContext(Dispatchers.IO) {
@@ -76,6 +85,14 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     NowApp(
+                        darkTheme = darkTheme,
+                        onDarkThemeChange = { enabled ->
+                            darkTheme = enabled
+                            NowThemePreferenceStore.writeDarkTheme(
+                                context = this@MainActivity,
+                                enabled = enabled,
+                            )
+                        },
                         browseViewModelProvider = { browseViewModel },
                         earnViewModelProvider = { earnViewModel },
                         contributorClaimViewModelProvider = { contributorClaimViewModel },
