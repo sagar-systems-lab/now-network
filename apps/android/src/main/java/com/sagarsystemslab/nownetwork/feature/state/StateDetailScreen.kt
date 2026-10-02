@@ -34,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.sagarsystemslab.nownetwork.designsystem.NowColors
@@ -198,6 +199,9 @@ private fun StateDetailTopBar(
             text = "State detail",
             style = NowType.TitleM,
             color = NowColors.Ink950,
+            modifier = Modifier.semantics {
+                heading()
+            },
         )
     }
 }

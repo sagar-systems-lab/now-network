@@ -48,6 +48,8 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -343,6 +345,9 @@ private fun EvidenceTopBar(
             text = "Capture evidence",
             style = NowType.TitleM,
             color = NowColors.Ink950,
+            modifier = Modifier.semantics {
+                heading()
+            },
         )
     }
 }

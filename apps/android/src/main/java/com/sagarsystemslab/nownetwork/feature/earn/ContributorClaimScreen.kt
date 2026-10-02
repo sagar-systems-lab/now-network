@@ -32,6 +32,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.sagarsystemslab.nownetwork.designsystem.NowColors
 import com.sagarsystemslab.nownetwork.designsystem.NowNotice
@@ -215,6 +218,9 @@ private fun ClaimTopBar(
             text = "Opportunity",
             style = NowType.TitleM,
             color = NowColors.Ink950,
+            modifier = Modifier.semantics {
+                heading()
+            },
         )
     }
 }
@@ -552,6 +558,8 @@ private fun ReviewRow(
             text = value,
             style = NowType.LabelL,
             color = NowColors.Ink800,
+            textAlign = TextAlign.End,
+            modifier = Modifier.weight(1f),
         )
     }
 }
