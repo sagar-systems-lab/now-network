@@ -27,6 +27,7 @@ import com.sagarsystemslab.nownetwork.designsystem.NowStatusChip
 import com.sagarsystemslab.nownetwork.designsystem.NowStatusTone
 import com.sagarsystemslab.nownetwork.designsystem.NowSpacing
 import com.sagarsystemslab.nownetwork.designsystem.NowType
+import com.sagarsystemslab.nownetwork.designsystem.nowPulseOnChange
 import com.sagarsystemslab.nownetwork.model.StateSummary
 
 @Composable
@@ -50,6 +51,7 @@ fun StateCard(
     modifier: Modifier = Modifier,
 ) {
     val freshness = state.freshnessAt(nowMillis)
+    val displayValue = formatStateValue(state.valueJson, state.unitCode)
 
     Card(
         onClick = onClick,
@@ -89,9 +91,13 @@ fun StateCard(
             )
 
             Text(
-                text = formatStateValue(state.valueJson, state.unitCode),
+                text = displayValue,
                 style = NowType.DataLarge,
                 color = NowColors.Ink950,
+                modifier = Modifier.nowPulseOnChange(
+                    key = displayValue,
+                    durationMillis = com.sagarsystemslab.nownetwork.designsystem.NowMotion.StateMillis,
+                ),
             )
 
             Text(
