@@ -37,8 +37,13 @@ object NowElevation {
 object NowMotion {
     const val InstantMillis = 80
     const val FastMillis = 120
+    const val VerifyMillis = 160
     const val BaseMillis = 180
     const val StateMillis = 220
     const val EmphasisMillis = 280
     const val LargeMillis = 360
+
+    const val LivePulseHalfCycleMillis = 1_300
+    const val ChangeScale = 1.02f
+    const val LiveScale = 1.02f
 }
