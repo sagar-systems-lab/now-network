@@ -49,6 +49,8 @@ import com.sagarsystemslab.nownetwork.wallet.WalletInteractionHost
 
 @Composable
 fun NowApp(
+    darkTheme: Boolean,
+    onDarkThemeChange: (Boolean) -> Unit,
     browseViewModelProvider: () -> BrowseViewModel,
     earnViewModelProvider: () -> EarnViewModel,
     contributorClaimViewModelProvider: () -> ContributorClaimViewModel,
@@ -83,6 +85,8 @@ fun NowApp(
     ) { innerPadding ->
         NowNavHost(
             appState = appState,
+            darkTheme = darkTheme,
+            onDarkThemeChange = onDarkThemeChange,
             browseViewModelProvider = browseViewModelProvider,
             earnViewModelProvider = earnViewModelProvider,
             contributorClaimViewModelProvider = contributorClaimViewModelProvider,
