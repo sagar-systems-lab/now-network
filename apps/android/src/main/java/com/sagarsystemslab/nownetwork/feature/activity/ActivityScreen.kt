@@ -13,7 +13,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Payments
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -26,6 +29,8 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import com.sagarsystemslab.nownetwork.designsystem.NowColors
 import com.sagarsystemslab.nownetwork.designsystem.NowSpacing
+import com.sagarsystemslab.nownetwork.designsystem.NowStatusChip
+import com.sagarsystemslab.nownetwork.designsystem.NowStatusTone
 import com.sagarsystemslab.nownetwork.designsystem.NowType
 import com.sagarsystemslab.nownetwork.feature.state.humanizeStatus
 import com.sagarsystemslab.nownetwork.feature.state.rememberVisibleServerTime
@@ -44,23 +49,23 @@ fun ActivityScreen(
         modifier = Modifier.testTag("screen-activity"),
         contentPadding = PaddingValues(
             start = NowSpacing.PageHorizontal,
-            top = NowSpacing.Space4,
+            top = NowSpacing.Space3,
             end = NowSpacing.PageHorizontal,
-            bottom = NowSpacing.Space6,
+            bottom = NowSpacing.Space8,
         ),
-        verticalArrangement = Arrangement.spacedBy(NowSpacing.Space3),
+        verticalArrangement = Arrangement.spacedBy(NowSpacing.Space4),
     ) {
         item {
             Column(
                 verticalArrangement = Arrangement.spacedBy(NowSpacing.Space1),
             ) {
                 Text(
-                    text = "Your activity",
-                    style = NowType.TitleXL,
+                    text = "ACTIVITY",
+                    style = NowType.TitleL,
                     color = NowColors.Ink950,
                 )
                 Text(
-                    text = "Refreshes, earnings, and operations that still need attention.",
+                    text = "Pending work stays above history so recovery is always easy to find.",
                     style = NowType.BodyM,
                     color = NowColors.Ink600,
                 )
@@ -70,8 +75,8 @@ fun ActivityScreen(
         if (uiState.active.isNotEmpty()) {
             item {
                 SectionLabel(
-                    title = "Active",
-                    supporting = "Pending operations stay at the top.",
+                    title = "Needs attention",
+                    supporting = "Open an active payment to resume authoritative reconciliation.",
                 )
             }
 
@@ -96,7 +101,7 @@ fun ActivityScreen(
             item {
                 SectionLabel(
                     title = "Completed",
-                    supporting = "Recent completed activity on this device.",
+                    supporting = "Durable history saved on this device.",
                 )
             }
 
@@ -153,48 +158,90 @@ private fun ActivityRow(
     active: Boolean,
     onClick: (() -> Unit)?,
 ) {
+    val status = activityStatus(item)
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .then(
                 if (onClick == null) Modifier else Modifier.clickable(onClick = onClick),
             )
-            .testTag("activity-row-${item.operationId}")
+            .testTag("activity-row-" + item.operationId)
             .semantics {
-                stateDescription = activityStatus(item)
+                stateDescription = status
             },
         shape = MaterialTheme.shapes.large,
         color = NowColors.SurfacePrimary,
-        border = BorderStroke(1.dp, NowColors.BorderSubtle),
+        border = BorderStroke(
+            1.dp,
+            if (active) NowColors.AgingBorder else NowColors.BorderSubtle,
+        ),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(NowSpacing.Space4),
             verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(NowSpacing.Space3),
         ) {
             Surface(
-                modifier = Modifier.size(9.dp),
-                shape = CircleShape,
-                color = if (active) NowColors.AgingDot else NowColors.LiveDot,
-            ) {}
-
-            Spacer(Modifier.width(NowSpacing.Space3))
+                modifier = Modifier.size(40.dp),
+                shape = MaterialTheme.shapes.medium,
+                color = if (active) NowColors.AgingSoft else NowColors.LiveSoft,
+                border = BorderStroke(
+                    1.dp,
+                    if (active) NowColors.AgingBorder else NowColors.LiveBorder,
+                ),
+            ) {
+                androidx.compose.foundation.layout.Box(
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = if (item.type.uppercase() in setOf("SETTLEMENT", "PAYOUT")) {
+                            Icons.Outlined.Payments
+                        } else {
+                            Icons.Outlined.History
+                        },
+                        contentDescription = null,
+                        tint = if (active) NowColors.AgingText else NowColors.LiveText,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
 
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(NowSpacing.Space1),
+                verticalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
             ) {
-                Text(
-                    text = activityTitle(item),
-                    style = NowType.TitleS,
-                    color = NowColors.Ink950,
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Top,
+                    horizontalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
+                ) {
+                    Text(
+                        text = activityTitle(item),
+                        style = NowType.TitleS,
+                        color = NowColors.Ink950,
+                        modifier = Modifier.weight(1f),
+                    )
+                    NowStatusChip(
+                        label = status.uppercase(),
+                        tone = if (active) NowStatusTone.AGING else NowStatusTone.LIVE,
+                        accessibilityLabel = status,
+                    )
+                }
 
                 Text(
-                    text = activityStatus(item),
-                    style = NowType.BodyM,
-                    color = if (active) NowColors.AgingText else NowColors.Ink600,
+                    text = if (active && onClick != null) {
+                        "Open to continue or check recovery."
+                    } else if (active) {
+                        "This operation is still being tracked."
+                    } else if (onClick != null) {
+                        "Open durable result."
+                    } else {
+                        "Completed."
+                    },
+                    style = NowType.BodyS,
+                    color = NowColors.Ink600,
                 )
 
                 Text(
@@ -216,16 +263,16 @@ private fun EmptyActivityState() {
         border = BorderStroke(1.dp, NowColors.BorderSubtle),
     ) {
         Column(
-            modifier = Modifier.padding(NowSpacing.Space4),
+            modifier = Modifier.padding(NowSpacing.Space5),
             verticalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
         ) {
             Text(
                 text = "No activity yet",
-                style = NowType.TitleS,
+                style = NowType.TitleM,
                 color = NowColors.Ink950,
             )
             Text(
-                text = "Your refreshes and earnings will appear here.",
+                text = "Refresh funding, claims, evidence, settlement, and receipts will appear here when they exist.",
                 style = NowType.BodyM,
                 color = NowColors.Ink500,
             )
@@ -268,9 +315,9 @@ private fun activityRelativeTime(
     val elapsedSeconds = ((nowMillis - updatedAtMillis).coerceAtLeast(0L)) / 1_000L
     return when {
         elapsedSeconds < 5L -> "just now"
-        elapsedSeconds < 60L -> "${elapsedSeconds}s ago"
-        elapsedSeconds < 3_600L -> "${elapsedSeconds / 60L}m ago"
-        elapsedSeconds < 86_400L -> "${elapsedSeconds / 3_600L}h ago"
-        else -> "${elapsedSeconds / 86_400L}d ago"
+        elapsedSeconds < 60L -> elapsedSeconds.toString() + "s ago"
+        elapsedSeconds < 3_600L -> (elapsedSeconds / 60L).toString() + "m ago"
+        elapsedSeconds < 86_400L -> (elapsedSeconds / 3_600L).toString() + "h ago"
+        else -> (elapsedSeconds / 86_400L).toString() + "d ago"
     }
 }
