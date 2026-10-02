@@ -69,6 +69,9 @@ import com.sagarsystemslab.nownetwork.designsystem.NowStatusTone
 import com.sagarsystemslab.nownetwork.designsystem.NowTextField
 import com.sagarsystemslab.nownetwork.designsystem.NowTheme
 import com.sagarsystemslab.nownetwork.designsystem.NowType
+import com.sagarsystemslab.nownetwork.feature.capture.EvidenceCaptureScreen
+import com.sagarsystemslab.nownetwork.feature.capture.EvidenceCaptureStage
+import com.sagarsystemslab.nownetwork.feature.capture.EvidenceCaptureUiState
 import com.sagarsystemslab.nownetwork.feature.earn.ContributorClaimScreen
 import com.sagarsystemslab.nownetwork.feature.earn.ContributorClaimStage
 import com.sagarsystemslab.nownetwork.feature.earn.ContributorClaimUiState
@@ -83,6 +86,9 @@ import com.sagarsystemslab.nownetwork.feature.state.BrowseNotice
 import com.sagarsystemslab.nownetwork.feature.state.HomeUiState
 import com.sagarsystemslab.nownetwork.feature.state.StateDetailScreen
 import com.sagarsystemslab.nownetwork.feature.state.StateDetailUiState
+import com.sagarsystemslab.nownetwork.feature.verification.VerificationScreen
+import com.sagarsystemslab.nownetwork.feature.verification.VerificationStage
+import com.sagarsystemslab.nownetwork.feature.verification.VerificationUiState
 import com.sagarsystemslab.nownetwork.model.OpportunitySummary
 import com.sagarsystemslab.nownetwork.network.ClaimStatusDto
 import com.sagarsystemslab.nownetwork.network.OpportunityAvailabilityDto
@@ -94,6 +100,8 @@ import com.sagarsystemslab.nownetwork.model.StateDetail
 import com.sagarsystemslab.nownetwork.model.StateLocation
 import com.sagarsystemslab.nownetwork.model.StateSummary
 import com.sagarsystemslab.nownetwork.model.StateVerification
+import java.io.File
+import kotlinx.serialization.json.JsonPrimitive
 
 class ExperienceLabActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -198,11 +206,11 @@ private val scenarios = listOf(
         availability = LabAvailability.READY,
     ),
     LabScenario(
-        id = "verification",
-        title = "Verification & LIVE",
-        description = "Evidence review, verification progress, verified value transition, and conflict.",
+        id = "proof-loop",
+        title = "Evidence → Verification → LIVE",
+        description = "Fresh capture, evidence review, safe submission, verification, and live-state projection.",
         icon = Icons.Outlined.Visibility,
-        availability = LabAvailability.UPCOMING,
+        availability = LabAvailability.READY,
     ),
     LabScenario(
         id = "payment",
@@ -431,6 +439,14 @@ private fun ScenarioScreen(
         return
     }
 
+    if (scenario.id == "proof-loop") {
+        ProofLoopScenario(
+            onBack = onBack,
+            modifier = modifier.fillMaxSize(),
+        )
+        return
+    }
+
     Column(
         modifier = modifier,
     ) {
@@ -486,6 +502,156 @@ private fun ScenarioScreen(
 
             "earn" -> EarnScenario(
                 modifier = Modifier.fillMaxSize(),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProofLoopScenario(
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val capturePath = remember {
+        File(context.cacheDir, "now-lab-evidence.jpg").absolutePath
+    }
+
+    var phase by rememberSaveable { mutableIntStateOf(0) }
+    var captureStage by rememberSaveable {
+        mutableStateOf(EvidenceCaptureStage.READY)
+    }
+    var answer by rememberSaveable { mutableStateOf("18") }
+    var locationSamples by rememberSaveable { mutableIntStateOf(0) }
+    var labMessage by rememberSaveable { mutableStateOf<String?>(null) }
+
+    if (phase == 0) {
+        val captureState = EvidenceCaptureUiState(
+            stage = captureStage,
+            acceptanceId = "lab-acceptance",
+            refreshId = "lab-refresh",
+            evidenceId = "lab-evidence",
+            question = "How many parking spaces are available right now?",
+            stateType = "NUMERIC",
+            mediaRequired = true,
+            locationRequired = true,
+            expiresAt = "2035-01-01T00:10:00Z",
+            localFilePath = capturePath,
+            answer = answer,
+            locationSampleCount = locationSamples,
+            message = labMessage,
+            nextStep = if (captureStage == EvidenceCaptureStage.SUBMITTED) {
+                "VERIFY_REFRESH"
+            } else {
+                null
+            },
+        )
+
+        EvidenceCaptureScreen(
+            uiState = captureState,
+            onBack = onBack,
+            onBeginCapture = {
+                labMessage = null
+                captureStage = EvidenceCaptureStage.CAMERA
+            },
+            onPermissionDenied = {
+                labMessage = "Camera and precise location are required for this sample."
+                captureStage = EvidenceCaptureStage.ERROR
+            },
+            onPhotoCaptured = {
+                locationSamples = 1
+                captureStage = EvidenceCaptureStage.REVIEW
+            },
+            onCameraError = {
+                labMessage = "Camera preview could not continue."
+                captureStage = EvidenceCaptureStage.ERROR
+            },
+            onAnswerChange = { answer = it },
+            onRefreshLocation = {
+                locationSamples = 1
+                labMessage = "Fresh location sample ready."
+            },
+            onRecapture = {
+                captureStage = EvidenceCaptureStage.CAMERA
+            },
+            onSubmit = {
+                labMessage = "Proof committed in the lab acceptance flow."
+                captureStage = EvidenceCaptureStage.SUBMITTED
+            },
+            onRetry = {
+                captureStage = EvidenceCaptureStage.REVIEW
+            },
+            onContinueVerification = {
+                phase = 1
+            },
+        )
+        return
+    }
+
+    val verified = phase >= 2
+    val verificationState = VerificationUiState(
+        stage = if (verified) {
+            VerificationStage.VERIFIED
+        } else {
+            VerificationStage.VERIFYING
+        },
+        refreshId = "lab-refresh",
+        verificationResultId = if (verified) "lab-result" else null,
+        evidenceCount = 1,
+        evidenceSetRevision = 1,
+        policyVersion = 1,
+        reasonCodes = if (verified) {
+            listOf("fresh_capture", "location_match", "request_match", "replay_check")
+        } else {
+            emptyList()
+        },
+        finalAnswer = if (verified) JsonPrimitive(18) else null,
+        projectedValue = if (verified) JsonPrimitive(18) else null,
+        projectedFreshness = if (verified) "LIVE" else null,
+        projectedStateRevision = if (verified) 12L else null,
+        projectionSuperseded = false,
+        replayed = false,
+        message = if (verified) {
+            "Evidence verified and the live state projection is confirmed."
+        } else {
+            "Checking committed evidence against the verification policy…"
+        },
+    )
+
+    Box(modifier = modifier) {
+        VerificationScreen(
+            uiState = verificationState,
+            onBack = {
+                if (phase > 0) {
+                    phase = 0
+                    captureStage = EvidenceCaptureStage.SUBMITTED
+                } else {
+                    onBack()
+                }
+            },
+            onRetry = {
+                phase = 1
+            },
+            onTrackPayment = {
+                labMessage = "Payment surface is the next acceptance block."
+            },
+            onDone = onBack,
+        )
+
+        if (!verified) {
+            NowSecondaryButton(
+                text = "Lab · resolve VERIFIED",
+                onClick = {
+                    phase = 2
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(
+                        start = NowSpacing.Space4,
+                        end = NowSpacing.Space4,
+                        bottom = NowSpacing.Space4,
+                    )
+                    .fillMaxWidth(),
             )
         }
     }
