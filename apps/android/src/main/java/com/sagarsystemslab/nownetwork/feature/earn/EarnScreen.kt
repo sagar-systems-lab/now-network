@@ -44,6 +44,7 @@ import com.sagarsystemslab.nownetwork.designsystem.NowSpacing
 import com.sagarsystemslab.nownetwork.designsystem.NowStatusChip
 import com.sagarsystemslab.nownetwork.designsystem.NowStatusTone
 import com.sagarsystemslab.nownetwork.designsystem.NowType
+import com.sagarsystemslab.nownetwork.designsystem.nowPulseOnChange
 import com.sagarsystemslab.nownetwork.feature.state.rememberVisibleServerTime
 import com.sagarsystemslab.nownetwork.model.OpportunitySummary
 
@@ -255,6 +256,10 @@ private fun OpportunityCard(
                         text = reward,
                         style = NowType.DataMedium,
                         color = NowColors.Ink950,
+                        modifier = Modifier.nowPulseOnChange(
+                            key = reward,
+                            durationMillis = com.sagarsystemslab.nownetwork.designsystem.NowMotion.BaseMillis,
+                        ),
                     )
                 }
 
