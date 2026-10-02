@@ -35,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
@@ -184,31 +185,61 @@ private fun HomeHeader(
     onRefresh: () -> Unit,
     onSettingsClick: () -> Unit,
 ) {
-    Row(
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
+        verticalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
     ) {
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
         ) {
-            Text(
-                text = "NOW",
-                style = NowType.TitleL,
-                color = NowColors.Ink950,
-            )
-            Text(
-                text = areaLabel,
-                style = NowType.BodyS,
-                color = NowColors.Ink500,
-                maxLines = 1,
-            )
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(
+                    text = "NOW",
+                    style = NowType.TitleL,
+                    color = NowColors.Ink950,
+                    modifier = Modifier.semantics {
+                        heading()
+                    },
+                )
+                Text(
+                    text = areaLabel,
+                    style = NowType.BodyS,
+                    color = NowColors.Ink500,
+                    maxLines = 2,
+                )
+            }
+
+            IconButton(
+                onClick = onRefresh,
+                enabled = !refreshing && refreshEnabled,
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Refresh,
+                    contentDescription = "Refresh nearby states",
+                    tint = NowColors.Ink600,
+                )
+            }
+
+            IconButton(
+                onClick = onSettingsClick,
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Settings,
+                    contentDescription = "Open settings",
+                    tint = NowColors.Ink600,
+                )
+            }
         }
 
         Row(
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            horizontalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
         ) {
             Icon(
                 imageVector = if (darkTheme) {
@@ -219,6 +250,12 @@ private fun HomeHeader(
                 contentDescription = null,
                 tint = NowColors.Ink500,
                 modifier = Modifier.size(18.dp),
+            )
+            Text(
+                text = if (darkTheme) "Dark appearance" else "Light appearance",
+                style = NowType.BodyS,
+                color = NowColors.Ink600,
+                modifier = Modifier.weight(1f),
             )
             Switch(
                 checked = darkTheme,
@@ -231,27 +268,6 @@ private fun HomeHeader(
                         "Light theme"
                     }
                 },
-            )
-        }
-
-        IconButton(
-            onClick = onRefresh,
-            enabled = !refreshing && refreshEnabled,
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.Refresh,
-                contentDescription = "Refresh nearby states",
-                tint = NowColors.Ink600,
-            )
-        }
-
-        IconButton(
-            onClick = onSettingsClick,
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.Settings,
-                contentDescription = "Open settings",
-                tint = NowColors.Ink600,
             )
         }
     }
@@ -371,6 +387,9 @@ private fun SectionHeading(
             text = title,
             style = NowType.TitleS,
             color = NowColors.Ink950,
+            modifier = Modifier.semantics {
+                heading()
+            },
         )
         Text(
             text = supporting,

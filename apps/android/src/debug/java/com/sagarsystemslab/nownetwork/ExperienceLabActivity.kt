@@ -44,6 +44,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -54,10 +55,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.sagarsystemslab.nownetwork.designsystem.NowColors
 import com.sagarsystemslab.nownetwork.designsystem.NowNotice
@@ -97,6 +100,7 @@ import com.sagarsystemslab.nownetwork.feature.requester.RequesterFundingStage
 import com.sagarsystemslab.nownetwork.feature.requester.RequesterFundingUiState
 import com.sagarsystemslab.nownetwork.feature.state.BrowseNotice
 import com.sagarsystemslab.nownetwork.feature.state.HomeUiState
+import com.sagarsystemslab.nownetwork.feature.state.StateCard
 import com.sagarsystemslab.nownetwork.feature.state.StateDetailScreen
 import com.sagarsystemslab.nownetwork.feature.state.StateDetailUiState
 import com.sagarsystemslab.nownetwork.feature.verification.VerificationScreen
@@ -246,6 +250,13 @@ private val scenarios = listOf(
         title = "Settings",
         description = "Appearance, privacy/permissions, version, and network context.",
         icon = Icons.Outlined.DarkMode,
+        availability = LabAvailability.READY,
+    ),
+    LabScenario(
+        id = "accessibility-freeze",
+        title = "Accessibility & visual freeze",
+        description = "200% text, touch-target resilience, semantic states, contrast, and reduced-motion acceptance.",
+        icon = Icons.Outlined.CheckCircle,
         availability = LabAvailability.READY,
     ),
 )
@@ -493,6 +504,16 @@ private fun ScenarioScreen(
         return
     }
 
+    if (scenario.id == "accessibility-freeze") {
+        AccessibilityFreezeScenario(
+            darkTheme = darkTheme,
+            onDarkThemeChange = onDarkThemeChange,
+            onBack = onBack,
+            modifier = modifier.fillMaxSize(),
+        )
+        return
+    }
+
     Column(
         modifier = modifier,
     ) {
@@ -555,6 +576,237 @@ private fun ScenarioScreen(
             "earn" -> EarnScenario(
                 modifier = Modifier.fillMaxSize(),
             )
+        }
+    }
+}
+
+@Composable
+private fun AccessibilityFreezeScenario(
+    darkTheme: Boolean,
+    onDarkThemeChange: (Boolean) -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var simulateLargeText by rememberSaveable { mutableStateOf(false) }
+    val baseDensity = LocalDensity.current
+    val motionEnabled = rememberNowMotionEnabled()
+    val nowMillis = 1_800_000_000_000L
+    val sampleState = remember {
+        StateSummary(
+            stateId = "accessibility-sample",
+            title = "Accessible parking availability near the west entrance",
+            question = "How many accessible parking spaces are available right now?",
+            stateType = "NUMERIC",
+            valueJson = "18",
+            unitCode = "spaces",
+            freshnessStatus = "LIVE",
+            observedAtMillis = nowMillis - 42_000L,
+            agingAtMillis = nowMillis + 180_000L,
+            freshUntilMillis = nowMillis + 480_000L,
+            verificationClass = "FRESH_PHOTO_LOCATION",
+            refreshStatus = null,
+            conflictActive = false,
+            distanceMeters = 320.0,
+            revision = 12L,
+        )
+    }
+
+    Column(
+        modifier = modifier,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(60.dp)
+                .padding(horizontal = NowSpacing.Space2),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                    contentDescription = "Back to Experience Lab",
+                    tint = NowColors.Ink700,
+                )
+            }
+            Text(
+                text = "Accessibility & visual freeze",
+                style = NowType.TitleM,
+                color = NowColors.Ink950,
+            )
+        }
+
+        HorizontalDivider(color = NowColors.BorderSubtle)
+
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(
+                start = NowSpacing.PageHorizontal,
+                top = NowSpacing.Space4,
+                end = NowSpacing.PageHorizontal,
+                bottom = NowSpacing.Space8,
+            ),
+            verticalArrangement = Arrangement.spacedBy(NowSpacing.Space4),
+        ) {
+            item {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.large,
+                    color = NowColors.SurfacePrimary,
+                    border = BorderStroke(1.dp, NowColors.BorderSubtle),
+                ) {
+                    Column(
+                        modifier = Modifier.padding(NowSpacing.Space4),
+                        verticalArrangement = Arrangement.spacedBy(NowSpacing.Space4),
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(NowSpacing.Space3),
+                        ) {
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(NowSpacing.Space1),
+                            ) {
+                                Text(
+                                    text = "200% text simulation",
+                                    style = NowType.TitleS,
+                                    color = NowColors.Ink950,
+                                )
+                                Text(
+                                    text = "Check wrapping and clipping without changing device settings.",
+                                    style = NowType.BodyS,
+                                    color = NowColors.Ink500,
+                                )
+                            }
+                            Switch(
+                                checked = simulateLargeText,
+                                onCheckedChange = { simulateLargeText = it },
+                            )
+                        }
+
+                        HorizontalDivider(color = NowColors.BorderSubtle)
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(NowSpacing.Space3),
+                        ) {
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(NowSpacing.Space1),
+                            ) {
+                                Text(
+                                    text = if (darkTheme) "Dark appearance" else "Light appearance",
+                                    style = NowType.TitleS,
+                                    color = NowColors.Ink950,
+                                )
+                                Text(
+                                    text = "Switch appearance without leaving this acceptance surface.",
+                                    style = NowType.BodyS,
+                                    color = NowColors.Ink500,
+                                )
+                            }
+                            Switch(
+                                checked = darkTheme,
+                                onCheckedChange = onDarkThemeChange,
+                                modifier = Modifier.semantics {
+                                    stateDescription = if (darkTheme) {
+                                        "Dark theme"
+                                    } else {
+                                        "Light theme"
+                                    }
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+
+            item {
+                NowNotice(
+                    title = if (motionEnabled) "Motion available" else "Reduced motion active",
+                    body = if (motionEnabled) {
+                        "System animations are enabled. Disable them to confirm immediate state changes."
+                    } else {
+                        "State changes remain readable without animation."
+                    },
+                    tone = NowNoticeTone.NEUTRAL,
+                )
+            }
+
+            item {
+                CompositionLocalProvider(
+                    LocalDensity provides Density(
+                        density = baseDensity.density,
+                        fontScale = if (simulateLargeText) 2f else baseDensity.fontScale,
+                    ),
+                ) {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(NowSpacing.Space4),
+                    ) {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = MaterialTheme.shapes.large,
+                            color = NowColors.SurfacePrimary,
+                            border = BorderStroke(1.dp, NowColors.BorderSubtle),
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(NowSpacing.Space4),
+                                verticalArrangement = Arrangement.spacedBy(NowSpacing.Space3),
+                            ) {
+                                Text(
+                                    text = "Long text and semantic status labels",
+                                    style = NowType.TitleM,
+                                    color = NowColors.Ink950,
+                                )
+                                Text(
+                                    text = "West entrance · multi-level parking structure · this deliberately long line must wrap instead of clipping.",
+                                    style = NowType.BodyM,
+                                    color = NowColors.Ink600,
+                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
+                                ) {
+                                    NowStatusChip(
+                                        label = "LIVE",
+                                        tone = NowStatusTone.LIVE,
+                                    )
+                                    NowStatusChip(
+                                        label = "CONFLICT",
+                                        tone = NowStatusTone.CONFLICT,
+                                    )
+                                }
+                            }
+                        }
+
+                        StateCard(
+                            state = sampleState,
+                            nowMillis = nowMillis,
+                            onClick = {},
+                        )
+
+                        NowPrimaryButton(
+                            text = "Primary action remains readable",
+                            onClick = {},
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        NowSecondaryButton(
+                            text = "Secondary action remains readable",
+                            onClick = {},
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
+            }
+
+            item {
+                NowNotice(
+                    title = "Visual freeze checks",
+                    body = "Verify this scenario in both light and dark appearance. Status meaning must remain readable from text, not color alone.",
+                    tone = NowNoticeTone.INFO,
+                )
+            }
         }
     }
 }

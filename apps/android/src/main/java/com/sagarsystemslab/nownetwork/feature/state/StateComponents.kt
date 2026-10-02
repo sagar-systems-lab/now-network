@@ -18,7 +18,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import com.sagarsystemslab.nownetwork.designsystem.NowColors
 import com.sagarsystemslab.nownetwork.designsystem.NowNotice
@@ -57,7 +60,11 @@ fun StateCard(
         onClick = onClick,
         modifier = modifier
             .fillMaxWidth()
-            .testTag("state-card-${state.stateId}"),
+            .testTag("state-card-${state.stateId}")
+            .semantics(mergeDescendants = true) {
+                role = Role.Button
+                stateDescription = "Freshness " + freshness.name.lowercase()
+            },
         shape = MaterialTheme.shapes.large,
         colors = CardDefaults.cardColors(containerColor = NowColors.SurfacePrimary),
         border = BorderStroke(1.dp, NowColors.BorderSubtle),

@@ -10,7 +10,8 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
@@ -120,12 +121,12 @@ private fun NowBottomBar(
         NavigationBar(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(64.dp)
+                .heightIn(min = 64.dp)
                 .selectableGroup(),
             containerColor = NowColors.SurfacePrimary,
             contentColor = MaterialTheme.colorScheme.onSurface,
             tonalElevation = 0.dp,
-            windowInsets = WindowInsets(0, 0, 0, 0),
+            windowInsets = WindowInsets.navigationBars,
         ) {
             destinations.forEach { destination ->
                 val selected = isSelected(destination)

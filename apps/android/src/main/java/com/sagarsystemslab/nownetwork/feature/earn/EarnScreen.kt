@@ -34,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.sagarsystemslab.nownetwork.designsystem.NowColors
@@ -125,6 +126,9 @@ fun EarnScreen(
                         text = "Nearby opportunities",
                         style = NowType.TitleS,
                         color = NowColors.Ink950,
+                        modifier = Modifier.semantics {
+                            heading()
+                        },
                     )
                     Text(
                         text = if (liveCount == 1) {
@@ -195,6 +199,9 @@ private fun EarnHeader(
                 text = "EARN",
                 style = NowType.TitleL,
                 color = NowColors.Ink950,
+                modifier = Modifier.semantics {
+                    heading()
+                },
             )
             Text(
                 text = areaLabel,

@@ -25,7 +25,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import com.sagarsystemslab.nownetwork.designsystem.NowColors
@@ -71,6 +74,9 @@ fun ActivityScreen(
                     text = "ACTIVITY",
                     style = NowType.TitleL,
                     color = NowColors.Ink950,
+                    modifier = Modifier.semantics {
+                        heading()
+                    },
                 )
                 Text(
                     text = "Pending work stays above history so recovery is always easy to find.",
@@ -160,6 +166,9 @@ private fun SectionLabel(
             text = title,
             style = NowType.TitleS,
             color = NowColors.Ink950,
+            modifier = Modifier.semantics {
+                heading()
+            },
         )
         Text(
             text = supporting,
@@ -185,8 +194,11 @@ private fun ActivityRow(
                 if (onClick == null) Modifier else Modifier.clickable(onClick = onClick),
             )
             .testTag("activity-row-" + item.operationId)
-            .semantics {
+            .semantics(mergeDescendants = true) {
                 stateDescription = status
+                if (onClick != null) {
+                    role = Role.Button
+                }
             },
         shape = MaterialTheme.shapes.large,
         color = NowColors.SurfacePrimary,

@@ -31,8 +31,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.sagarsystemslab.nownetwork.BuildConfig
 import com.sagarsystemslab.nownetwork.designsystem.NowColors
@@ -74,6 +76,9 @@ fun SettingsScreen(
                 text = "Settings",
                 style = NowType.TitleM,
                 color = NowColors.Ink950,
+                modifier = Modifier.semantics {
+                    heading()
+                },
             )
         }
 
@@ -189,6 +194,9 @@ private fun SettingsSection(
                     text = title,
                     style = NowType.TitleS,
                     color = NowColors.Ink950,
+                    modifier = Modifier.semantics {
+                        heading()
+                    },
                 )
             }
             HorizontalDivider(color = NowColors.BorderSubtle)
@@ -217,6 +225,8 @@ private fun SettingsRow(
             text = value,
             style = NowType.LabelL,
             color = NowColors.Ink800,
+            textAlign = TextAlign.End,
+            modifier = Modifier.weight(1f),
         )
     }
 }
