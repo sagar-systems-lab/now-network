@@ -69,6 +69,9 @@ import com.sagarsystemslab.nownetwork.designsystem.NowStatusTone
 import com.sagarsystemslab.nownetwork.designsystem.NowTextField
 import com.sagarsystemslab.nownetwork.designsystem.NowTheme
 import com.sagarsystemslab.nownetwork.designsystem.NowType
+import com.sagarsystemslab.nownetwork.feature.earn.ContributorClaimScreen
+import com.sagarsystemslab.nownetwork.feature.earn.ContributorClaimStage
+import com.sagarsystemslab.nownetwork.feature.earn.ContributorClaimUiState
 import com.sagarsystemslab.nownetwork.feature.earn.EarnNotice
 import com.sagarsystemslab.nownetwork.feature.earn.EarnScreen
 import com.sagarsystemslab.nownetwork.feature.earn.EarnUiState
@@ -81,6 +84,12 @@ import com.sagarsystemslab.nownetwork.feature.state.HomeUiState
 import com.sagarsystemslab.nownetwork.feature.state.StateDetailScreen
 import com.sagarsystemslab.nownetwork.feature.state.StateDetailUiState
 import com.sagarsystemslab.nownetwork.model.OpportunitySummary
+import com.sagarsystemslab.nownetwork.network.ClaimStatusDto
+import com.sagarsystemslab.nownetwork.network.OpportunityAvailabilityDto
+import com.sagarsystemslab.nownetwork.network.OpportunityDto
+import com.sagarsystemslab.nownetwork.network.OpportunityEvidenceSummaryDto
+import com.sagarsystemslab.nownetwork.network.OpportunityLocationDto
+import com.sagarsystemslab.nownetwork.network.OpportunityRewardDto
 import com.sagarsystemslab.nownetwork.model.StateDetail
 import com.sagarsystemslab.nownetwork.model.StateLocation
 import com.sagarsystemslab.nownetwork.model.StateSummary
@@ -178,6 +187,13 @@ private val scenarios = listOf(
         id = "earn",
         title = "EARN opportunities",
         description = "Nearby rewards, task requirements, deadlines, slots, and live availability.",
+        icon = Icons.Outlined.WorkOutline,
+        availability = LabAvailability.READY,
+    ),
+    LabScenario(
+        id = "opportunity-claim",
+        title = "Opportunity & claim",
+        description = "Task detail, wallet review, reconciliation, claim confirmation, and evidence handoff.",
         icon = Icons.Outlined.WorkOutline,
         availability = LabAvailability.READY,
     ),
@@ -407,6 +423,14 @@ private fun ScenarioScreen(
         return
     }
 
+    if (scenario.id == "opportunity-claim") {
+        OpportunityClaimScenario(
+            onBack = onBack,
+            modifier = modifier.fillMaxSize(),
+        )
+        return
+    }
+
     Column(
         modifier = modifier,
     ) {
@@ -463,6 +487,147 @@ private fun ScenarioScreen(
             "earn" -> EarnScenario(
                 modifier = Modifier.fillMaxSize(),
             )
+        }
+    }
+}
+
+@Composable
+private fun OpportunityClaimScenario(
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var stage by rememberSaveable {
+        mutableStateOf(ContributorClaimStage.REVIEW)
+    }
+    var lastAction by rememberSaveable {
+        mutableStateOf<String?>(null)
+    }
+
+    val opportunity = remember {
+        OpportunityDto(
+            refreshId = "parking-refresh",
+            stateId = "parking-sector-7",
+            stateVersion = 1,
+            title = "Sector 7 parking",
+            question = "How many parking spaces are available right now?",
+            stateType = "NUMERIC",
+            unitCode = "spaces",
+            location = OpportunityLocationDto(
+                locationId = "sector-7-parking",
+                name = "Sector 7 parking",
+                locationType = "POINT",
+                displayAddress = "Main market",
+            ),
+            reward = OpportunityRewardDto(
+                mint = "USDC",
+                poolAtomic = "500000",
+                payoutRule = "equal_verified_witnesses",
+            ),
+            distanceM = 320.0,
+            expiresAt = "2035-01-01T00:15:00Z",
+            evidenceDeadline = "2035-01-01T00:10:00Z",
+            verificationClass = "FRESH_PHOTO_LOCATION",
+            evidenceSummary = OpportunityEvidenceSummaryDto(
+                templateKey = "parking.available_spaces.v1",
+                mediaRequired = true,
+                locationRequired = true,
+                requiredWitnesses = 1,
+                maxWitnesses = 2,
+            ),
+            availability = OpportunityAvailabilityDto(
+                claimable = true,
+                activeClaims = 0,
+                remainingSlots = 1,
+            ),
+            stateRevision = 11L,
+            revision = 4L,
+        )
+    }
+
+    val claim = if (stage == ContributorClaimStage.CLAIMED) {
+        ClaimStatusDto(
+            acceptanceId = "acceptance-demo",
+            refreshId = "parking-refresh",
+            status = "CLAIMED",
+            claimSlot = 0,
+            claimDurationSeconds = 300L,
+            claimDeadline = "2035-01-01T00:05:00Z",
+            chainSignature = null,
+            chainStatus = "confirmed",
+            refreshStatus = "CLAIMED",
+            refreshExpiresAt = "2035-01-01T00:15:00Z",
+            evidenceDeadline = "2035-01-01T00:10:00Z",
+            revision = 2L,
+            nextStep = "EVIDENCE_CHALLENGE",
+        )
+    } else {
+        null
+    }
+
+    val uiState = ContributorClaimUiState(
+        refreshId = "parking-refresh",
+        opportunity = opportunity,
+        stage = stage,
+        walletAddress = if (
+            stage == ContributorClaimStage.READY_FOR_WALLET ||
+            stage == ContributorClaimStage.CONFIRMING ||
+            stage == ContributorClaimStage.CLAIMED
+        ) {
+            "DemoWallet"
+        } else {
+            null
+        },
+        claimDurationSeconds = if (stage == ContributorClaimStage.REVIEW) null else 300L,
+        claim = claim,
+        message = if (stage == ContributorClaimStage.CONFIRMING) {
+            "Transaction submitted. Waiting for authoritative confirmation."
+        } else {
+            null
+        },
+        canPrepare = stage == ContributorClaimStage.REVIEW,
+    )
+
+    Box(modifier = modifier) {
+        ContributorClaimScreen(
+            uiState = uiState,
+            rewardText = "0.50 USDC",
+            onBack = onBack,
+            onPrepare = {
+                stage = ContributorClaimStage.READY_FOR_WALLET
+            },
+            onSubmit = {
+                stage = ContributorClaimStage.CONFIRMING
+            },
+            onCheck = {
+                stage = ContributorClaimStage.CLAIMED
+            },
+            onCaptureEvidence = {
+                lastAction = "Evidence capture invoked"
+            },
+        )
+
+        lastAction?.let { action ->
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(
+                        start = NowSpacing.Space4,
+                        end = NowSpacing.Space4,
+                        bottom = NowSpacing.Space4,
+                    ),
+                shape = MaterialTheme.shapes.medium,
+                color = NowColors.Ink950,
+            ) {
+                Text(
+                    text = action,
+                    style = NowType.BodyS,
+                    color = NowColors.SurfacePrimary,
+                    modifier = Modifier.padding(
+                        horizontal = NowSpacing.Space3,
+                        vertical = NowSpacing.Space2,
+                    ),
+                )
+            }
         }
     }
 }
