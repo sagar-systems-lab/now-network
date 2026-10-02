@@ -162,7 +162,7 @@ private fun RowScope.NowNavigationItem(
     Column(
         modifier = Modifier
             .weight(1f)
-            .height(64.dp)
+            .heightIn(min = 64.dp)
             .testTag(destination.testTag)
             .selectable(
                 selected = selected,
