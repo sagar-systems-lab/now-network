@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedButton
@@ -188,6 +189,7 @@ fun NowTextField(
     enabled: Boolean = true,
     singleLine: Boolean = true,
     isError: Boolean = false,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     visualTransformation: VisualTransformation = VisualTransformation.None,
 ) {
     OutlinedTextField(
@@ -211,6 +213,7 @@ fun NowTextField(
                 )
             }
         },
+        keyboardOptions = keyboardOptions,
         visualTransformation = visualTransformation,
         shape = NowShapes.medium,
     )
