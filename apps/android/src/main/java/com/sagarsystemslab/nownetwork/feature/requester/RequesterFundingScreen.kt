@@ -288,7 +288,7 @@ private fun SetupCard(
                 enabled = uiState.rewardConfigured,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = NowColors.Blue600,
-                    contentColor = NowColors.SurfacePrimary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
                 ),
             ) {
                 Text("Review refresh")
@@ -350,7 +350,7 @@ private fun ReviewCard(
                 onClick = onSubmit,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = NowColors.Blue600,
-                    contentColor = NowColors.SurfacePrimary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
                 ),
             ) {
                 Text("Fund refresh")
