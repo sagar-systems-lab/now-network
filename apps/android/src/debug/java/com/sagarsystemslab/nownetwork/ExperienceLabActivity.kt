@@ -70,6 +70,9 @@ import com.sagarsystemslab.nownetwork.designsystem.NowTextField
 import com.sagarsystemslab.nownetwork.designsystem.NowTheme
 import com.sagarsystemslab.nownetwork.designsystem.NowType
 import com.sagarsystemslab.nownetwork.feature.home.NowScreen
+import com.sagarsystemslab.nownetwork.feature.requester.RequesterFundingScreen
+import com.sagarsystemslab.nownetwork.feature.requester.RequesterFundingStage
+import com.sagarsystemslab.nownetwork.feature.requester.RequesterFundingUiState
 import com.sagarsystemslab.nownetwork.feature.state.BrowseNotice
 import com.sagarsystemslab.nownetwork.feature.state.HomeUiState
 import com.sagarsystemslab.nownetwork.feature.state.StateDetailScreen
@@ -158,6 +161,13 @@ private val scenarios = listOf(
         title = "State detail",
         description = "Value, freshness, location, verification, refresh action, and technical disclosure.",
         icon = Icons.Outlined.Visibility,
+        availability = LabAvailability.READY,
+    ),
+    LabScenario(
+        id = "requester-refresh",
+        title = "ASK / Refresh funding",
+        description = "Reward, review, wallet handoff, reconciliation, and confirmed refresh funding.",
+        icon = Icons.Outlined.Payments,
         availability = LabAvailability.READY,
     ),
     LabScenario(
@@ -385,6 +395,14 @@ private fun ScenarioScreen(
         return
     }
 
+    if (scenario.id == "requester-refresh") {
+        RequesterRefreshScenario(
+            onBack = onBack,
+            modifier = modifier.fillMaxSize(),
+        )
+        return
+    }
+
     Column(
         modifier = modifier,
     ) {
@@ -438,6 +456,52 @@ private fun ScenarioScreen(
                 modifier = Modifier.fillMaxSize(),
             )
         }
+    }
+}
+
+@Composable
+private fun RequesterRefreshScenario(
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var stage by rememberSaveable {
+        mutableStateOf(RequesterFundingStage.SETUP)
+    }
+    var amount by rememberSaveable {
+        mutableStateOf("0.40")
+    }
+
+    val uiState = RequesterFundingUiState(
+        stateId = "metro-exit",
+        title = "Metro exit crowd",
+        stage = stage,
+        amountInput = amount,
+        amountError = null,
+        rewardSymbol = "USDC",
+        rewardConfigured = true,
+        network = "devnet",
+        walletAddress = if (stage >= RequesterFundingStage.REVIEW) "DemoWallet" else null,
+        refreshId = if (stage == RequesterFundingStage.COMPLETE) "refresh-demo" else null,
+        operationId = null,
+        expiresAt = null,
+        notice = null,
+    )
+
+    Box(modifier = modifier) {
+        RequesterFundingScreen(
+            uiState = uiState,
+            onBack = onBack,
+            onAmountChange = { amount = it },
+            onPrepare = {
+                stage = RequesterFundingStage.REVIEW
+            },
+            onSubmit = {
+                stage = RequesterFundingStage.CONFIRMING
+            },
+            onCheck = {
+                stage = RequesterFundingStage.COMPLETE
+            },
+        )
     }
 }
 
