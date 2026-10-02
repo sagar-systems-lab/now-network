@@ -69,6 +69,9 @@ import com.sagarsystemslab.nownetwork.designsystem.NowStatusTone
 import com.sagarsystemslab.nownetwork.designsystem.NowTextField
 import com.sagarsystemslab.nownetwork.designsystem.NowTheme
 import com.sagarsystemslab.nownetwork.designsystem.NowType
+import com.sagarsystemslab.nownetwork.feature.earn.EarnNotice
+import com.sagarsystemslab.nownetwork.feature.earn.EarnScreen
+import com.sagarsystemslab.nownetwork.feature.earn.EarnUiState
 import com.sagarsystemslab.nownetwork.feature.home.NowScreen
 import com.sagarsystemslab.nownetwork.feature.requester.RequesterFundingScreen
 import com.sagarsystemslab.nownetwork.feature.requester.RequesterFundingStage
@@ -77,6 +80,7 @@ import com.sagarsystemslab.nownetwork.feature.state.BrowseNotice
 import com.sagarsystemslab.nownetwork.feature.state.HomeUiState
 import com.sagarsystemslab.nownetwork.feature.state.StateDetailScreen
 import com.sagarsystemslab.nownetwork.feature.state.StateDetailUiState
+import com.sagarsystemslab.nownetwork.model.OpportunitySummary
 import com.sagarsystemslab.nownetwork.model.StateDetail
 import com.sagarsystemslab.nownetwork.model.StateLocation
 import com.sagarsystemslab.nownetwork.model.StateSummary
@@ -172,10 +176,10 @@ private val scenarios = listOf(
     ),
     LabScenario(
         id = "earn",
-        title = "EARN & claim",
-        description = "Opportunity cards, claim states, deadlines, proof requirements, and recovery.",
+        title = "EARN opportunities",
+        description = "Nearby rewards, task requirements, deadlines, slots, and live availability.",
         icon = Icons.Outlined.WorkOutline,
-        availability = LabAvailability.UPCOMING,
+        availability = LabAvailability.READY,
     ),
     LabScenario(
         id = "verification",
@@ -455,6 +459,132 @@ private fun ScenarioScreen(
                 onDarkThemeChange = onDarkThemeChange,
                 modifier = Modifier.fillMaxSize(),
             )
+
+            "earn" -> EarnScenario(
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+    }
+}
+
+@Composable
+private fun EarnScenario(
+    modifier: Modifier = Modifier,
+) {
+    val nowMillis = 1_800_000_000_000L
+    var lastAction by rememberSaveable { mutableStateOf<String?>(null) }
+
+    val sampleState = remember {
+        EarnUiState(
+            areaLabel = "Sector 7 · 3 km",
+            opportunities = listOf(
+                OpportunitySummary(
+                    refreshId = "parking-refresh",
+                    stateId = "parking-sector-7",
+                    title = "Sector 7 parking",
+                    question = "How many parking spaces are available right now?",
+                    locationName = "Sector 7 parking",
+                    displayAddress = "Main market",
+                    rewardAtomic = "500000",
+                    rewardMint = "USDC",
+                    distanceMeters = 320.0,
+                    expiresAtMillis = nowMillis + 900_000L,
+                    evidenceDeadlineMillis = nowMillis + 600_000L,
+                    verificationClass = "FRESH_PHOTO_LOCATION",
+                    mediaRequired = true,
+                    locationRequired = true,
+                    claimable = true,
+                    remainingSlots = 1,
+                    revision = 4L,
+                    cachedOnly = false,
+                ),
+                OpportunitySummary(
+                    refreshId = "queue-refresh",
+                    stateId = "gate-2-queue",
+                    title = "Gate 2 queue",
+                    question = "Is the entry queue longer than 10 people?",
+                    locationName = "Gate 2",
+                    displayAddress = "Sector 7",
+                    rewardAtomic = "250000",
+                    rewardMint = "USDC",
+                    distanceMeters = 610.0,
+                    expiresAtMillis = nowMillis + 1_200_000L,
+                    evidenceDeadlineMillis = nowMillis + 900_000L,
+                    verificationClass = "VISUAL_LOCATION",
+                    mediaRequired = true,
+                    locationRequired = true,
+                    claimable = false,
+                    remainingSlots = 0,
+                    revision = 7L,
+                    cachedOnly = false,
+                ),
+                OpportunitySummary(
+                    refreshId = "elevator-refresh",
+                    stateId = "elevator-gate-b",
+                    title = "Elevator status",
+                    question = "Is the Gate B elevator working right now?",
+                    locationName = "Gate B",
+                    displayAddress = "Sector 7",
+                    rewardAtomic = "300000",
+                    rewardMint = "USDC",
+                    distanceMeters = 880.0,
+                    expiresAtMillis = nowMillis + 1_500_000L,
+                    evidenceDeadlineMillis = nowMillis + 1_100_000L,
+                    verificationClass = "FRESH_PHOTO_LOCATION",
+                    mediaRequired = true,
+                    locationRequired = true,
+                    claimable = true,
+                    remainingSlots = 2,
+                    revision = 2L,
+                    cachedOnly = true,
+                ),
+            ),
+            refreshing = false,
+            notice = EarnNotice.NONE,
+        )
+    }
+
+    Box(modifier = modifier) {
+        EarnScreen(
+            uiState = sampleState,
+            rewardText = { opportunity ->
+                when (opportunity.refreshId) {
+                    "parking-refresh" -> "0.50 USDC"
+                    "queue-refresh" -> "0.25 USDC"
+                    else -> "0.30 USDC"
+                }
+            },
+            serverNowMillis = { nowMillis },
+            onRefresh = {
+                lastAction = "Opportunity refresh invoked"
+            },
+            onOpportunityClick = { refreshId ->
+                lastAction = "Opened opportunity · " + refreshId
+            },
+        )
+
+        lastAction?.let { action ->
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(
+                        start = NowSpacing.Space4,
+                        end = NowSpacing.Space4,
+                        bottom = NowSpacing.Space4,
+                    ),
+                shape = MaterialTheme.shapes.medium,
+                color = NowColors.Ink950,
+            ) {
+                Text(
+                    text = action,
+                    style = NowType.BodyS,
+                    color = NowColors.SurfacePrimary,
+                    modifier = Modifier.padding(
+                        horizontal = NowSpacing.Space3,
+                        vertical = NowSpacing.Space2,
+                    ),
+                )
+            }
         }
     }
 }

@@ -2,6 +2,7 @@ package com.sagarsystemslab.nownetwork.feature.earn
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -13,7 +14,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.CameraAlt
+import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.outlined.Verified
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -22,7 +27,6 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,11 +34,12 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import com.sagarsystemslab.nownetwork.designsystem.NowColors
 import com.sagarsystemslab.nownetwork.designsystem.NowNotice
 import com.sagarsystemslab.nownetwork.designsystem.NowNoticeTone
+import com.sagarsystemslab.nownetwork.designsystem.NowPrimaryButton
+import com.sagarsystemslab.nownetwork.designsystem.NowSecondaryButton
 import com.sagarsystemslab.nownetwork.designsystem.NowSpacing
 import com.sagarsystemslab.nownetwork.designsystem.NowStatusChip
 import com.sagarsystemslab.nownetwork.designsystem.NowStatusTone
@@ -54,56 +59,29 @@ fun EarnScreen(
     val visibleOpportunities = uiState.opportunities.filter {
         it.expiresAtMillis > nowMillis
     }
+    val liveCount = visibleOpportunities.count {
+        it.claimable && !it.cachedOnly
+    }
 
     LazyColumn(
         modifier = Modifier.testTag("screen-earn"),
         contentPadding = PaddingValues(
             start = NowSpacing.PageHorizontal,
-            top = NowSpacing.Space4,
+            top = NowSpacing.Space3,
             end = NowSpacing.PageHorizontal,
-            bottom = NowSpacing.Space6,
+            bottom = NowSpacing.Space8,
         ),
-        verticalArrangement = Arrangement.spacedBy(NowSpacing.Space3),
+        verticalArrangement = Arrangement.spacedBy(NowSpacing.Space4),
     ) {
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(NowSpacing.Space1),
-                ) {
-                    Text(
-                        text = "Earn nearby",
-                        style = NowType.TitleXL,
-                        color = NowColors.Ink950,
-                    )
-                    Text(
-                        text = uiState.areaLabel,
-                        style = NowType.BodyS,
-                        color = NowColors.Ink500,
-                    )
-                    Text(
-                        text = "Refresh stale states around you.",
-                        style = NowType.BodyM,
-                        color = NowColors.Ink600,
-                    )
-                }
-
-                IconButton(
-                    onClick = onRefresh,
-                    enabled = !uiState.refreshing &&
-                        uiState.notice != EarnNotice.AREA_REQUIRED &&
-                        uiState.notice != EarnNotice.AUTH_REQUIRED,
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Refresh,
-                        contentDescription = "Refresh earning opportunities",
-                        tint = NowColors.Ink600,
-                    )
-                }
-            }
+            EarnHeader(
+                areaLabel = uiState.areaLabel,
+                availableCount = liveCount,
+                refreshing = uiState.refreshing,
+                refreshEnabled = uiState.notice != EarnNotice.AREA_REQUIRED &&
+                    uiState.notice != EarnNotice.AUTH_REQUIRED,
+                onRefresh = onRefresh,
+            )
         }
 
         if (uiState.notice != EarnNotice.NONE) {
@@ -126,6 +104,29 @@ fun EarnScreen(
                     color = NowColors.Blue600,
                     trackColor = NowColors.Blue100,
                 )
+            }
+        }
+
+        if (visibleOpportunities.isNotEmpty()) {
+            item {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(NowSpacing.Space1),
+                ) {
+                    Text(
+                        text = "Nearby opportunities",
+                        style = NowType.TitleS,
+                        color = NowColors.Ink950,
+                    )
+                    Text(
+                        text = if (liveCount == 1) {
+                            "1 task is available to claim right now."
+                        } else {
+                            liveCount.toString() + " tasks are available to claim right now."
+                        },
+                        style = NowType.BodyS,
+                        color = NowColors.Ink500,
+                    )
+                }
             }
         }
 
@@ -152,9 +153,60 @@ fun EarnScreen(
                     opportunity = opportunity,
                     reward = rewardText(opportunity),
                     nowMillis = nowMillis,
-                    onClaim = { onOpportunityClick(opportunity.refreshId) },
+                    onOpen = { onOpportunityClick(opportunity.refreshId) },
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun EarnHeader(
+    areaLabel: String,
+    availableCount: Int,
+    refreshing: Boolean,
+    refreshEnabled: Boolean,
+    onRefresh: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
+    ) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(
+                text = "EARN",
+                style = NowType.TitleL,
+                color = NowColors.Ink950,
+            )
+            Text(
+                text = areaLabel,
+                style = NowType.BodyS,
+                color = NowColors.Ink500,
+            )
+            Text(
+                text = if (availableCount > 0) {
+                    "Prove what is true nearby and earn for verified evidence."
+                } else {
+                    "Nearby refresh requests appear here when fresh proof is needed."
+                },
+                style = NowType.BodyM,
+                color = NowColors.Ink600,
+            )
+        }
+
+        IconButton(
+            onClick = onRefresh,
+            enabled = !refreshing && refreshEnabled,
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Refresh,
+                contentDescription = "Refresh earning opportunities",
+                tint = NowColors.Ink600,
+            )
         }
     }
 }
@@ -164,14 +216,18 @@ private fun OpportunityCard(
     opportunity: OpportunitySummary,
     reward: String,
     nowMillis: Long,
-    onClaim: () -> Unit,
+    onOpen: () -> Unit,
 ) {
+    val timeText = formatOpportunityTime(opportunity.expiresAtMillis, nowMillis)
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .testTag("opportunity-card-${opportunity.refreshId}"),
+            .testTag("opportunity-card-" + opportunity.refreshId),
         shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = NowColors.SurfacePrimary),
+        colors = CardDefaults.cardColors(
+            containerColor = NowColors.SurfacePrimary,
+        ),
         border = BorderStroke(1.dp, NowColors.BorderSubtle),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
@@ -179,85 +235,137 @@ private fun OpportunityCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(NowSpacing.Space4),
-            verticalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
+            verticalArrangement = Arrangement.spacedBy(NowSpacing.Space3),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = reward,
-                    style = NowType.DataMedium,
-                    color = NowColors.Ink950,
-                )
-                Spacer(Modifier.weight(1f))
-                AvailabilityChip(opportunity.claimable)
-            }
-
-            Text(
-                text = opportunity.title,
-                style = NowType.TitleS,
-                color = NowColors.Ink800,
-            )
-
-            Text(
-                text = opportunity.question,
-                style = NowType.BodyM,
-                color = NowColors.Ink600,
-            )
-
-            opportunity.locationName?.let { location ->
-                Text(
-                    text = location,
-                    style = NowType.BodyS,
-                    color = NowColors.Ink500,
-                )
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.Top,
                 horizontalArrangement = Arrangement.spacedBy(NowSpacing.Space3),
             ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    Text(
+                        text = "REWARD",
+                        style = NowType.LabelM,
+                        color = NowColors.Ink500,
+                    )
+                    Text(
+                        text = reward,
+                        style = NowType.DataMedium,
+                        color = NowColors.Ink950,
+                    )
+                }
+
+                OpportunityAvailability(opportunity)
+            }
+
+            Column(
+                verticalArrangement = Arrangement.spacedBy(NowSpacing.Space1),
+            ) {
                 Text(
-                    text = formatOpportunityDistance(opportunity.distanceMeters),
-                    style = NowType.LabelM,
+                    text = opportunity.title,
+                    style = NowType.TitleM,
+                    color = NowColors.Ink950,
+                )
+                Text(
+                    text = opportunity.question,
+                    style = NowType.BodyM,
                     color = NowColors.Ink600,
                 )
-                val timeText = formatOpportunityTime(opportunity.expiresAtMillis, nowMillis)
-                Text(
-                    modifier = Modifier.semantics {
-                        contentDescription = "Opportunity time: $timeText"
-                    },
-                    text = timeText,
-                    style = NowType.LabelM,
-                    color = if (opportunity.expiresAtMillis <= nowMillis) {
-                        NowColors.ConflictText
-                    } else {
-                        NowColors.AgingText
-                    },
-                )
             }
 
-            Text(
-                text = proofSummary(opportunity),
-                style = NowType.BodyS,
-                color = NowColors.Ink500,
-            )
-
-            if (opportunity.cachedOnly) {
-                Text(
-                    text = "Saved opportunity · reconnect to confirm live availability.",
-                    style = NowType.BodyS,
-                    color = NowColors.StaleText,
-                )
-            }
-
-            if (opportunity.claimable && !opportunity.cachedOnly) {
-                TextButton(
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = onClaim,
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.medium,
+                color = NowColors.SurfaceSecondary,
+                border = BorderStroke(1.dp, NowColors.BorderSubtle),
+            ) {
+                Column(
+                    modifier = Modifier.padding(NowSpacing.Space3),
+                    verticalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
                 ) {
-                    Text("Claim")
+                    OpportunityMetaRow(
+                        icon = Icons.Outlined.LocationOn,
+                        label = locationSummary(opportunity),
+                    )
+                    OpportunityMetaRow(
+                        icon = Icons.Outlined.Schedule,
+                        label = timeText,
+                        emphasized = true,
+                    )
+                }
+            }
+
+            Column(
+                verticalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
+            ) {
+                Text(
+                    text = "Proof required",
+                    style = NowType.LabelM,
+                    color = NowColors.Ink500,
+                )
+
+                opportunity.verificationClass
+                    ?.takeIf(String::isNotBlank)
+                    ?.let { verificationClass ->
+                        ProofRequirement(
+                            icon = Icons.Outlined.Verified,
+                            text = humanizeRequirement(verificationClass),
+                        )
+                    }
+
+                if (opportunity.mediaRequired == true) {
+                    ProofRequirement(
+                        icon = Icons.Outlined.CameraAlt,
+                        text = "Fresh photo",
+                    )
+                }
+
+                if (opportunity.locationRequired == true) {
+                    ProofRequirement(
+                        icon = Icons.Outlined.LocationOn,
+                        text = "Location match",
+                    )
+                }
+
+                opportunity.remainingSlots?.let { slots ->
+                    Text(
+                        text = if (slots == 1) {
+                            "1 contributor slot remaining"
+                        } else {
+                            slots.toString() + " contributor slots remaining"
+                        },
+                        style = NowType.BodyS,
+                        color = NowColors.Ink500,
+                    )
+                }
+            }
+
+            when {
+                opportunity.cachedOnly -> {
+                    NowNotice(
+                        body = "Saved opportunity · reconnect to confirm live availability before claiming.",
+                        tone = NowNoticeTone.NEUTRAL,
+                    )
+                }
+
+                opportunity.claimable -> {
+                    NowPrimaryButton(
+                        text = "View opportunity",
+                        onClick = onOpen,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+
+                else -> {
+                    NowSecondaryButton(
+                        text = "Opportunity filled",
+                        onClick = {},
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = false,
+                    )
                 }
             }
         }
@@ -265,16 +373,90 @@ private fun OpportunityCard(
 }
 
 @Composable
-private fun AvailabilityChip(claimable: Boolean) {
-    NowStatusChip(
-        label = if (claimable) "AVAILABLE" else "FILLED",
-        tone = if (claimable) NowStatusTone.LIVE else NowStatusTone.STALE,
-        accessibilityLabel = if (claimable) {
-            "Availability available"
-        } else {
-            "Availability filled"
-        },
-    )
+private fun OpportunityAvailability(
+    opportunity: OpportunitySummary,
+) {
+    when {
+        opportunity.cachedOnly -> {
+            NowStatusChip(
+                label = "SAVED",
+                tone = NowStatusTone.STALE,
+                accessibilityLabel = "Saved availability requires reconnect",
+            )
+        }
+
+        opportunity.claimable -> {
+            NowStatusChip(
+                label = "AVAILABLE",
+                tone = NowStatusTone.LIVE,
+                accessibilityLabel = "Opportunity available",
+            )
+        }
+
+        else -> {
+            NowStatusChip(
+                label = "FILLED",
+                tone = NowStatusTone.STALE,
+                accessibilityLabel = "Opportunity filled",
+            )
+        }
+    }
+}
+
+@Composable
+private fun OpportunityMetaRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    emphasized: Boolean = false,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = if (emphasized) NowColors.AgingText else NowColors.Ink500,
+            modifier = Modifier.size(18.dp),
+        )
+        Text(
+            text = label,
+            style = NowType.BodyS,
+            color = if (emphasized) NowColors.AgingText else NowColors.Ink600,
+        )
+    }
+}
+
+@Composable
+private fun ProofRequirement(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    text: String,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
+    ) {
+        Surface(
+            modifier = Modifier.size(28.dp),
+            shape = MaterialTheme.shapes.small,
+            color = NowColors.Blue50,
+            border = BorderStroke(1.dp, NowColors.Blue100),
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = NowColors.Blue600,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+        }
+        Text(
+            text = text,
+            style = NowType.BodyS,
+            color = NowColors.Ink700,
+        )
+    }
 }
 
 @Composable
@@ -326,7 +508,7 @@ private fun OpportunityLoadingCard() {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .height(172.dp)
+            .height(220.dp)
             .clearAndSetSemantics {
                 contentDescription = "Loading earning opportunity"
             },
@@ -338,11 +520,17 @@ private fun OpportunityLoadingCard() {
             modifier = Modifier.padding(NowSpacing.Space4),
             verticalArrangement = Arrangement.spacedBy(NowSpacing.Space3),
         ) {
-            repeat(4) {
+            repeat(5) { index ->
                 Surface(
                     modifier = Modifier
-                        .fillMaxWidth(if (it == 0) 0.35f else 0.72f)
-                        .height(if (it == 0) 24.dp else 12.dp),
+                        .fillMaxWidth(
+                            when (index) {
+                                0 -> 0.30f
+                                1 -> 0.58f
+                                else -> 0.76f
+                            },
+                        )
+                        .height(if (index == 1) 28.dp else 12.dp),
                     shape = MaterialTheme.shapes.small,
                     color = NowColors.Ink100,
                 ) {}
@@ -364,40 +552,53 @@ private fun EmptyEarnState(
     ) {
         Column(
             modifier = Modifier.padding(NowSpacing.Space4),
-            verticalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
+            verticalArrangement = Arrangement.spacedBy(NowSpacing.Space3),
         ) {
-            Text(
-                text = "Nothing nearby needs a refresh right now.",
-                style = NowType.TitleS,
-                color = NowColors.Ink950,
-            )
-            Text(
-                text = "New opportunities will appear when nearby states need fresh proof.",
-                style = NowType.BodyM,
-                color = NowColors.Ink500,
-            )
+            Column(
+                verticalArrangement = Arrangement.spacedBy(NowSpacing.Space1),
+            ) {
+                Text(
+                    text = "Nothing nearby needs fresh proof",
+                    style = NowType.TitleS,
+                    color = NowColors.Ink950,
+                )
+                Text(
+                    text = "New earning opportunities appear when nearby states become stale or need another verified observation.",
+                    style = NowType.BodyM,
+                    color = NowColors.Ink500,
+                )
+            }
+
             if (canRetry) {
-                TextButton(onClick = onRetry) {
-                    Text("Check again")
-                }
+                NowSecondaryButton(
+                    text = "Check again",
+                    onClick = onRetry,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         }
     }
 }
 
-private fun proofSummary(opportunity: OpportunitySummary): String {
-    val parts = buildList {
-        opportunity.verificationClass?.let { add(it) }
-        if (opportunity.mediaRequired == true) add("photo proof")
-        if (opportunity.locationRequired == true) add("location check")
-        opportunity.remainingSlots?.let { slots ->
-            add(if (slots == 1) "1 slot" else "${slots} slots")
-        }
-    }
+private fun locationSummary(opportunity: OpportunitySummary): String {
+    val place = opportunity.locationName
+        ?.takeIf(String::isNotBlank)
+        ?: opportunity.displayAddress
+            ?.takeIf(String::isNotBlank)
+        ?: "Location available in task"
 
-    return if (parts.isEmpty()) {
-        "Proof requirements available online"
-    } else {
-        parts.joinToString(" · ")
-    }
+    return place + " · " + formatOpportunityDistance(opportunity.distanceMeters)
 }
+
+private fun humanizeRequirement(value: String): String =
+    value
+        .lowercase()
+        .split('_')
+        .joinToString(" ") { token ->
+            token.replaceFirstChar {
+                if (it.isLowerCase()) it.titlecase() else it.toString()
+            }
+        }
+        .replaceFirstChar {
+            if (it.isLowerCase()) it.titlecase() else it.toString()
+        }
