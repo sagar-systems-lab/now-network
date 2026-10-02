@@ -1,16 +1,22 @@
 package com.sagarsystemslab.nownetwork
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -18,6 +24,7 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -66,23 +73,11 @@ fun NowApp(
         contentWindowInsets = WindowInsets.safeDrawing,
         bottomBar = {
             if (showBottomBar) {
-                Column {
-                    HorizontalDivider(color = NowColors.BorderSubtle)
-                    NavigationBar(
-                        modifier = Modifier.selectableGroup(),
-                        containerColor = NowColors.SurfacePrimary,
-                        contentColor = MaterialTheme.colorScheme.onSurface,
-                    ) {
-                        TopLevelDestination.entries.forEach { destination ->
-                            val selected = currentDestination.isTopLevel(destination)
-                            LowLatencyNavigationItem(
-                                destination = destination,
-                                selected = selected,
-                                onClick = { appState.navigateTo(destination) },
-                            )
-                        }
-                    }
-                }
+                NowBottomBar(
+                    destinations = TopLevelDestination.entries,
+                    isSelected = currentDestination::isTopLevel,
+                    onDestinationSelected = appState::navigateTo,
+                )
             }
         },
     ) { innerPadding ->
@@ -105,15 +100,59 @@ fun NowApp(
     }
 }
 
+@Composable
+private fun NowBottomBar(
+    destinations: List<TopLevelDestination>,
+    isSelected: (TopLevelDestination) -> Boolean,
+    onDestinationSelected: (TopLevelDestination) -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        HorizontalDivider(
+            thickness = 1.dp,
+            color = NowColors.BorderSubtle,
+        )
+        NavigationBar(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(64.dp)
+                .selectableGroup(),
+            containerColor = NowColors.SurfacePrimary,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            tonalElevation = 0.dp,
+            windowInsets = WindowInsets(0, 0, 0, 0),
+        ) {
+            destinations.forEach { destination ->
+                val selected = isSelected(destination)
+                NowNavigationItem(
+                    destination = destination,
+                    selected = selected,
+                    onClick = {
+                        if (!selected) {
+                            onDestinationSelected(destination)
+                        }
+                    },
+                )
+            }
+        }
+    }
+}
 
 @Composable
-private fun RowScope.LowLatencyNavigationItem(
+private fun RowScope.NowNavigationItem(
     destination: TopLevelDestination,
     selected: Boolean,
     onClick: () -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
     val foreground = if (selected) NowColors.Blue600 else NowColors.Ink500
+    val iconBackground = when {
+        selected -> NowColors.Blue50
+        pressed -> NowColors.Ink100
+        else -> NowColors.SurfacePrimary
+    }
 
     Column(
         modifier = Modifier
@@ -127,19 +166,34 @@ private fun RowScope.LowLatencyNavigationItem(
                 interactionSource = interactionSource,
                 indication = null,
             )
-            .padding(vertical = 8.dp),
+            .padding(top = 6.dp, bottom = 5.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
+        verticalArrangement = Arrangement.spacedBy(
+            space = 2.dp,
+            alignment = Alignment.CenterVertically,
+        ),
     ) {
-        Icon(
-            imageVector = destination.icon,
-            contentDescription = null,
-            tint = foreground,
-        )
+        Box(
+            modifier = Modifier
+                .size(width = 34.dp, height = 28.dp)
+                .background(
+                    color = iconBackground,
+                    shape = RoundedCornerShape(8.dp),
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = destination.icon,
+                contentDescription = null,
+                tint = foreground,
+                modifier = Modifier.size(21.dp),
+            )
+        }
         Text(
             text = destination.label,
             style = MaterialTheme.typography.labelMedium,
             color = foreground,
+            maxLines = 1,
         )
     }
 }
