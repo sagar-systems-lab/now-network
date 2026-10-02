@@ -69,6 +69,10 @@ import com.sagarsystemslab.nownetwork.designsystem.NowStatusTone
 import com.sagarsystemslab.nownetwork.designsystem.NowTextField
 import com.sagarsystemslab.nownetwork.designsystem.NowTheme
 import com.sagarsystemslab.nownetwork.designsystem.NowType
+import com.sagarsystemslab.nownetwork.feature.home.NowScreen
+import com.sagarsystemslab.nownetwork.feature.state.BrowseNotice
+import com.sagarsystemslab.nownetwork.feature.state.HomeUiState
+import com.sagarsystemslab.nownetwork.model.StateSummary
 
 class ExperienceLabActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -142,7 +146,7 @@ private val scenarios = listOf(
         title = "NOW / Home",
         description = "Live, aging, stale, conflict, loading, empty, and offline home states.",
         icon = Icons.Outlined.Home,
-        availability = LabAvailability.UPCOMING,
+        availability = LabAvailability.READY,
     ),
     LabScenario(
         id = "earn",
@@ -407,6 +411,125 @@ private fun ScenarioScreen(
                     .fillMaxSize()
                     .padding(NowSpacing.PageHorizontal),
             )
+
+            "home" -> HomeScenario(
+                darkTheme = darkTheme,
+                onDarkThemeChange = onDarkThemeChange,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+    }
+}
+
+@Composable
+private fun HomeScenario(
+    darkTheme: Boolean,
+    onDarkThemeChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val nowMillis = 1_800_000_000_000L
+    var lastAction by rememberSaveable { mutableStateOf<String?>(null) }
+
+    val sampleState = remember {
+        HomeUiState(
+            areaLabel = "Sector 7 · 3 km",
+            states = listOf(
+                StateSummary(
+                    stateId = "parking-sector-7",
+                    title = "Sector 7 parking",
+                    question = "How many parking spaces are available right now?",
+                    stateType = "NUMERIC",
+                    valueJson = "18",
+                    unitCode = "spaces",
+                    freshnessStatus = "LIVE",
+                    observedAtMillis = nowMillis - 42_000L,
+                    agingAtMillis = nowMillis + 180_000L,
+                    freshUntilMillis = nowMillis + 480_000L,
+                    verificationClass = "FRESH_PHOTO_LOCATION",
+                    refreshStatus = null,
+                    conflictActive = false,
+                    distanceMeters = 320.0,
+                    revision = 11L,
+                ),
+                StateSummary(
+                    stateId = "gate-2-queue",
+                    title = "Gate 2 queue",
+                    question = "Is the entry queue longer than 10 people?",
+                    stateType = "BINARY",
+                    valueJson = "No",
+                    unitCode = null,
+                    freshnessStatus = "AGING",
+                    observedAtMillis = nowMillis - 420_000L,
+                    agingAtMillis = nowMillis - 60_000L,
+                    freshUntilMillis = nowMillis + 180_000L,
+                    verificationClass = "VISUAL_LOCATION",
+                    refreshStatus = null,
+                    conflictActive = false,
+                    distanceMeters = 610.0,
+                    revision = 8L,
+                ),
+                StateSummary(
+                    stateId = "metro-exit",
+                    title = "Metro exit crowd",
+                    question = "How crowded is the west exit right now?",
+                    stateType = "VISUAL",
+                    valueJson = "Busy",
+                    unitCode = null,
+                    freshnessStatus = "STALE",
+                    observedAtMillis = nowMillis - 2_700_000L,
+                    agingAtMillis = nowMillis - 1_800_000L,
+                    freshUntilMillis = nowMillis - 900_000L,
+                    verificationClass = "FRESH_PHOTO_LOCATION",
+                    refreshStatus = null,
+                    conflictActive = false,
+                    distanceMeters = 940.0,
+                    revision = 5L,
+                ),
+            ),
+            refreshing = false,
+            notice = BrowseNotice.NONE,
+        )
+    }
+
+    Box(modifier = modifier) {
+        NowScreen(
+            uiState = sampleState,
+            darkTheme = darkTheme,
+            onDarkThemeChange = onDarkThemeChange,
+            serverNowMillis = { nowMillis },
+            onRefresh = {
+                lastAction = "Nearby refresh invoked"
+            },
+            onStateClick = { stateId ->
+                lastAction = "Opened state · $stateId"
+            },
+            onEarnClick = {
+                lastAction = "EARN navigation invoked"
+            },
+        )
+
+        lastAction?.let { action ->
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(
+                        start = NowSpacing.Space4,
+                        end = NowSpacing.Space4,
+                        bottom = NowSpacing.Space4,
+                    ),
+                shape = MaterialTheme.shapes.medium,
+                color = NowColors.Ink950,
+            ) {
+                Text(
+                    text = action,
+                    style = NowType.BodyS,
+                    color = NowColors.SurfacePrimary,
+                    modifier = Modifier.padding(
+                        horizontal = NowSpacing.Space3,
+                        vertical = NowSpacing.Space2,
+                    ),
+                )
+            }
         }
     }
 }

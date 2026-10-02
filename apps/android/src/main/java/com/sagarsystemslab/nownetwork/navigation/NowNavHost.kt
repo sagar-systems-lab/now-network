@@ -68,6 +68,9 @@ fun NowNavHost(
                 serverNowMillis = browseViewModel::serverNowMillis,
                 onRefresh = browseViewModel::refreshHome,
                 onStateClick = appState::navigateToState,
+                onEarnClick = {
+                    appState.navigateTo(TopLevelDestination.EARN)
+                },
             )
         }
 
