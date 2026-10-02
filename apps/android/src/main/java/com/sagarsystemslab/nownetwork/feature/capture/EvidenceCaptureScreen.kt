@@ -17,17 +17,21 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material3.Button
+import androidx.compose.material.icons.outlined.CameraAlt
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.LocationOn
+import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.outlined.Verified
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -49,7 +53,14 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.sagarsystemslab.nownetwork.designsystem.NowColors
+import com.sagarsystemslab.nownetwork.designsystem.NowNotice
+import com.sagarsystemslab.nownetwork.designsystem.NowNoticeTone
+import com.sagarsystemslab.nownetwork.designsystem.NowPrimaryButton
+import com.sagarsystemslab.nownetwork.designsystem.NowSecondaryButton
 import com.sagarsystemslab.nownetwork.designsystem.NowSpacing
+import com.sagarsystemslab.nownetwork.designsystem.NowStatusChip
+import com.sagarsystemslab.nownetwork.designsystem.NowStatusTone
+import com.sagarsystemslab.nownetwork.designsystem.NowTextField
 import com.sagarsystemslab.nownetwork.designsystem.NowType
 import java.io.File
 import kotlinx.coroutines.Dispatchers
@@ -130,96 +141,40 @@ fun EvidenceCaptureScreen(
             .verticalScroll(rememberScrollState())
             .padding(
                 horizontal = NowSpacing.PageHorizontal,
-                vertical = NowSpacing.Space3,
+                vertical = NowSpacing.Space2,
             )
             .testTag("screen-evidence-capture"),
-        verticalArrangement = Arrangement.spacedBy(NowSpacing.Space3),
+        verticalArrangement = Arrangement.spacedBy(NowSpacing.Space4),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(onClick = onBack) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-                    contentDescription = "Back",
-                )
-            }
-            Text(
-                text = "Capture evidence",
-                style = NowType.TitleL,
-                color = NowColors.Ink950,
-            )
-        }
+        EvidenceTopBar(onBack = onBack)
 
         if (uiState.question.isNotBlank()) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.large,
-                color = NowColors.SurfacePrimary,
-                border = BorderStroke(1.dp, NowColors.BorderSubtle),
-            ) {
-                Column(
-                    modifier = Modifier.padding(NowSpacing.Space4),
-                    verticalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
-                ) {
-                    Text(
-                        text = uiState.question,
-                        style = NowType.TitleS,
-                        color = NowColors.Ink950,
-                    )
-                    Text(
-                        text = buildString {
-                            append(uiState.stateType)
-                            append(" proof")
-                            if (uiState.mediaRequired) append(" · fresh photo")
-                            if (uiState.locationRequired) append(" · precise location")
-                        },
-                        style = NowType.BodyS,
-                        color = NowColors.Ink500,
-                    )
-                    uiState.expiresAt?.let {
-                        Text(
-                            text = "Capture window: $it",
-                            style = NowType.BodyS,
-                            color = NowColors.Ink500,
-                        )
-                    }
-                }
-            }
+            EvidenceTaskCard(uiState)
         }
 
         when (uiState.stage) {
             EvidenceCaptureStage.LOADING -> {
-                EvidenceStatusCard(
+                EvidenceProcessCard(
                     title = "Loading proof requirements",
-                    body = "Checking your active claim and any safely saved capture.",
+                    body = "Checking your active claim and any capture already saved on this device.",
                     progress = true,
                 )
             }
 
             EvidenceCaptureStage.READY -> {
-                EvidenceStatusCard(
-                    title = "Fresh proof only",
-                    body = if (uiState.locationRequired) {
-                        "NOW uses your camera only for this refresh. Precise location is used only during this verification."
-                    } else {
-                        "NOW uses your camera only for the refresh you chose to verify."
-                    },
-                )
-                Button(
-                    modifier = Modifier.fillMaxWidth(),
+                PermissionCard(uiState)
+                NowPrimaryButton(
+                    text = "Start fresh capture",
                     onClick = ::requestCapturePermissions,
-                ) {
-                    Text("Start fresh capture")
-                }
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
 
             EvidenceCaptureStage.PREPARING -> {
-                EvidenceStatusCard(
-                    title = "Starting secure capture",
+                EvidenceProcessCard(
+                    title = "Preparing secure capture",
                     body = uiState.message
-                        ?: "Binding a one-time challenge before the camera opens.",
+                        ?: "Binding a one-time evidence challenge before the camera opens.",
                     progress = true,
                 )
             }
@@ -227,245 +182,504 @@ fun EvidenceCaptureScreen(
             EvidenceCaptureStage.CAMERA -> {
                 val path = uiState.localFilePath
                 if (path == null) {
-                    EvidenceStatusCard(
+                    NowNotice(
                         title = "Camera unavailable",
-                        body = "The local evidence file was not prepared.",
+                        body = "The local evidence file could not be prepared safely.",
+                        tone = NowNoticeTone.ERROR,
                     )
                 } else {
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(3f / 4f),
-                        shape = MaterialTheme.shapes.large,
-                        color = Color(0xFF050816),
-                    ) {
-                        EvidenceCameraPreview(
-                            modifier = Modifier.fillMaxSize(),
-                            onControllerReady = { cameraController = it },
-                            onCameraError = { onCameraError() },
-                        )
-                    }
-
-                    uiState.message?.let { EvidenceInlineMessage(it) }
-
-                    Button(
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = cameraController != null,
-                        onClick = {
-                            val controller = cameraController ?: return@Button
-                            controller.capture(
-                                file = File(path),
-                                onSuccess = onPhotoCaptured,
-                                onError = { onCameraError() },
-                            )
-                        },
-                    ) {
-                        Text("Capture now")
-                    }
-
-                    if (uiState.locationRequired && !uiState.locationReady) {
-                        OutlinedButton(
-                            modifier = Modifier.fillMaxWidth(),
-                            onClick = onRefreshLocation,
-                        ) {
-                            Text("Refresh precise location")
-                        }
-                    }
+                    CameraCaptureSurface(
+                        localFilePath = path,
+                        controller = cameraController,
+                        onControllerReady = { cameraController = it },
+                        onCameraError = onCameraError,
+                        onPhotoCaptured = onPhotoCaptured,
+                        locationRequired = uiState.locationRequired,
+                        locationReady = uiState.locationReady,
+                        onRefreshLocation = onRefreshLocation,
+                    )
                 }
             }
 
             EvidenceCaptureStage.PROCESSING -> {
-                EvidenceStatusCard(
+                EvidenceProcessCard(
                     title = "Securing local evidence",
                     body = uiState.message
-                        ?: "Computing integrity metadata before review.",
+                        ?: "Computing integrity metadata before the evidence can be reviewed.",
                     progress = true,
                 )
             }
 
             EvidenceCaptureStage.REVIEW -> {
-                uiState.localFilePath?.let { path ->
-                    EvidencePreview(path)
-                }
-
-                EvidenceStatusCard(
-                    title = "Review evidence",
-                    body = "Confirm the image is usable and answer the live question before submission.",
+                EvidenceReview(
+                    uiState = uiState,
+                    onAnswerChange = onAnswerChange,
+                    onRefreshLocation = onRefreshLocation,
+                    onRecapture = onRecapture,
+                    onSubmit = onSubmit,
                 )
-
-                when (uiState.stateType) {
-                    "NUMERIC" -> {
-                        OutlinedTextField(
-                            modifier = Modifier.fillMaxWidth(),
-                            value = uiState.answer,
-                            onValueChange = onAnswerChange,
-                            label = { Text("Answer") },
-                            keyboardOptions = KeyboardOptions(
-                                keyboardType = KeyboardType.Number,
-                            ),
-                            singleLine = true,
-                        )
-                    }
-
-                    "BINARY" -> {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
-                        ) {
-                            if (uiState.answer == "YES") {
-                                Button(
-                                    modifier = Modifier.weight(1f),
-                                    onClick = { onAnswerChange("YES") },
-                                ) {
-                                    Text("Yes")
-                                }
-                            } else {
-                                OutlinedButton(
-                                    modifier = Modifier.weight(1f),
-                                    onClick = { onAnswerChange("YES") },
-                                ) {
-                                    Text("Yes")
-                                }
-                            }
-
-                            if (uiState.answer == "NO") {
-                                Button(
-                                    modifier = Modifier.weight(1f),
-                                    onClick = { onAnswerChange("NO") },
-                                ) {
-                                    Text("No")
-                                }
-                            } else {
-                                OutlinedButton(
-                                    modifier = Modifier.weight(1f),
-                                    onClick = { onAnswerChange("NO") },
-                                ) {
-                                    Text("No")
-                                }
-                            }
-                        }
-                    }
-
-                    "VISUAL" -> {
-                        Text(
-                            text = "The fresh image is the visual answer.",
-                            style = NowType.BodyM,
-                            color = NowColors.Ink600,
-                        )
-                    }
-                }
-
-                if (uiState.locationRequired) {
-                    EvidenceStatusCard(
-                        title = if (uiState.locationReady) {
-                            "Location ready"
-                        } else {
-                            "Location required"
-                        },
-                        body = if (uiState.locationReady) {
-                            uiState.locationSampleCount.toString() +
-                                " capture-bound location sample(s) saved."
-                        } else {
-                            "Get a fresh precise location fix before submitting."
-                        },
-                    )
-                    OutlinedButton(
-                        modifier = Modifier.fillMaxWidth(),
-                        onClick = onRefreshLocation,
-                    ) {
-                        Text("Refresh precise location")
-                    }
-                }
-
-                uiState.message?.let { EvidenceInlineMessage(it) }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
-                ) {
-                    OutlinedButton(
-                        modifier = Modifier.weight(1f),
-                        onClick = onRecapture,
-                    ) {
-                        Text("Recapture")
-                    }
-                    Button(
-                        modifier = Modifier.weight(1f),
-                        enabled = uiState.canSubmit,
-                        onClick = onSubmit,
-                    ) {
-                        Text("Submit evidence")
-                    }
-                }
             }
 
             EvidenceCaptureStage.SUBMITTING -> {
-                EvidenceStatusCard(
+                EvidenceProcessCard(
                     title = "Submitting evidence",
                     body = uiState.message
-                        ?: "Uploading the captured bytes and committing their hash.",
+                        ?: "Uploading the captured bytes and committing their integrity metadata.",
                     progress = true,
+                )
+                NowNotice(
+                    body = "Keep this screen open if possible. If connectivity drops, the saved evidence can resume safely.",
+                    tone = NowNoticeTone.NEUTRAL,
                 )
             }
 
             EvidenceCaptureStage.QUEUED -> {
-                EvidenceStatusCard(
-                    title = "Evidence saved",
+                NowNotice(
+                    title = "Upload paused · saved on this device",
                     body = uiState.message
-                        ?: "Submission will resume safely when connectivity is available.",
+                        ?: "Your capture is preserved locally. NOW will not ask you to recapture unless the evidence expires.",
+                    tone = NowNoticeTone.WARNING,
                 )
-                OutlinedButton(
-                    modifier = Modifier.fillMaxWidth(),
+                NowSecondaryButton(
+                    text = "Check submission",
                     onClick = onRetry,
-                ) {
-                    Text("Check submission")
-                }
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
 
             EvidenceCaptureStage.SUBMITTED -> {
-                EvidenceStatusCard(
-                    title = "Evidence submitted",
-                    body = buildString {
-                        append(uiState.message ?: "Proof is committed.")
-                        uiState.nextStep?.let {
-                            append(" Next: ")
-                            append(it.lowercase().replace('_', ' '))
-                            append(".")
-                        }
-                    },
-                )
-                Button(
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = onContinueVerification,
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("evidence-submitted"),
+                    shape = MaterialTheme.shapes.large,
+                    color = NowColors.LiveSoft,
+                    border = BorderStroke(1.dp, NowColors.LiveBorder),
                 ) {
-                    Text("Check verification")
+                    Column(
+                        modifier = Modifier.padding(NowSpacing.Space4),
+                        verticalArrangement = Arrangement.spacedBy(NowSpacing.Space3),
+                    ) {
+                        Surface(
+                            modifier = Modifier.size(46.dp),
+                            shape = MaterialTheme.shapes.extraLarge,
+                            color = NowColors.SurfacePrimary,
+                            border = BorderStroke(1.dp, NowColors.LiveBorder),
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Outlined.CheckCircle,
+                                    contentDescription = null,
+                                    tint = NowColors.LiveText,
+                                    modifier = Modifier.size(25.dp),
+                                )
+                            }
+                        }
+                        Text(
+                            text = "Evidence submitted",
+                            style = NowType.TitleL,
+                            color = NowColors.LiveText,
+                        )
+                        Text(
+                            text = uiState.message
+                                ?: "Your proof is committed and ready for verification.",
+                            style = NowType.BodyM,
+                            color = NowColors.Ink700,
+                        )
+                    }
                 }
+
+                NowPrimaryButton(
+                    text = "Check verification",
+                    onClick = onContinueVerification,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
 
             EvidenceCaptureStage.EXPIRED -> {
-                EvidenceStatusCard(
+                NowNotice(
                     title = "Capture window expired",
                     body = uiState.message
-                        ?: "This proof can no longer be submitted for the active claim.",
+                        ?: "This evidence can no longer be submitted for the active claim.",
+                    tone = NowNoticeTone.ERROR,
                 )
             }
 
             EvidenceCaptureStage.ERROR -> {
-                EvidenceStatusCard(
+                NowNotice(
                     title = "Capture needs attention",
                     body = uiState.message
                         ?: "Evidence capture could not continue safely.",
+                    tone = NowNoticeTone.ERROR,
                 )
-                Button(
-                    modifier = Modifier.fillMaxWidth(),
+                NowPrimaryButton(
+                    text = "Try again",
                     onClick = ::requestCapturePermissions,
-                ) {
-                    Text("Try again")
-                }
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         }
 
         Spacer(Modifier.height(NowSpacing.Space3))
+    }
+}
+
+@Composable
+private fun EvidenceTopBar(
+    onBack: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClick = onBack) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                contentDescription = "Back",
+                tint = NowColors.Ink700,
+            )
+        }
+        Text(
+            text = "Capture evidence",
+            style = NowType.TitleM,
+            color = NowColors.Ink950,
+        )
+    }
+}
+
+@Composable
+private fun EvidenceTaskCard(
+    uiState: EvidenceCaptureUiState,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        color = NowColors.SurfacePrimary,
+        border = BorderStroke(1.dp, NowColors.BorderSubtle),
+    ) {
+        Column(
+            modifier = Modifier.padding(NowSpacing.Space4),
+            verticalArrangement = Arrangement.spacedBy(NowSpacing.Space3),
+        ) {
+            Text(
+                text = uiState.question,
+                style = NowType.TitleM,
+                color = NowColors.Ink950,
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
+            ) {
+                if (uiState.mediaRequired) {
+                    NowStatusChip(
+                        label = "PHOTO",
+                        tone = NowStatusTone.INFO,
+                        accessibilityLabel = "Fresh photo required",
+                    )
+                }
+                if (uiState.locationRequired) {
+                    NowStatusChip(
+                        label = "LOCATION",
+                        tone = NowStatusTone.INFO,
+                        accessibilityLabel = "Location match required",
+                    )
+                }
+            }
+
+            uiState.expiresAt?.let { deadline ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Schedule,
+                        contentDescription = null,
+                        tint = NowColors.AgingText,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Text(
+                        text = "Evidence deadline · " + readableDeadline(deadline),
+                        style = NowType.BodyS,
+                        color = NowColors.AgingText,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PermissionCard(
+    uiState: EvidenceCaptureUiState,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.large,
+        color = NowColors.SurfacePrimary,
+        border = BorderStroke(1.dp, NowColors.BorderSubtle),
+    ) {
+        Column(
+            modifier = Modifier.padding(NowSpacing.Space4),
+            verticalArrangement = Arrangement.spacedBy(NowSpacing.Space3),
+        ) {
+            RequirementRow(
+                icon = Icons.Outlined.CameraAlt,
+                title = "Camera",
+                body = "Used only to capture fresh proof for this claim.",
+            )
+            if (uiState.locationRequired) {
+                RequirementRow(
+                    icon = Icons.Outlined.LocationOn,
+                    title = "Precise location",
+                    body = "Collected only during this verification and bound to the capture.",
+                )
+            }
+            NowNotice(
+                body = "Permissions are requested only when you start this task, not at app launch.",
+                tone = NowNoticeTone.NEUTRAL,
+            )
+        }
+    }
+}
+
+@Composable
+private fun CameraCaptureSurface(
+    localFilePath: String,
+    controller: EvidenceCameraController?,
+    onControllerReady: (EvidenceCameraController) -> Unit,
+    onCameraError: () -> Unit,
+    onPhotoCaptured: (CapturedPhoto) -> Unit,
+    locationRequired: Boolean,
+    locationReady: Boolean,
+    onRefreshLocation: () -> Unit,
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(NowSpacing.Space3),
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(3f / 4f),
+            shape = MaterialTheme.shapes.large,
+            color = Color(0xFF050816),
+        ) {
+            EvidenceCameraPreview(
+                modifier = Modifier.fillMaxSize(),
+                onControllerReady = onControllerReady,
+                onCameraError = onCameraError,
+            )
+        }
+
+        if (locationRequired) {
+            NowNotice(
+                body = if (locationReady) {
+                    "Precise location is ready and will be bound to this capture."
+                } else {
+                    "Precise location is required before this evidence can be submitted."
+                },
+                tone = if (locationReady) {
+                    NowNoticeTone.SUCCESS
+                } else {
+                    NowNoticeTone.WARNING
+                },
+            )
+
+            if (!locationReady) {
+                NowSecondaryButton(
+                    text = "Refresh precise location",
+                    onClick = onRefreshLocation,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+
+        NowPrimaryButton(
+            text = "Capture now",
+            onClick = {
+                val activeController = controller ?: return@NowPrimaryButton
+                activeController.capture(
+                    file = File(localFilePath),
+                    onSuccess = onPhotoCaptured,
+                    onError = { onCameraError() },
+                )
+            },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = controller != null,
+        )
+    }
+}
+
+@Composable
+private fun EvidenceReview(
+    uiState: EvidenceCaptureUiState,
+    onAnswerChange: (String) -> Unit,
+    onRefreshLocation: () -> Unit,
+    onRecapture: () -> Unit,
+    onSubmit: () -> Unit,
+) {
+    uiState.localFilePath?.let { path ->
+        EvidencePreview(path)
+    }
+
+    Column(
+        verticalArrangement = Arrangement.spacedBy(NowSpacing.Space3),
+    ) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(NowSpacing.Space1),
+        ) {
+            Text(
+                text = "Review your evidence",
+                style = NowType.TitleM,
+                color = NowColors.Ink950,
+            )
+            Text(
+                text = "Make sure the capture is clear, recent, and answers the live question.",
+                style = NowType.BodyM,
+                color = NowColors.Ink600,
+            )
+        }
+
+        when (uiState.stateType) {
+            "NUMERIC" -> {
+                NowTextField(
+                    value = uiState.answer,
+                    onValueChange = onAnswerChange,
+                    label = "Answer",
+                    supportingText = "Enter the value visible in your fresh observation.",
+                    modifier = Modifier.fillMaxWidth(),
+                    visualTransformation = androidx.compose.ui.text.input.VisualTransformation.None,
+                )
+            }
+
+            "BINARY" -> {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
+                ) {
+                    if (uiState.answer == "YES") {
+                        NowPrimaryButton(
+                            text = "Yes",
+                            onClick = { onAnswerChange("YES") },
+                            modifier = Modifier.weight(1f),
+                        )
+                    } else {
+                        NowSecondaryButton(
+                            text = "Yes",
+                            onClick = { onAnswerChange("YES") },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+
+                    if (uiState.answer == "NO") {
+                        NowPrimaryButton(
+                            text = "No",
+                            onClick = { onAnswerChange("NO") },
+                            modifier = Modifier.weight(1f),
+                        )
+                    } else {
+                        NowSecondaryButton(
+                            text = "No",
+                            onClick = { onAnswerChange("NO") },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+            }
+
+            "VISUAL" -> {
+                NowNotice(
+                    body = "The fresh image is the visual answer for this task.",
+                    tone = NowNoticeTone.INFO,
+                )
+            }
+        }
+
+        if (uiState.locationRequired) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                color = NowColors.SurfacePrimary,
+                border = BorderStroke(1.dp, NowColors.BorderSubtle),
+            ) {
+                Row(
+                    modifier = Modifier.padding(NowSpacing.Space3),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(NowSpacing.Space3),
+                ) {
+                    Icon(
+                        imageVector = if (uiState.locationReady) {
+                            Icons.Outlined.Verified
+                        } else {
+                            Icons.Outlined.LocationOn
+                        },
+                        contentDescription = null,
+                        tint = if (uiState.locationReady) {
+                            NowColors.LiveText
+                        } else {
+                            NowColors.AgingText
+                        },
+                        modifier = Modifier.size(22.dp),
+                    )
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        Text(
+                            text = if (uiState.locationReady) {
+                                "Location ready"
+                            } else {
+                                "Location required"
+                            },
+                            style = NowType.TitleS,
+                            color = NowColors.Ink950,
+                        )
+                        Text(
+                            text = if (uiState.locationReady) {
+                                uiState.locationSampleCount.toString() +
+                                    " capture-bound location sample(s) saved."
+                            } else {
+                                "Get a fresh precise location fix before submitting."
+                            },
+                            style = NowType.BodyS,
+                            color = NowColors.Ink500,
+                        )
+                    }
+                }
+            }
+
+            NowSecondaryButton(
+                text = "Refresh precise location",
+                onClick = onRefreshLocation,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+
+        uiState.message?.let { message ->
+            NowNotice(
+                body = message,
+                tone = NowNoticeTone.NEUTRAL,
+            )
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
+        ) {
+            NowSecondaryButton(
+                text = "Recapture",
+                onClick = onRecapture,
+                modifier = Modifier.weight(1f),
+            )
+            NowPrimaryButton(
+                text = "Submit evidence",
+                onClick = onSubmit,
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag("submit-evidence"),
+                enabled = uiState.canSubmit,
+            )
+        }
     }
 }
 
@@ -497,7 +711,7 @@ private fun EvidencePreview(path: String) {
             .fillMaxWidth()
             .aspectRatio(4f / 3f),
         shape = MaterialTheme.shapes.large,
-        color = NowColors.SurfacePrimary,
+        color = Color(0xFF050816),
         border = BorderStroke(1.dp, NowColors.BorderSubtle),
     ) {
         val bitmap = image
@@ -513,21 +727,66 @@ private fun EvidencePreview(path: String) {
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center,
             ) {
-                CircularProgressIndicator()
+                CircularProgressIndicator(
+                    color = NowColors.Blue600,
+                )
             }
         }
     }
 }
 
 @Composable
-private fun EvidenceStatusCard(
+private fun RequirementRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
     title: String,
     body: String,
-    progress: Boolean = false,
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(NowSpacing.Space3),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Surface(
+            modifier = Modifier.size(36.dp),
+            shape = MaterialTheme.shapes.medium,
+            color = NowColors.Blue50,
+            border = BorderStroke(1.dp, NowColors.Blue100),
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = NowColors.Blue600,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(
+                text = title,
+                style = NowType.LabelL,
+                color = NowColors.Ink800,
+            )
+            Text(
+                text = body,
+                style = NowType.BodyS,
+                color = NowColors.Ink500,
+            )
+        }
+    }
+}
+
+@Composable
+private fun EvidenceProcessCard(
+    title: String,
+    body: String,
+    progress: Boolean,
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.medium,
+        shape = MaterialTheme.shapes.large,
         color = NowColors.SurfacePrimary,
         border = BorderStroke(1.dp, NowColors.BorderSubtle),
     ) {
@@ -537,8 +796,14 @@ private fun EvidenceStatusCard(
             verticalAlignment = Alignment.Top,
         ) {
             if (progress) {
-                CircularProgressIndicator()
+                CircularProgressIndicator(
+                    modifier = Modifier.size(28.dp),
+                    color = NowColors.Blue600,
+                    trackColor = NowColors.Blue100,
+                    strokeWidth = 3.dp,
+                )
             }
+
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(NowSpacing.Space1),
@@ -558,11 +823,7 @@ private fun EvidenceStatusCard(
     }
 }
 
-@Composable
-private fun EvidenceInlineMessage(message: String) {
-    Text(
-        text = message,
-        style = NowType.BodyS,
-        color = NowColors.Ink600,
-    )
-}
+private fun readableDeadline(value: String): String =
+    value
+        .replace("T", " ")
+        .removeSuffix("Z") + " UTC"
