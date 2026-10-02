@@ -12,6 +12,9 @@ data object EarnRoute
 data object ActivityRoute
 
 @Serializable
+data object SettingsRoute
+
+@Serializable
 data class StateDetailRoute(
     val stateId: String,
 )
