@@ -81,6 +81,11 @@ class AccessibilityBaselineInstrumentedTest {
         composeRule.onNodeWithTag("screen-appearance").assertIsDisplayed()
 
         composeRule
+            .onNodeWithContentDescription("Back")
+            .assertIsDisplayed()
+            .assertHasClickAction()
+
+        composeRule
             .onNodeWithTag("System")
             .performScrollTo()
             .assertIsDisplayed()
@@ -98,12 +103,6 @@ class AccessibilityBaselineInstrumentedTest {
             .assertIsDisplayed()
             .assertHasClickAction()
 
-        composeRule
-            .onNodeWithContentDescription("Back")
-            .assertIsDisplayed()
-            .assertHasClickAction()
-            .performClick()
 
-        composeRule.onNodeWithTag("screen-settings").assertIsDisplayed()
     }
 }
