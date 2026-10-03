@@ -126,7 +126,7 @@ class ExperienceLabActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        val initialDarkTheme = NowThemePreferenceStore.readDarkTheme(this)
+        val initialDarkTheme = if(intent.hasExtra("dark")) intent.getBooleanExtra("dark", false) else NowThemePreferenceStore.readDarkTheme(this)
 
         setContent {
             var darkTheme by rememberSaveable {
@@ -140,6 +140,7 @@ class ExperienceLabActivity : ComponentActivity() {
 
             NowTheme(darkTheme = darkTheme) {
                 ExperienceLab(
+                    initialScenario = intent.getStringExtra("scenario"),
                     darkTheme = darkTheme,
                     onDarkThemeChange = { enabled ->
                         darkTheme = enabled
@@ -263,10 +264,11 @@ private val scenarios = listOf(
 
 @Composable
 private fun ExperienceLab(
+    initialScenario: String? = null,
     darkTheme: Boolean,
     onDarkThemeChange: (Boolean) -> Unit,
 ) {
-    var selectedScenarioId by rememberSaveable { mutableStateOf<String?>(null) }
+    var selectedScenarioId by rememberSaveable { mutableStateOf(initialScenario) }
     val selectedScenario = scenarios.firstOrNull { it.id == selectedScenarioId }
 
     BackHandler(enabled = selectedScenario != null) {

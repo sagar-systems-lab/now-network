@@ -8,6 +8,7 @@ export type OpportunityCursor = {
 };
 
 export type OpportunityRecord = {
+  center?: { latitude: number; longitude: number } | null;
   refreshId: string;
   stateId: string;
   stateVersion: number;

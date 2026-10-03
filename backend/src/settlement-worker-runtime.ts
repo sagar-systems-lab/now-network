@@ -1,3 +1,4 @@
+import { FcmSender, PostgresNotificationRunner } from "./notification-delivery.ts";
 import { NowWorkerCoordinator } from "./now-worker-coordinator.ts";
 import { PostgresReceiptRepository } from "./postgres-receipt-repository.ts";
 import { PostgresRealtimeOutboxRepository } from "./postgres-realtime-outbox-repository.ts";
@@ -69,6 +70,8 @@ export function createProductionSettlementWorkerHandler(): (
     settlementCoordinator,
     new ReceiptCoordinator(receiptRepository),
     new RealtimePublisher(realtimeRepository),
+    Deno.env.get("NOW_FCM_SERVICE_ACCOUNT_JSON")?.trim()
+      ? new PostgresNotificationRunner(connectionString, new FcmSender(requiredEnv("NOW_FCM_SERVICE_ACCOUNT_JSON"))) : undefined,
   );
 
   const handler = createSettlementWorkerHandler(

@@ -4,6 +4,7 @@ import type { OpportunityRecord, OpportunityRepository } from "./opportunity-rep
 type DateLike = Date | string;
 
 type OpportunityRow = {
+  latitude: number; longitude: number;
   refresh_id: string;
   state_id: string;
   state_version: number | string;
@@ -37,6 +38,7 @@ function date(value: DateLike): Date {
 
 function fromRow(row: OpportunityRow): OpportunityRecord {
   return {
+    center: { latitude: Number(row.latitude), longitude: Number(row.longitude) },
     refreshId: row.refresh_id,
     stateId: row.state_id,
     stateVersion: Number(row.state_version),
@@ -81,7 +83,8 @@ export class PostgresOpportunityRepository implements OpportunityRepository {
     input: Parameters<OpportunityRepository["listNearby"]>[0],
   ): Promise<OpportunityRecord[]> {
     const rows = await this.sql`
-      select *
+      select q.*, extensions.st_y(l.center::extensions.geometry) as latitude,
+        extensions.st_x(l.center::extensions.geometry) as longitude
       from app.query_nearby_opportunities_v1(
         ${input.actorId}::uuid,
         ${input.lat},
@@ -90,7 +93,9 @@ export class PostgresOpportunityRepository implements OpportunityRepository {
         ${input.limit},
         ${input.cursor?.distanceM ?? null},
         ${input.cursor?.refreshId ?? null}::uuid
-      )
+      ) q
+      join app.locations l on l.location_id = q.location_id
+      order by q.distance_m, q.refresh_id
     `;
 
     return rows.map((row) => fromRow(row as unknown as OpportunityRow));
@@ -112,6 +117,8 @@ export class PostgresOpportunityRepository implements OpportunityRepository {
         l.name as location_name,
         l.location_type,
         l.display_address,
+        extensions.st_y(l.center::extensions.geometry) as latitude,
+        extensions.st_x(l.center::extensions.geometry) as longitude,
         rr.reward_mint,
         coalesce(rr.chain_locked_reward, rr.chain_total_funded) as reward_atomic,
         rr.payout_rule,

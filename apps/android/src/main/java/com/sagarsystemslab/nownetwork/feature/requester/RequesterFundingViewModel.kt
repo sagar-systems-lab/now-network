@@ -34,6 +34,7 @@ enum class RequesterFundingStage {
 }
 
 data class RequesterFundingUiState(
+    val stateDetail: com.sagarsystemslab.nownetwork.model.StateDetail? = null,
     val stateId: String? = null,
     val title: String = "Refresh this state",
     val stage: RequesterFundingStage = RequesterFundingStage.LOADING,
@@ -87,6 +88,7 @@ class RequesterFundingViewModel @Inject constructor(
             mutableState.update {
                 it.copy(
                     title = detail?.title ?: "Refresh this state",
+                    stateDetail = detail,
                 )
             }
 

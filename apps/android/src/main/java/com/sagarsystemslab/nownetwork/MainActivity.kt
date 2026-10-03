@@ -1,7 +1,25 @@
 package com.sagarsystemslab.nownetwork
 
 import android.os.Bundle
+import android.app.KeyguardManager
+import android.content.Intent
+import android.view.WindowManager
+import androidx.activity.compose.BackHandler
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.Text
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.dp
+import com.sagarsystemslab.nownetwork.designsystem.*
+import com.sagarsystemslab.nownetwork.security.AndroidKeystoreSecretStore
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import com.sagarsystemslab.nownetwork.experience.*
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
@@ -34,6 +52,36 @@ import kotlinx.coroutines.withContext
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+    private var inboxIntentRevision by mutableStateOf(0)
+    private var appLocked by mutableStateOf(false)
+    private var unlocking = false
+    private val unlock = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        unlocking = false
+        appLocked = result.resultCode != RESULT_OK
+    }
+    private fun lockEnabled() = AndroidKeystoreSecretStore(this).read("app_lock_enabled") == "true"
+    private fun requestUnlock() {
+        if (unlocking) return
+        val keyguard = getSystemService(KEYGUARD_SERVICE) as KeyguardManager
+        val intent = keyguard.createConfirmDeviceCredentialIntent("Unlock NOW", "Confirm your device credential to continue.")
+        if (intent != null) { unlocking = true; unlock.launch(intent) }
+        else startActivity(Intent(android.provider.Settings.ACTION_SECURITY_SETTINGS))
+    }
+
+    override fun onStart() {
+        super.onStart()
+        if (lockEnabled()) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+            if (!unlocking) appLocked = true
+        } else { window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE); appLocked = false }
+    }
+
+    override fun onStop() {
+        if (lockEnabled() && !unlocking) appLocked = true
+        super.onStop()
+    }
+    private val experienceViewModel: ExperienceViewModel by viewModels()
+    @Inject lateinit var uiPreferencesStore: UiPreferencesStore
     private val browseViewModel: BrowseViewModel by viewModels()
     private val earnViewModel: EarnViewModel by viewModels()
     private val contributorClaimViewModel: ContributorClaimViewModel by viewModels()
@@ -55,24 +103,27 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         walletInteractionHost = AndroidWalletInteractionHost(this)
         enableEdgeToEdge()
+        if (intent?.action == NowPush.OPEN_INBOX) inboxIntentRevision++
 
         val showIntroOnLaunch = savedInstanceState == null
-        val initialDarkTheme = NowThemePreferenceStore.readDarkTheme(this)
+
 
         setContent {
             var showBrandIntro by rememberSaveable {
                 mutableStateOf(showIntroOnLaunch)
             }
-            var darkTheme by rememberSaveable {
-                mutableStateOf(initialDarkTheme)
-            }
+            val preferences by uiPreferencesStore.state.collectAsStateWithLifecycle(uiPreferencesStore.initial)
+            val scope = rememberCoroutineScope()
+            val darkTheme = when (preferences.theme) { ThemeMode.SYSTEM -> isSystemInDarkTheme(); ThemeMode.DARK -> true; ThemeMode.LIGHT -> false }
+            LaunchedEffect(Unit) { uiPreferencesStore.migrate() }
 
             ApplyNowSystemBars(
                 activity = this@MainActivity,
                 darkTheme = darkTheme,
             )
 
-            NowTheme(darkTheme = darkTheme) {
+            androidx.compose.runtime.CompositionLocalProvider(LocalDistanceUnit provides preferences.distanceUnit) {
+            NowTheme(darkTheme = darkTheme, reduceMotion = preferences.reduceMotion) {
                 LaunchedEffect(Unit) {
                     if (runtimeConfig.apiConfigured && runtimeConfig.authConfigured) {
                         withContext(Dispatchers.IO) {
@@ -85,14 +136,11 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     NowApp(
+                        inboxIntentRevision = inboxIntentRevision,
                         darkTheme = darkTheme,
-                        onDarkThemeChange = { enabled ->
-                            darkTheme = enabled
-                            NowThemePreferenceStore.writeDarkTheme(
-                                context = this@MainActivity,
-                                enabled = enabled,
-                            )
-                        },
+                        onDarkThemeChange = { enabled -> scope.launch { uiPreferencesStore.theme(if (enabled) ThemeMode.DARK else ThemeMode.LIGHT) } },
+                        experienceViewModelProvider = { experienceViewModel },
+                        uiPreferencesStore = uiPreferencesStore,
                         browseViewModelProvider = { browseViewModel },
                         earnViewModelProvider = { earnViewModel },
                         contributorClaimViewModelProvider = { contributorClaimViewModel },
@@ -105,7 +153,18 @@ class MainActivity : ComponentActivity() {
                         walletInteractionHost = walletInteractionHost,
                     )
 
-                    if (showBrandIntro) {
+                    if (appLocked) {
+                        BackHandler { /* Keep private content covered until unlocked. */ }
+                        Box(Modifier.fillMaxSize().background(NowColors.SurfaceCanvas).clickable(enabled = true, onClick = {}), contentAlignment = Alignment.Center) {
+                            Column(Modifier.padding(32.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                                Text("NOW is locked", style = NowType.TitleXL, color = NowColors.Ink950)
+                                Text("Unlock with your Android device credential.", style = NowType.BodyM, color = NowColors.Ink600)
+                                NowPrimaryButton("Unlock NOW", ::requestUnlock, Modifier.fillMaxWidth(), enabled = !unlocking)
+                            }
+                        }
+                    }
+
+                    if (showBrandIntro && !appLocked) {
                         BrandIntroScreen(
                             onFinished = {
                                 showBrandIntro = false
@@ -114,11 +173,18 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+            }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        if (intent.action == NowPush.OPEN_INBOX) inboxIntentRevision++
     }
 
     override fun onResume() {
         super.onResume()
         browseViewModel.onForeground()
+        if (runtimeConfig.apiConfigured && runtimeConfig.authConfigured) experienceViewModel.refresh()
     }
 }

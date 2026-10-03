@@ -15,7 +15,13 @@ export type StateHistoryCursor = {
   historyId: string;
 };
 
+export type MapLocation = {
+  locationId: string; name: string; locationType: string; displayAddress: string | null;
+  center: { latitude: number; longitude: number } | null;
+};
+
 export type NearbyStateRecord = {
+  location?: MapLocation | null;
   stateId: string;
   title: string;
   question: string;
@@ -33,6 +39,7 @@ export type NearbyStateRecord = {
 };
 
 export type StateLocationRecord = {
+  center?: { latitude: number; longitude: number } | null;
   locationId: string;
   name: string;
   locationType: string;

@@ -85,6 +85,7 @@ function payload(record: OpportunityRecord): Record<string, unknown> {
       name: record.locationName,
       location_type: record.locationType,
       display_address: record.displayAddress,
+      center: record.center ?? null,
     },
     reward: {
       mint: record.rewardMint,

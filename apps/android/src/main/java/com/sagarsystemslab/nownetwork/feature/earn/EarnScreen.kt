@@ -28,6 +28,8 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import com.sagarsystemslab.nownetwork.feature.common.*
+import com.sagarsystemslab.nownetwork.model.GeoCenter
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -60,6 +62,13 @@ fun EarnScreen(
     serverNowMillis: () -> Long,
     onRefresh: () -> Unit,
     onOpportunityClick: (String) -> Unit,
+    onBrowseAreas: () -> Unit = onRefresh,
+    onNotifications: () -> Unit = onRefresh,
+    onProfile: () -> Unit = onRefresh,
+    onHelp: () -> Unit = onRefresh,
+    center: GeoCenter? = null,
+    unread: Int = 0,
+    onSearchArea: ((GeoCenter) -> Unit)? = null,
 ) {
     val nowMillis = rememberVisibleServerTime(serverNowMillis)
     val listMotionDuration = nowMotionDuration(
@@ -84,15 +93,11 @@ fun EarnScreen(
         verticalArrangement = Arrangement.spacedBy(NowSpacing.Space4),
     ) {
         item {
-            EarnHeader(
-                areaLabel = uiState.areaLabel,
-                availableCount = liveCount,
-                refreshing = uiState.refreshing,
-                refreshEnabled = uiState.notice != EarnNotice.AREA_REQUIRED &&
-                    uiState.notice != EarnNotice.AUTH_REQUIRED,
-                onRefresh = onRefresh,
-            )
+            ExperienceHeader("EARN", "Nearby refresh opportunities", uiState.areaLabel, onBrowseAreas, onNotifications, onProfile, unread)
         }
+        item { LiveMapCard(center, visibleOpportunities.mapNotNull { o -> o.center?.let { LiveMapPin(o.refreshId, o.title, it, if (o.claimable && !o.cachedOnly) "CLAIMABLE" else "UNKNOWN") } }, onOpportunityClick, onSearchArea = onSearchArea) }
+        item { SyncStrip(uiState.refreshing, visibleOpportunities.size, uiState.notice != EarnNotice.NONE, onRefresh) }
+        if (visibleOpportunities.isNotEmpty()) item { MetricStrip(listOf(liveCount.toString() to "Available here", visibleOpportunities.size.toString() to "Results shown")) }
 
         if (uiState.notice != EarnNotice.NONE) {
             item {
@@ -149,12 +154,10 @@ fun EarnScreen(
             }
         } else if (visibleOpportunities.isEmpty()) {
             item {
-                EmptyEarnState(
-                    canRetry = uiState.notice == EarnNotice.NONE ||
-                        uiState.notice == EarnNotice.NETWORK_UNAVAILABLE ||
-                        uiState.notice == EarnNotice.SERVER_UNAVAILABLE ||
-                        uiState.notice == EarnNotice.DATA_UNAVAILABLE,
-                    onRetry = onRefresh,
+                EmptyProofCard(
+                    "Nothing nearby needs fresh proof",
+                    "New earning opportunities appear when nearby states become stale or need another verified observation.",
+                    onBrowseAreas, onHelp,
                 )
             }
         } else {
@@ -606,6 +609,7 @@ private fun EmptyEarnState(
     }
 }
 
+@Composable
 private fun locationSummary(opportunity: OpportunitySummary): String {
     val place = opportunity.locationName
         ?.takeIf(String::isNotBlank)
@@ -613,7 +617,7 @@ private fun locationSummary(opportunity: OpportunitySummary): String {
             ?.takeIf(String::isNotBlank)
         ?: "Location available in task"
 
-    return place + " · " + formatOpportunityDistance(opportunity.distanceMeters)
+    return place + " · " + com.sagarsystemslab.nownetwork.experience.displayDistance(opportunity.distanceMeters)
 }
 
 private fun humanizeRequirement(value: String): String =

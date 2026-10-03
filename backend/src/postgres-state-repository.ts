@@ -11,6 +11,7 @@ import type {
 type DateLike = Date | string;
 
 type NearbyRow = {
+  map_location: NearbyStateRecord["location"];
   state_id: string;
   title: string;
   question: string;
@@ -49,6 +50,8 @@ type DetailRow = {
   location_name: string;
   location_type: string;
   display_address: string | null;
+  latitude: number;
+  longitude: number;
   center_ewkb: Uint8Array;
   boundary_ewkb: Uint8Array | null;
   verification_status: StateVerificationSummary["status"] | null;
@@ -84,6 +87,7 @@ function dateOrNull(value: DateLike | null): Date | null {
 function nearbyFromRow(row: NearbyRow): NearbyStateRecord {
   return {
     stateId: row.state_id,
+    location: row.map_location,
     title: row.title,
     question: row.question,
     stateType: row.state_type,
@@ -140,6 +144,7 @@ function detailFromRow(row: DetailRow): StateDetailRecord {
     conflictActive: row.conflict_active ?? false,
     revision: Number(row.revision),
     location: {
+      center: { latitude: Number(row.latitude), longitude: Number(row.longitude) },
       locationId: row.location_id,
       name: row.location_name,
       locationType: row.location_type,
@@ -182,21 +187,12 @@ export class PostgresStateRepository implements StateRepository {
     input: Parameters<StateRepository["listNearby"]>[0],
   ): Promise<NearbyStateRecord[]> {
     const rows = await this.sql`
-      select
-        state_id,
-        title,
-        question,
-        state_type,
-        unit_code,
-        current_value,
-        observed_at,
-        aging_at,
-        fresh_until,
-        verification_class,
-        refresh_status,
-        conflict_active,
-        distance_m,
-        revision
+      select q.*, jsonb_build_object(
+        'locationId', l.location_id, 'name', l.name, 'locationType', l.location_type,
+        'displayAddress', l.display_address,
+        'center', jsonb_build_object('latitude', extensions.st_y(l.center::extensions.geometry),
+                                   'longitude', extensions.st_x(l.center::extensions.geometry))
+      ) as map_location
       from app.query_nearby_states_v1(
         ${input.lat},
         ${input.lng},
@@ -204,7 +200,10 @@ export class PostgresStateRepository implements StateRepository {
         ${input.limit},
         ${input.cursor?.distanceM ?? null},
         ${input.cursor?.stateId ?? null}::uuid
-      )
+      ) q
+      join app.state_definitions sd on sd.state_id = q.state_id and sd.status = 'ACTIVE'
+      join app.locations l on l.location_id = sd.location_id
+      order by q.distance_m, q.state_id
     `;
     return rows.map((row) => nearbyFromRow(row as NearbyRow));
   }
@@ -233,10 +232,12 @@ export class PostgresStateRepository implements StateRepository {
         l.name as location_name,
         l.location_type,
         l.display_address,
-        extensions.st_asewkb(l.center::geometry) as center_ewkb,
+        extensions.st_y(l.center::extensions.geometry) as latitude,
+        extensions.st_x(l.center::extensions.geometry) as longitude,
+        extensions.st_asewkb(l.center::extensions.geometry) as center_ewkb,
         case
           when l.boundary is null then null
-          else extensions.st_asewkb(l.boundary::geometry)
+          else extensions.st_asewkb(l.boundary::extensions.geometry)
         end as boundary_ewkb,
         vr.status as verification_status,
         vr.reason_codes as verification_reason_codes,

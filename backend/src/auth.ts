@@ -2,6 +2,7 @@ import { ApiFault } from "./errors.ts";
 
 export type AuthPrincipal = {
   authUserId: string;
+  sessionId?: string | null;
   principalType: "SUPABASE_ANONYMOUS" | "SUPABASE_AUTH";
 };
 
@@ -53,7 +54,15 @@ export class SupabaseAuthVerifier implements AuthVerifier {
       throw new ApiFault(401, "AUTH_INVALID", "The session is invalid or expired.");
     }
 
+    // The exact token has just been authenticated by GoTrue. Only now may its session claim bind a device.
+    let sessionId: string | null = null;
+    try {
+      const part = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+      const claims = JSON.parse(atob(part));
+      if (claims.sub === id && typeof claims.session_id === "string" && UUID_PATTERN.test(claims.session_id)) sessionId = claims.session_id;
+    } catch { /* Registration stays unavailable for tokens without a verified session claim. */ }
     return {
+      sessionId,
       authUserId: id,
       principalType: user.is_anonymous === true ? "SUPABASE_ANONYMOUS" : "SUPABASE_AUTH",
     };

@@ -27,6 +27,20 @@ class EvidenceCameraController internal constructor(
     private val imageCapture: ImageCapture,
     private val executor: java.util.concurrent.Executor,
 ) {
+    internal var camera: androidx.camera.core.Camera? = null
+    val hasFlash: Boolean get() = camera?.cameraInfo?.hasFlashUnit() == true
+    val zoomRatios: List<Float> get() {
+        val state = camera?.cameraInfo?.zoomState?.value ?: return emptyList()
+        return listOf(.5f, 1f, 2f).filter { it >= state.minZoomRatio && it <= state.maxZoomRatio }
+    }
+    fun zoom(ratio: Float, onError: () -> Unit) {
+        val future = camera?.cameraControl?.setZoomRatio(ratio) ?: return
+        future.addListener({ runCatching { future.get() }.onFailure { onError() } }, executor)
+    }
+    fun torch(enabled: Boolean, onError: () -> Unit) {
+        val future = camera?.cameraControl?.enableTorch(enabled) ?: return
+        future.addListener({ runCatching { future.get() }.onFailure { onError() } }, executor)
+    }
     fun capture(
         file: File,
         onSuccess: (CapturedPhoto) -> Unit,
@@ -87,16 +101,18 @@ fun EvidenceCameraPreview(
     DisposableEffect(lifecycleOwner, previewView, imageCapture) {
         val providerFuture = ProcessCameraProvider.getInstance(context)
         var provider: ProcessCameraProvider? = null
+        var disposed = false
 
         providerFuture.addListener(
             {
                 try {
+                    if (disposed) return@addListener
                     provider = providerFuture.get()
                     val preview = Preview.Builder().build().also {
                         it.setSurfaceProvider(previewView.surfaceProvider)
                     }
                     provider?.unbindAll()
-                    provider?.bindToLifecycle(
+                    controller.camera = provider?.bindToLifecycle(
                         lifecycleOwner,
                         CameraSelector.DEFAULT_BACK_CAMERA,
                         preview,
@@ -111,6 +127,8 @@ fun EvidenceCameraPreview(
         )
 
         onDispose {
+            disposed = true
+            controller.camera = null
             provider?.unbindAll()
         }
     }

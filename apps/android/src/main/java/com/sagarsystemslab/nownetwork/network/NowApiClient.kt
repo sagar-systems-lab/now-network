@@ -71,6 +71,7 @@ interface NowApiClient {
         request: ClaimObserveRequest,
         accessToken: String,
     ): ClaimStatusDto
+    suspend fun payoutWalletBindingId(accessToken: String): String? = null
     suspend fun me(accessToken: String): MeDto
 
     suspend fun walletBindingChallenge(

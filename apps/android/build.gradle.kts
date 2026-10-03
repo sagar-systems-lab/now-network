@@ -27,6 +27,9 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"
+        listOf("FIREBASE_APP_ID", "FIREBASE_PROJECT_ID", "FIREBASE_API_KEY", "FIREBASE_SENDER_ID").forEach { name ->
+            buildConfigField("String", name, buildConfigString(publicConfig("NOW_$name")))
+        }
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         buildConfigField(
@@ -171,7 +174,10 @@ configurations.configureEach {
 }
 
 dependencies {
+    implementation("com.google.firebase:firebase-messaging:25.1.3")
     implementation(project(":core:designsystem"))
+    implementation("org.maplibre.gl:android-sdk:13.6.1")
+    implementation("androidx.datastore:datastore-preferences:1.2.1")
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

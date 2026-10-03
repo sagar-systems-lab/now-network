@@ -3,6 +3,13 @@ package com.sagarsystemslab.nownetwork.designsystem
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -51,26 +58,33 @@ fun NowPrimaryButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
 ) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed && enabled) .975f else 1f,
+        animationSpec = tween(nowMotionDuration(rememberNowMotionEnabled(), if (pressed) 90 else 120)),
+        label = "primary-press",
+    )
     Button(
         onClick = onClick,
-        modifier = modifier.heightIn(min = 50.dp),
+        modifier = modifier.heightIn(min = 52.dp)
+            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .background(
+                brush = if (enabled) nowActionBrush() else androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(NowColors.Ink200, NowColors.Ink200)),
+                shape = NowShapes.large,
+            ).border(1.dp, if (enabled) Color(0xFF69BDFF).copy(alpha = .7f) else NowColors.BorderSubtle, NowShapes.large),
         enabled = enabled,
-        shape = NowShapes.medium,
+        interactionSource = interaction,
+        shape = NowShapes.large,
         colors = ButtonDefaults.buttonColors(
-            containerColor = NowColors.Blue600,
-            contentColor = androidx.compose.material3.MaterialTheme.colorScheme.onPrimary,
-            disabledContainerColor = NowColors.Ink200,
+            containerColor = Color.Transparent,
+            contentColor = Color(0xFFF5F8FF),
+            disabledContainerColor = Color.Transparent,
             disabledContentColor = NowColors.Ink500,
         ),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(
-            horizontal = NowSpacing.Space4,
-            vertical = NowSpacing.Space3,
-        ),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 14.dp),
     ) {
-        Text(
-            text = text,
-            style = NowType.LabelL,
-        )
+        Text(text = text, style = NowType.LabelL)
     }
 }
 

@@ -84,7 +84,7 @@ fun StateCard(
                 Spacer(Modifier.weight(1f))
                 state.distanceMeters?.let { distance ->
                     Text(
-                        text = formatDistance(distance),
+                        text = com.sagarsystemslab.nownetwork.experience.displayDistance(distance),
                         style = NowType.LabelM,
                         color = NowColors.Ink500,
                     )

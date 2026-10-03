@@ -39,6 +39,7 @@ data class StateSummaryDto(
     @SerialName("distance_m")
     val distanceM: Double,
     val revision: Long,
+    val location: StateLocationDto? = null,
 )
 
 @Serializable
@@ -87,6 +88,7 @@ data class StateLocationDto(
     val locationType: String,
     @SerialName("display_address")
     val displayAddress: String? = null,
+    val center: com.sagarsystemslab.nownetwork.model.GeoCenter? = null,
 )
 
 @Serializable
@@ -179,6 +181,7 @@ data class OpportunityLocationDto(
     val locationType: String,
     @SerialName("display_address")
     val displayAddress: String? = null,
+    val center: com.sagarsystemslab.nownetwork.model.GeoCenter? = null,
 )
 
 @Serializable

@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -52,11 +53,15 @@ data class StateDetailUiState(
 @HiltViewModel
 class BrowseViewModel @Inject constructor(
     private val repository: Lazy<StateRepository>,
-    private val browseArea: BrowseAreaConfig,
+    private val initialBrowseArea: BrowseAreaConfig,
+    private val browseContext: com.sagarsystemslab.nownetwork.experience.BrowseContextStore,
     private val runtimeConfig: PublicRuntimeConfig,
     private val serverClock: ServerClock,
     private val realtimeGateway: Lazy<NowRealtimeGateway>,
 ) : ViewModel() {
+    private val browseArea: BrowseAreaConfig get() = browseContext.state.value
+    private var areaVersion = 0
+    private var refreshJob: kotlinx.coroutines.Job? = null
     private val mutableHomeState = MutableStateFlow(
         HomeUiState(
             areaLabel = browseArea.label.ifBlank { "Browse area" },
@@ -77,6 +82,17 @@ class BrowseViewModel @Inject constructor(
     private var foregroundCount = 0
 
     init {
+        viewModelScope.launch {
+            browseContext.state.collectLatest { area ->
+                areaVersion++
+                refreshJob?.cancel()
+                activeSnapshotIds = browseContext.snapshot("states", area = area)
+                val cached = withContext(Dispatchers.IO) { repository.get().observeCachedStates().first() }.filter { it.stateId in activeSnapshotIds.orEmpty() }
+                mutableHomeState.update { it.copy(areaLabel = area.label.ifBlank { "Browse area" }, states = cached) }
+                refreshHome()
+            }
+        }
+
         viewModelScope.launch {
             val stateRepository = withContext(Dispatchers.IO) { repository.get() }
             stateRepository.observeCachedStates()
@@ -158,20 +174,25 @@ class BrowseViewModel @Inject constructor(
             return
         }
 
-        viewModelScope.launch {
+        refreshJob?.cancel()
+        val requestedArea = browseArea
+        val requestedVersion = areaVersion
+        refreshJob = viewModelScope.launch {
             mutableHomeState.update { it.copy(refreshing = true, notice = BrowseNotice.NONE) }
 
             try {
                 val page = withContext(Dispatchers.IO) {
                     repository.get().refreshNearby(
                         NearbyStateQuery(
-                            latitude = requireNotNull(browseArea.latitude),
-                            longitude = requireNotNull(browseArea.longitude),
-                            radiusMeters = browseArea.radiusMeters,
+                            latitude = requireNotNull(requestedArea.latitude),
+                            longitude = requireNotNull(requestedArea.longitude),
+                            radiusMeters = requestedArea.radiusMeters,
                         ),
                     )
                 }
+                if (requestedVersion != areaVersion) return@launch
                 activeSnapshotIds = page.items.mapTo(linkedSetOf()) { it.stateId }
+                browseContext.saveSnapshot("states", activeSnapshotIds.orEmpty(), area = requestedArea)
                 mutableHomeState.update {
                     it.copy(
                         states = page.items.sortedWith(stateOrder),
@@ -215,6 +236,7 @@ class BrowseViewModel @Inject constructor(
                 val detail = withContext(Dispatchers.IO) {
                     repository.get().getState(stateId)
                 }
+                if (mutableDetailState.value.stateId != stateId) return@launch
                 mutableDetailState.update {
                     it.copy(
                         detail = detail,

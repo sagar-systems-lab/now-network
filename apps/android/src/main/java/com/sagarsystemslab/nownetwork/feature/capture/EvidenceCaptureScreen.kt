@@ -459,6 +459,9 @@ private fun CameraCaptureSurface(
     locationReady: Boolean,
     onRefreshLocation: () -> Unit,
 ) {
+    var zoom by remember { mutableStateOf(1f) }
+    var torch by remember { mutableStateOf(false) }
+    var controlError by remember { mutableStateOf<String?>(null) }
     Column(
         verticalArrangement = Arrangement.spacedBy(NowSpacing.Space3),
     ) {
@@ -478,6 +481,14 @@ private fun CameraCaptureSurface(
             )
         }
 
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            controller?.zoomRatios?.forEach { ratio ->
+                androidx.compose.material3.FilterChip(zoom == ratio, { zoom = ratio; controller.zoom(ratio) { controlError = "Zoom is unavailable for this camera." } }, label = { Text("${ratio}×") })
+            }
+            Spacer(Modifier.weight(1f))
+            if (controller?.hasFlash == true) androidx.compose.material3.FilterChip(torch, { torch = !torch; controller.torch(torch) { torch = false; controlError = "Flash is unavailable." } }, label = { Text(if(torch) "Flash on" else "Flash off") })
+        }
+        controlError?.let { Text(it, style = NowType.BodyS, color = NowColors.AgingText) }
         if (locationRequired) {
             NowNotice(
                 body = if (locationReady) {

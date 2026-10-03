@@ -116,6 +116,7 @@ private fun OpportunityDto.toDomain(): OpportunitySummary =
         remainingSlots = availability.remainingSlots,
         revision = revision,
         cachedOnly = false,
+        center = location.center,
     )
 
 private fun CachedOpportunityEntity.toDomain(

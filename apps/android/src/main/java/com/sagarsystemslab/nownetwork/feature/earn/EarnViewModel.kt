@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -46,12 +47,16 @@ data class EarnUiState(
 @HiltViewModel
 class EarnViewModel @Inject constructor(
     private val repository: Lazy<OpportunityRepository>,
-    private val browseArea: BrowseAreaConfig,
+    private val initialBrowseArea: BrowseAreaConfig,
+    private val browseContext: com.sagarsystemslab.nownetwork.experience.BrowseContextStore,
     private val runtimeConfig: PublicRuntimeConfig,
     private val rewardConfig: RewardDisplayConfig,
     private val serverClock: ServerClock,
     private val sessionRepository: Lazy<SessionRepository>,
 ) : ViewModel() {
+    private val browseArea: BrowseAreaConfig get() = browseContext.state.value
+    private var areaVersion = 0
+    private var refreshJob: kotlinx.coroutines.Job? = null
     private val mutableState = MutableStateFlow(
         EarnUiState(
             areaLabel = browseArea.label.ifBlank { "Browse area" },
@@ -61,10 +66,22 @@ class EarnViewModel @Inject constructor(
     val state: StateFlow<EarnUiState> = mutableState.asStateFlow()
 
     private var activeSnapshotIds: Set<String>? = null
+    private var actorId: String? = null
     private var sessionReady = false
     private var initialRefreshStarted = false
 
     init {
+        viewModelScope.launch {
+            browseContext.state.collectLatest { area ->
+                areaVersion++
+                refreshJob?.cancel()
+                activeSnapshotIds = actorId?.let { browseContext.snapshot("opportunities", it, area) }.orEmpty()
+                val cached = withContext(Dispatchers.IO) { repository.get().observeCached().first() }.filter { it.refreshId in activeSnapshotIds.orEmpty() }
+                mutableState.update { it.copy(areaLabel = area.label.ifBlank { "Browse area" }, opportunities = rank(cached)) }
+                refresh()
+            }
+        }
+
         viewModelScope.launch {
             val opportunityRepository = withContext(Dispatchers.IO) { repository.get() }
             opportunityRepository.observeCached()
@@ -85,7 +102,6 @@ class EarnViewModel @Inject constructor(
         }
 
         if (
-            browseArea.configured &&
             runtimeConfig.apiConfigured &&
             runtimeConfig.authConfigured
         ) {
@@ -96,6 +112,13 @@ class EarnViewModel @Inject constructor(
                 sessions.state.collectLatest { sessionState ->
                     when (sessionState) {
                         is SessionBootstrapState.Ready -> {
+                            if (actorId != sessionState.actorId) {
+                                refreshJob?.cancel(); areaVersion++; initialRefreshStarted = false
+                                actorId = sessionState.actorId
+                                activeSnapshotIds = browseContext.snapshot("opportunities", actorId)
+                                val cached = withContext(Dispatchers.IO) { repository.get().observeCached().first() }.filter { it.refreshId in activeSnapshotIds.orEmpty() }
+                                mutableState.update { it.copy(opportunities = rank(cached)) }
+                            }
                             sessionReady = true
                             mutableState.update { it.copy(notice = EarnNotice.NONE) }
                             if (!initialRefreshStarted) {
@@ -122,8 +145,9 @@ class EarnViewModel @Inject constructor(
 
                         SessionBootstrapState.Bootstrapping,
                         SessionBootstrapState.Idle -> {
-                            sessionReady = false
-                            mutableState.update { it.copy(notice = EarnNotice.AUTH_REQUIRED) }
+                            sessionReady = false; initialRefreshStarted = false; actorId = null
+                            refreshJob?.cancel(); areaVersion++; activeSnapshotIds = emptySet()
+                            mutableState.update { it.copy(notice = EarnNotice.AUTH_REQUIRED, opportunities = emptyList(), refreshing = false) }
                         }
                     }
                 }
@@ -148,20 +172,25 @@ class EarnViewModel @Inject constructor(
             return
         }
 
-        viewModelScope.launch {
+        refreshJob?.cancel()
+        val requestedArea = browseArea
+        val requestedVersion = areaVersion
+        refreshJob = viewModelScope.launch {
             mutableState.update { it.copy(refreshing = true, notice = EarnNotice.NONE) }
 
             try {
                 val page = withContext(Dispatchers.IO) {
                     repository.get().refreshNearby(
                         NearbyOpportunityQuery(
-                            latitude = requireNotNull(browseArea.latitude),
-                            longitude = requireNotNull(browseArea.longitude),
-                            radiusMeters = browseArea.radiusMeters,
+                            latitude = requireNotNull(requestedArea.latitude),
+                            longitude = requireNotNull(requestedArea.longitude),
+                            radiusMeters = requestedArea.radiusMeters,
                         ),
                     )
                 }
+                if (requestedVersion != areaVersion) return@launch
                 activeSnapshotIds = page.items.mapTo(linkedSetOf()) { it.refreshId }
+                browseContext.saveSnapshot("opportunities", activeSnapshotIds.orEmpty(), actorId, requestedArea)
                 mutableState.update {
                     it.copy(
                         opportunities = rank(page.items),

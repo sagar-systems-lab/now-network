@@ -3,6 +3,11 @@ package com.sagarsystemslab.nownetwork.model
 import kotlinx.serialization.Serializable
 
 @Serializable
+data class GeoCenter(val latitude: Double, val longitude: Double) {
+    val valid: Boolean get() = latitude.isFinite() && longitude.isFinite() && latitude in -90.0..90.0 && longitude in -180.0..180.0
+}
+
+@Serializable
 data class StateSummary(
     val stateId: String,
     val title: String,
@@ -19,6 +24,7 @@ data class StateSummary(
     val conflictActive: Boolean,
     val distanceMeters: Double?,
     val revision: Long,
+    val location: StateLocation? = null,
 )
 
 data class StateDetail(
@@ -44,11 +50,13 @@ data class StateDetail(
     val activeRefresh: ActiveRefresh?,
 )
 
+@Serializable
 data class StateLocation(
     val locationId: String,
     val name: String,
     val locationType: String,
     val displayAddress: String?,
+    val center: GeoCenter? = null,
 )
 
 data class StateVerification(

@@ -48,6 +48,9 @@ class KtorNowApiClient @Inject constructor(
             query.cursor?.let { parameter("cursor", it) }
         }
 
+    override suspend fun payoutWalletBindingId(accessToken: String): String? =
+        (experienceGet("/v1/me/preferences", accessToken)["payout_wallet_binding_id"] as? kotlinx.serialization.json.JsonPrimitive)?.let { if (it is kotlinx.serialization.json.JsonNull) null else it.content }
+
     override suspend fun stateDetail(stateId: String): StateDetailDto =
         get(
             path = "/v1/states/$stateId",
@@ -289,6 +292,12 @@ class KtorNowApiClient @Inject constructor(
         )
 
 
+
+    suspend fun experienceGet(path: String, token: String? = null, parameters: Map<String, String> = emptyMap()): kotlinx.serialization.json.JsonObject =
+        get(path, token, kotlinx.serialization.json.JsonObject.serializer()) { parameters.forEach { (key, value) -> parameter(key, value) } }
+
+    suspend fun experiencePost(path: String, payload: kotlinx.serialization.json.JsonObject, token: String): kotlinx.serialization.json.JsonObject =
+        post(path, token, payload, kotlinx.serialization.json.JsonObject.serializer())
 
     private suspend fun <T> post(
         path: String,

@@ -129,6 +129,7 @@ private fun StateSummaryDto.toDomain(): StateSummary =
         conflictActive = conflictActive,
         distanceMeters = distanceM,
         revision = revision,
+        location = location?.let { StateLocation(it.locationId, it.name, it.locationType, it.displayAddress, it.center) },
     )
 
 private fun StateDetailDto.toDomain(): StateDetail =
@@ -155,6 +156,7 @@ private fun StateDetailDto.toDomain(): StateDetail =
             name = location.name,
             locationType = location.locationType,
             displayAddress = location.displayAddress,
+            center = location.center,
         ),
         verification = verification?.let {
             StateVerification(
@@ -191,6 +193,7 @@ private fun StateDetail.toSummary(distanceMeters: Double?): StateSummary =
         conflictActive = conflictActive,
         distanceMeters = distanceMeters,
         revision = revision,
+        location = location,
     )
 
 private fun String?.toEpochMillisOrNull(field: String): Long? =

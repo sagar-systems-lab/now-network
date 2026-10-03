@@ -111,6 +111,10 @@ class DefaultContributorClaimRepository @Inject constructor(
     ): PreparedContributorClaim {
         val account = wallet.connect(host).requireWalletValue()
         val binding = ensureBinding(host, account)
+        val preferred = withAuthRetry { api.payoutWalletBindingId(it) }
+        if (preferred != null && preferred != binding.walletBindingId) {
+            throw ContributorClaimFailure.Protocol("Choose your default payout wallet in the wallet app, or update Payout preferences before claiming. Existing claims keep their original wallet.")
+        }
         val idempotencyKey = claimPrepareKey(binding.walletBindingId)
         val now = serverClock.nowMillis()
         val provisional = ActiveOperationEntity(

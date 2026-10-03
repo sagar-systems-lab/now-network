@@ -57,6 +57,9 @@ fun StateDetailScreen(
     onBack: () -> Unit,
     onRetry: () -> Unit,
     onRefreshRequest: (String) -> Unit,
+    history: @Composable (StateDetail) -> Unit = {},
+    onViewProof: (() -> Unit)? = null,
+    onActivity: (() -> Unit)? = null,
 ) {
     val nowMillis = rememberVisibleServerTime(serverNowMillis)
 
@@ -111,9 +114,13 @@ fun StateDetailScreen(
                     )
                 }
 
-                item {
-                    VerificationCard(detail)
-                }
+                item { com.sagarsystemslab.nownetwork.feature.common.LocationAction(detail) }
+                item { VerificationCard(detail) }
+                onViewProof?.let { open -> item { com.sagarsystemslab.nownetwork.designsystem.NowGlassCard {
+                    com.sagarsystemslab.nownetwork.feature.common.ExperienceRow("View authorized proof", "Evidence stays private to authorized participants", androidx.compose.material.icons.Icons.Outlined.Verified, open)
+                } } }
+                item { history(detail) }
+                onActivity?.let { action -> item { NowSecondaryButton("View my activity", action, Modifier.fillMaxWidth()) } }
 
                 detail.activeRefresh?.let { refresh ->
                     item {
@@ -273,7 +280,7 @@ private fun StateHero(
             }
 
             HorizontalDivider(color = NowColors.BorderSubtle)
-
+            com.sagarsystemslab.nownetwork.feature.common.CategoryArtwork(detail.title, Modifier.size(76.dp))
             Text(
                 text = displayValue,
                 style = NowType.DataHero,

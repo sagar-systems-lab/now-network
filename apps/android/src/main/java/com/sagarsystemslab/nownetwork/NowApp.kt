@@ -50,6 +50,7 @@ import com.sagarsystemslab.nownetwork.wallet.WalletInteractionHost
 
 @Composable
 fun NowApp(
+    inboxIntentRevision: Int = 0,
     darkTheme: Boolean,
     onDarkThemeChange: (Boolean) -> Unit,
     browseViewModelProvider: () -> BrowseViewModel,
@@ -62,6 +63,8 @@ fun NowApp(
     activityViewModelProvider: () -> ActivityViewModel,
     requesterFundingViewModelProvider: () -> RequesterFundingViewModel,
     walletInteractionHost: WalletInteractionHost,
+    experienceViewModelProvider: (() -> com.sagarsystemslab.nownetwork.experience.ExperienceViewModel)? = null,
+    uiPreferencesStore: com.sagarsystemslab.nownetwork.experience.UiPreferencesStore? = null,
 ) {
     val appState = rememberNowAppState()
     val currentDestination = appState.currentDestination
@@ -85,6 +88,7 @@ fun NowApp(
         },
     ) { innerPadding ->
         NowNavHost(
+                inboxIntentRevision = inboxIntentRevision,
             appState = appState,
             darkTheme = darkTheme,
             onDarkThemeChange = onDarkThemeChange,
@@ -98,6 +102,8 @@ fun NowApp(
             activityViewModelProvider = activityViewModelProvider,
             requesterFundingViewModelProvider = requesterFundingViewModelProvider,
             walletInteractionHost = walletInteractionHost,
+            experienceViewModelProvider = experienceViewModelProvider,
+            uiPreferencesStore = uiPreferencesStore,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),

@@ -19,6 +19,7 @@ data class OpportunitySummary(
     val remainingSlots: Int?,
     val revision: Long,
     val cachedOnly: Boolean,
+    val center: GeoCenter? = null,
 )
 
 data class OpportunityPage(
