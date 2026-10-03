@@ -47,6 +47,7 @@ class ExperienceViewModel @Inject constructor(
     private var refreshJob: Job? = null
     private var mutationJob: Job? = null
     private var identityMutation = false
+    internal var allowMutations: Boolean = true
     private var lastAreaQuery = ""
     private var lastAreaFilter = "all"
     private val accountMutex = kotlinx.coroutines.sync.Mutex()
@@ -70,6 +71,7 @@ class ExperienceViewModel @Inject constructor(
     }
 
     fun refresh() {
+        if (!allowMutations) return
         refreshJob?.cancel()
         refreshJob = viewModelScope.launch {
             mutable.update { it.copy(loading = true, error = null) }
@@ -105,6 +107,7 @@ class ExperienceViewModel @Inject constructor(
         }
     }
     fun selectArea(area: JsonObject) {
+        if (!allowMutations) return
         val center = area.objectAt("center")
         browseContext.select(area.text("name"), center.text("latitude").toDouble(), center.text("longitude").toDouble(), area.number("radius_m"))
     }
@@ -214,7 +217,7 @@ class ExperienceViewModel @Inject constructor(
     fun dismissMessage() { mutable.update { it.copy(error = null, notice = null) } }
 
     private fun mutation(message: String?, changesIdentity: Boolean = false, block: suspend () -> Unit) {
-        if (mutable.value.saving) return
+        if (!allowMutations || mutable.value.saving) return
         refreshJob?.cancel()
         identityMutation = changesIdentity
         mutable.update { it.copy(saving = true, error = null, notice = null) }

@@ -79,7 +79,8 @@ jobs:
           set -Eeuo pipefail
 
           export ANDROID_SERIAL=emulator-5554
-          AVD_NAME=now-ci
+          # ATD images disable rendering and produce blank screenshot evidence.
+          AVD_NAME=now-rendered-api35
           EMULATOR_LOG="$RUNNER_TEMP/now-emulator.log"
 
           cleanup() {
@@ -97,14 +98,14 @@ jobs:
           SDK_ROOT="${ANDROID_SDK_ROOT:-$HOME/.android/sdk}"
           EMULATOR_BIN="$SDK_ROOT/emulator/emulator"
           ADB_BIN="$SDK_ROOT/platform-tools/adb"
-          SYSTEM_IMAGE_DIR="$SDK_ROOT/system-images/android-35/aosp_atd/x86_64"
+          SYSTEM_IMAGE_DIR="$SDK_ROOT/system-images/android-35/google_apis/x86_64"
 
           if [ ! -x "$EMULATOR_BIN" ] || [ ! -x "$ADB_BIN" ] || [ ! -d "$SYSTEM_IMAGE_DIR" ]; then
             yes | sdkmanager --licenses >/dev/null || true
             sdkmanager \
               "platform-tools" \
               "emulator" \
-              "system-images;android-35;aosp_atd;x86_64"
+              "system-images;android-35;google_apis;x86_64"
           fi
 
           test -x "$EMULATOR_BIN"
@@ -113,7 +114,7 @@ jobs:
 
           AVD_CONFIG="$HOME/.android/avd/$AVD_NAME.avd/config.ini"
           if [ ! -f "$AVD_CONFIG" ]; then
-            echo "no" | avdmanager create avd               --force               --name "$AVD_NAME"               --package "system-images;android-35;aosp_atd;x86_64"
+            echo "no" | avdmanager create avd --force --name "$AVD_NAME" --package "system-images;android-35;google_apis;x86_64"
           fi
           test -f "$AVD_CONFIG"
           sed -i '/^disk.dataPartition.size=/d' "$AVD_CONFIG"

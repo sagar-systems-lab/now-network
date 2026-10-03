@@ -31,6 +31,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import com.sagarsystemslab.nownetwork.config.PublicRuntimeConfig
 import com.sagarsystemslab.nownetwork.designsystem.NowTheme
 import com.sagarsystemslab.nownetwork.feature.activity.ActivityViewModel
@@ -123,7 +124,7 @@ class MainActivity : ComponentActivity() {
             )
 
             androidx.compose.runtime.CompositionLocalProvider(LocalDistanceUnit provides preferences.distanceUnit) {
-            NowTheme(darkTheme = darkTheme, reduceMotion = preferences.reduceMotion) {
+            NowTheme(darkTheme = darkTheme, reduceMotion = preferences.reduceMotion || appLocked) {
                 LaunchedEffect(Unit) {
                     if (runtimeConfig.apiConfigured && runtimeConfig.authConfigured) {
                         withContext(Dispatchers.IO) {
@@ -135,6 +136,9 @@ class MainActivity : ComponentActivity() {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                 ) {
+                    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+                    LaunchedEffect(appLocked) { if (appLocked) focusManager.clearFocus(force = true) }
+                    Box(Modifier.then(if (appLocked) Modifier.clearAndSetSemantics {} else Modifier)) {
                     NowApp(
                         inboxIntentRevision = inboxIntentRevision,
                         darkTheme = darkTheme,
@@ -152,6 +156,7 @@ class MainActivity : ComponentActivity() {
                         requesterFundingViewModelProvider = { requesterFundingViewModel },
                         walletInteractionHost = walletInteractionHost,
                     )
+                    }
 
                     if (appLocked) {
                         BackHandler { /* Keep private content covered until unlocked. */ }

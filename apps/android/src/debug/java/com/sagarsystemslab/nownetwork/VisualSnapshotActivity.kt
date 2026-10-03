@@ -40,6 +40,7 @@ class VisualSnapshotActivity : ComponentActivity() {
         val screen = requireNotNull(intent.getStringExtra("screen"))
         val dark = intent.getBooleanExtra("dark", false)
         val motion = intent.getBooleanExtra("motion", false)
+        experience.allowMutations = false
         setContent {
             ApplyNowSystemBars(this, dark)
             CompositionLocalProvider(LocalNowMotionAllowed provides motion) {

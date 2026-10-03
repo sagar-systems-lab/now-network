@@ -8,6 +8,14 @@ import javax.imageio.ImageWriteParam;
 /** Full-resolution fixture previews for the authenticated Actions log fallback. */
 class VisualPreview {
     public static void main(String[] args) throws Exception {
+        if (args[0].equals("--validate")) {
+            Path input = Path.of(args[1]);
+            if (Files.isRegularFile(input)) validate(input);
+            else try (var files = Files.walk(input)) {
+                for (Path source : files.filter(path -> path.toString().endsWith(".png")).toList()) validate(source);
+            }
+            return;
+        }
         Path destination = Files.createDirectories(Path.of(args[1]));
         int count = 0;
         Path input = Path.of(args[0]);
@@ -39,5 +47,18 @@ class VisualPreview {
         }
         if (count == 0) throw new IllegalStateException("No visual captures to preserve");
         System.out.println("Preserved " + count + " full-resolution visual previews");
+    }
+
+    private static void validate(Path source) throws Exception {
+        BufferedImage bitmap = ImageIO.read(source.toFile());
+        if (bitmap == null) throw new IllegalStateException("Unreadable capture: " + source);
+        var colors = new java.util.HashSet<Integer>();
+        // Inspect app content, excluding system bars. A file size check alone accepts black ATD frames.
+        for (int y = bitmap.getHeight() / 10; y < bitmap.getHeight() * 9 / 10; y += 5) {
+            for (int x = bitmap.getWidth() / 10; x < bitmap.getWidth() * 9 / 10; x += 5) {
+                colors.add(bitmap.getRGB(x, y) & 0x00ffffff);
+            }
+        }
+        if (colors.size() < 32) throw new IllegalStateException("Blank or unrendered screenshot: " + source);
     }
 }
