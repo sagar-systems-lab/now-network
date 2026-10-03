@@ -33,46 +33,72 @@ class AccessibilityBaselineInstrumentedTest {
             .assertHeightIsAtLeast(48.dp)
 
         composeRule
-            .onNodeWithContentDescription("Refresh nearby states")
+            .onNodeWithContentDescription("Refresh nearby")
             .assertIsDisplayed()
             .assertHasClickAction()
 
         composeRule
-            .onNodeWithContentDescription("Open settings")
+            .onNodeWithContentDescription("Open profile")
             .assertIsDisplayed()
             .assertHasClickAction()
 
         composeRule.onNodeWithTag("nav-earn").performClick()
 
+        composeRule.onNodeWithTag("screen-earn").assertIsDisplayed()
         composeRule
-            .onNodeWithContentDescription("Refresh earning opportunities")
+            .onNodeWithContentDescription("Refresh nearby")
             .assertIsDisplayed()
             .assertHasClickAction()
     }
 
     @Test
-    fun settingsAndThemeRemainAccessibleFromNow() {
+    fun appearanceRemainsAccessibleFromNow() {
         composeRule
-            .onNodeWithContentDescription("Theme")
+            .onNodeWithContentDescription("Open profile")
             .assertIsDisplayed()
             .assertHasClickAction()
             .performClick()
 
-        composeRule.onNodeWithTag("screen-now").assertIsDisplayed()
+        composeRule.onNodeWithTag("screen-profile").assertIsDisplayed()
 
         composeRule
-            .onNodeWithContentDescription("Open settings")
+            .onNodeWithTag("Settings")
+            .assertIsDisplayed()
+            .assertHasClickAction()
             .performClick()
 
         composeRule.onNodeWithTag("screen-settings").assertIsDisplayed()
+
         composeRule
-            .onNodeWithContentDescription("Theme")
+            .onNodeWithTag("Appearance")
+            .assertIsDisplayed()
+            .assertHasClickAction()
+            .performClick()
+
+        composeRule.onNodeWithTag("screen-appearance").assertIsDisplayed()
+
+        composeRule
+            .onNodeWithTag("System")
             .assertIsDisplayed()
             .assertHasClickAction()
 
         composeRule
-            .onNodeWithContentDescription("Back")
-            .performClick()
+            .onNodeWithTag("Dark")
+            .assertIsDisplayed()
+            .assertHasClickAction()
+
+        composeRule
+            .onNodeWithTag("Light")
+            .assertIsDisplayed()
+            .assertHasClickAction()
+
+        repeat(3) {
+            composeRule
+                .onNodeWithContentDescription("Back")
+                .assertIsDisplayed()
+                .assertHasClickAction()
+                .performClick()
+        }
 
         composeRule.onNodeWithTag("screen-now").assertIsDisplayed()
     }
