@@ -11,12 +11,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 
 /** Shared luminous surface. Its content stays native, selectable and accessible. */
 @Composable
 fun NowGlassCard(
     modifier: Modifier = Modifier,
     emphasized: Boolean = false,
+    contentPadding: Dp = 16.dp,
+    spacing: Dp = 12.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val colors = if (emphasized) listOf(NowColors.InfoSoft, NowColors.SurfacePrimary)
@@ -29,8 +32,8 @@ fun NowGlassCard(
         shadowElevation = 2.dp,
     ) {
         Column(
-            modifier = Modifier.background(Brush.linearGradient(colors)).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.background(Brush.linearGradient(colors)).padding(contentPadding),
+            verticalArrangement = Arrangement.spacedBy(spacing),
             content = content,
         )
     }

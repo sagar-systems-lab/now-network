@@ -840,6 +840,8 @@ internal fun SettlementRecoveryScenario(
                     ),
                     onBack = onBack,
                     onRetry = {},
+                    context = kotlinx.serialization.json.JsonObject(mapOf("title" to JsonPrimitive("Sector 7 parking"), "role" to JsonPrimitive("CONTRIBUTOR"))),
+                    personalAmount = "0.50 USDC",
                     onViewReceipt = { phase = 2 },
                     onDone = { phase = 3 },
                 )
@@ -874,7 +876,9 @@ internal fun SettlementRecoveryScenario(
                 ),
                 onBack = { phase = 0 },
                 onRetry = {},
-                onViewReceipt = { phase = 2 },
+                context = kotlinx.serialization.json.JsonObject(mapOf("title" to JsonPrimitive("Sector 7 parking"), "role" to JsonPrimitive("CONTRIBUTOR"))),
+                    personalAmount = "0.50 USDC",
+                    onViewReceipt = { phase = 2 },
                 onDone = { phase = 3 },
             )
         }
@@ -904,6 +908,8 @@ internal fun SettlementRecoveryScenario(
                     ),
                     message = "Final receipt is ready.",
                 ),
+                context = kotlinx.serialization.json.JsonObject(mapOf("title" to JsonPrimitive("Sector 7 parking"))),
+                personalAmount = "0.50 USDC", poolAmount = "0.50 USDC",
                 onBack = { phase = 1 },
                 onRetry = {},
                 onDone = { phase = 3 },
@@ -1247,7 +1253,7 @@ internal fun EarnScenario(
 
     val sampleState = remember {
         EarnUiState(
-            areaLabel = "Sector 7 · 3 km",
+            areaLabel = "San Francisco, CA",
             opportunities = listOf(
                 OpportunitySummary(
                     refreshId = "parking-refresh",
@@ -1319,12 +1325,13 @@ internal fun EarnScenario(
             ),
             refreshing = false,
             notice = EarnNotice.NONE,
+            total = 1, categories = listOf("PARKING", "ACCESS"),
         )
     }
 
     Box(modifier = modifier) {
         EarnScreen(
-            uiState = if (empty) sampleState.copy(opportunities = emptyList()) else sampleState,
+            uiState = if (empty) sampleState.copy(opportunities = emptyList(), total = 0, categories = emptyList()) else sampleState,
             center = com.sagarsystemslab.nownetwork.model.GeoCenter(37.7749, -122.4194),
             rewardText = { opportunity ->
                 when (opportunity.refreshId) {
@@ -1462,6 +1469,7 @@ internal fun StateDetailScenario(
             ),
             loading = false,
             notice = BrowseNotice.NONE,
+            counts = com.sagarsystemslab.nownetwork.model.NearbyStateCounts(3, 1, 1, 1),
         )
     }
 
@@ -1515,7 +1523,7 @@ internal fun HomeScenario(
 
     val sampleState = remember {
         HomeUiState(
-            areaLabel = "Sector 7 · 3 km",
+            areaLabel = "San Francisco, CA",
             states = listOf(
                 StateSummary(
                     stateId = "parking-sector-7",
@@ -1574,6 +1582,7 @@ internal fun HomeScenario(
             ),
             refreshing = false,
             notice = BrowseNotice.NONE,
+            counts = com.sagarsystemslab.nownetwork.model.NearbyStateCounts(3, 1, 1, 1),
         )
     }
 

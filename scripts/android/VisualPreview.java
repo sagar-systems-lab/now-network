@@ -10,9 +10,10 @@ class VisualPreview {
     public static void main(String[] args) throws Exception {
         Path destination = Files.createDirectories(Path.of(args[1]));
         int count = 0;
-        try (var files = Files.list(Path.of(args[0]))) {
-            for (Path source : files.sorted().toList()) {
-                String name = source.getFileName().toString();
+        Path input = Path.of(args[0]);
+        try (var files = Files.walk(input)) {
+            for (Path source : files.filter(Files::isRegularFile).sorted().toList()) {
+                String name = input.relativize(source).toString().replace('/', '_').replace('\\', '_');
                 if (name.endsWith(".png")) {
                     BufferedImage original = ImageIO.read(source.toFile());
                     if (original == null) throw new IllegalStateException("Unreadable capture: " + name);
@@ -31,7 +32,7 @@ class VisualPreview {
                         writer.dispose();
                     }
                     count++;
-                } else if (name.endsWith(".xml") || name.equals("capture-context.txt")) {
+                } else if (name.endsWith(".xml") || name.endsWith(".mp4") || name.equals("capture-context.txt")) {
                     Files.copy(source, destination.resolve(name));
                 }
             }

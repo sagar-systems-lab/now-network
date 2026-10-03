@@ -54,17 +54,19 @@ fun ResultEmblem(
     eventKey: String? = null,
 ) {
     val enabled = rememberNowMotionEnabled()
+    val resumed = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle.currentState
+        .isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)
     var visible by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val seen = remember(context) { context.getSharedPreferences("now_seen_results", android.content.Context.MODE_PRIVATE) }
     var firstResult by remember(eventKey) { mutableStateOf(eventKey != null && !seen.getBoolean(eventKey, false)) }
     val reveal = remember(eventKey, success) { Animatable(if (success && firstResult && enabled) 0f else 1f) }
     val orbit = remember { Animatable(0f) }
-    LaunchedEffect(success, enabled, eventKey, visible) {
-        if (success && firstResult && visible) {
+    LaunchedEffect(success, enabled, eventKey, visible, resumed) {
+        if (success && firstResult && visible && resumed) {
             firstResult = false
             eventKey?.let { seen.edit().putBoolean(it, true).apply() }
-            if (enabled) reveal.animateTo(1f, tween(650)) else reveal.snapTo(1f)
+            if (enabled) { reveal.snapTo(0f); reveal.animateTo(1f, tween(650)) } else reveal.snapTo(1f)
         } else if (!firstResult || !enabled) reveal.snapTo(1f)
     }
     LaunchedEffect(active, enabled, visible) {

@@ -71,6 +71,7 @@ fun ExperienceScreen(
     onBack: () -> Unit,
     navigate: (ExperienceDestination) -> Unit,
     onNotification: (JsonObject) -> Unit,
+    onActivity: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val preferences by uiPreferencesStore.state.collectAsStateWithLifecycle(uiPreferencesStore.initial)
@@ -83,7 +84,7 @@ fun ExperienceScreen(
             else -> Unit
         }
     }
-    ExperienceScreenContent(destination, state, viewModel, preferences, uiPreferencesStore, walletHost, onBack, navigate, onNotification)
+    ExperienceScreenContent(destination, state, viewModel, preferences, uiPreferencesStore, walletHost, onBack, navigate, onNotification, onActivity)
 }
 
 /** Shared rendering boundary; fetching stays with the route above. */
@@ -98,6 +99,7 @@ internal fun ExperienceScreenContent(
     onBack: () -> Unit,
     navigate: (ExperienceDestination) -> Unit,
     onNotification: (JsonObject) -> Unit,
+    onActivity: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -128,17 +130,7 @@ internal fun ExperienceScreenContent(
         ExperienceFeedback(state, viewModel)
         when (destination) {
             ExperienceDestination.PROFILE -> {
-                ProfileHero(state)
-                MetricStrip(listOf((if (state.profile.isEmpty()) "—" else state.profile.number("verified_contributions").toString()) to "Verified proofs", (if (state.profile.isEmpty()) "—" else state.profile.number("completed_refreshes").toString()) to "Refreshes"))
-                NowGlassCard {
-                    ExperienceRow("Account", "Your identity and recovery", Icons.Outlined.PersonOutline, { navigate(ExperienceDestination.ACCOUNT) })
-                    ExperienceRow("Wallet & Connections", "Manage wallets and future payouts", Icons.Outlined.AccountBalanceWallet, { navigate(ExperienceDestination.WALLET) })
-                    ExperienceRow("Notifications", "Your proof and payment updates", Icons.Outlined.Notifications, { navigate(ExperienceDestination.NOTIFICATIONS) })
-                }
-                NowGlassCard {
-                    ExperienceRow("Settings", "Make NOW yours", Icons.Outlined.Settings, { navigate(ExperienceDestination.SETTINGS) })
-                    ExperienceRow("Help & About", "Learn how NOW works", Icons.Outlined.HelpOutline, { navigate(ExperienceDestination.HELP_ABOUT) })
-                }
+                ProfileContent(state, viewModel, preferences, navigate, onActivity)
             }
             ExperienceDestination.ACCOUNT -> AccountContent(state, viewModel, navigate)
             ExperienceDestination.WALLET, ExperienceDestination.PAYOUT_PREFERENCES -> WalletContent(state, viewModel, walletHost, destination == ExperienceDestination.PAYOUT_PREFERENCES)
@@ -200,17 +192,71 @@ fun ExperienceFeedback(state: ExperienceUiState, viewModel: ExperienceViewModel)
 }
 
 @Composable
-private fun ProfileHero(state: ExperienceUiState, compact: Boolean = false) {
+private fun ProfileHero(state: ExperienceUiState, compact: Boolean = false, onClick: (() -> Unit)? = null) {
     NowGlassCard(emphasized = true) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Row(Modifier.fillMaxWidth().then(if (onClick == null) Modifier else Modifier.clickable(onClick = onClick)), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             RemoteAvatar(state.profile.text("avatar_url"), state.profile.text("display_name", "N"), if (compact) 52 else 72)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 Text(state.profile.text("display_name").ifBlank { "Your NOW account" }, style = if (compact) NowType.TitleM else NowType.TitleXL, color = NowColors.Ink950)
                 Text(if (state.me == null) "Connect to load your account" else "${state.profile.number("verified_contributions")} verified contributions", style = NowType.BodyM, color = NowColors.Ink600)
                 if (!compact) Text("Member since ${displayDate(state.profile.text("created_at"))}", style = NowType.BodyS, color = NowColors.Ink500)
             }
+            if (onClick != null) Icon(Icons.Outlined.ChevronRight, "Edit account", tint = NowColors.Ink600)
         }
     }
+}
+
+@Composable
+private fun ProfileContent(
+    state: ExperienceUiState, viewModel: ExperienceViewModel, preferences: UiPreferences,
+    navigate: (ExperienceDestination) -> Unit, onActivity: () -> Unit,
+) {
+    val area by viewModel.browseContext.state.collectAsStateWithLifecycle()
+    val clipboard = LocalClipboardManager.current
+    val wallets = state.me?.walletBindings.orEmpty().filter { it.status == "ACTIVE" }
+    val wallet = wallets.firstOrNull { it.walletBindingId == state.preferences.text("payout_wallet_binding_id") } ?: wallets.firstOrNull()
+    ProfileHero(state, compact = true, onClick = { navigate(ExperienceDestination.ACCOUNT) })
+    MetricStrip(listOf(
+        (if (state.profile.isEmpty()) "—" else state.profile.number("verified_contributions").toString()) to "Verified proofs",
+        (if (state.profile.isEmpty()) "—" else state.profile.number("completed_refreshes").toString()) to "Refreshes",
+        (if (state.me == null) "—" else wallets.size.toString()) to "Linked wallets",
+    )) { index -> if (index == 2) navigate(ExperienceDestination.WALLET) else onActivity() }
+    NowGlassCard(emphasized = true, contentPadding = 12.dp, spacing = 8.dp) {
+        ExperienceRow(if (wallet == null) "Connect a wallet" else "Connected wallet",
+            wallet?.let { "Solana · ${it.cluster}" } ?: "Your rewards and account recovery",
+            Icons.Outlined.AccountBalanceWallet, { navigate(ExperienceDestination.WALLET) }, compact = true)
+        if (wallet != null) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(wallet.walletAddress.take(6) + "…" + wallet.walletAddress.takeLast(4), Modifier.weight(1f), style = NowType.LabelL, color = NowColors.Ink800)
+                IconButton({ clipboard.setText(AnnotatedString(wallet.walletAddress)) }) { Icon(Icons.Outlined.ContentCopy, "Copy wallet address", tint = NowColors.Blue600) }
+            }
+            val balances = state.balances[wallet.walletBindingId]
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(balances?.first ?: "Balance not loaded", style = NowType.TitleS, color = NowColors.Ink950)
+                    Text(balances?.second ?: "Tap refresh to check your wallet", style = NowType.BodyS, color = NowColors.Ink600)
+                }
+                IconButton({ viewModel.balances(wallet) }, enabled = !state.saving) { Icon(Icons.Outlined.Refresh, "Refresh wallet balance", tint = NowColors.Blue600) }
+            }
+        }
+        NowPrimaryButton("Manage wallet", { navigate(ExperienceDestination.WALLET) }, Modifier.fillMaxWidth())
+    }
+    NowGlassCard(contentPadding = 12.dp, spacing = 0.dp) {
+        Text("Preferences", Modifier.padding(bottom = 4.dp), style = NowType.TitleS, color = NowColors.Ink950)
+        ExperienceRow("Browse area", area.label.ifBlank { "Choose an area" }, Icons.Outlined.LocationOn, { navigate(ExperienceDestination.BROWSE_AREAS) }, compact = true)
+        ExperienceRow("Notifications", "Proof, payments and nearby alerts", Icons.Outlined.Notifications, { navigate(ExperienceDestination.NOTIFICATION_PREFERENCES) }, compact = true)
+        ExperienceRow("Appearance", preferences.theme.name.lowercase().replaceFirstChar { it.uppercase() }, Icons.Outlined.Palette, { navigate(ExperienceDestination.APPEARANCE) }, compact = true)
+        ExperienceRow("Language", "English", Icons.Outlined.Language, { navigate(ExperienceDestination.LANGUAGE_REGION) }, compact = true)
+        ExperienceRow("Privacy & permissions", icon = Icons.Outlined.Shield, onClick = { navigate(ExperienceDestination.PRIVACY_PERMISSIONS) }, compact = true)
+    }
+    NowGlassCard(contentPadding = 12.dp, spacing = 0.dp) {
+        Text("Settings & support", Modifier.padding(bottom = 4.dp), style = NowType.TitleS, color = NowColors.Ink950)
+        ExperienceRow("All settings", icon = Icons.Outlined.Settings, onClick = { navigate(ExperienceDestination.SETTINGS) }, compact = true)
+        ExperienceRow("Help & About", icon = Icons.Outlined.HelpOutline, onClick = { navigate(ExperienceDestination.HELP_ABOUT) }, compact = true)
+        ExperienceRow("Security", icon = Icons.Outlined.Lock, onClick = { navigate(ExperienceDestination.SECURITY) }, compact = true)
+        ExperienceRow("Sign out", "Review recovery and pending work first", Icons.Outlined.Logout, { navigate(ExperienceDestination.ACCOUNT_RECOVERY) }, compact = true)
+    }
+    NowSecondaryButton("Refresh account", viewModel::refresh, Modifier.fillMaxWidth(), enabled = !state.loading && !state.saving)
 }
 
 @Composable

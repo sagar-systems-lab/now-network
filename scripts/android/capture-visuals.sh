@@ -4,6 +4,7 @@ set -Eeuo pipefail
 # Uses only debug fixtures. No credentials, wallet calls, or live account data.
 out="${1:?Usage: capture-visuals.sh OUTPUT_DIRECTORY}"
 mkdir -p "$out"
+printf '%s\n' "Capture in progress: debug fixtures rendered by production composables. Partial captures remain available if a later check fails." > "$out/capture-context.txt"
 package=com.sagarsystemslab.nownetwork
 activity="$package/.VisualSnapshotActivity"
 # The connected-test runner removes the target package when its suite completes.
@@ -43,8 +44,32 @@ for screen in now earn-empty funding appearance; do capture "$screen" true "$scr
 adb shell wm size 824x1784
 for screen in now claim receipt; do capture "$screen" false "$screen-light-412dp"; done
 adb shell settings put system font_scale 2.0
-for screen in now claim appearance; do capture "$screen" true "$screen-dark-font200"; done
+for screen in now earn-empty activity claim profile appearance; do capture "$screen" true "$screen-dark-font200"; done
 adb shell settings put system font_scale 1.0
+
+# Semantic scrolling bypasses the fixture's tap guard without invoking actions.
+adb shell wm size 780x1688
+adb install -r apps/android/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+adb shell am instrument -w -e class "$package.VisualScrollCaptureInstrumentedTest" \
+    -e visualCapture true "$package.test/androidx.test.runner.AndroidJUnitRunner" | tee "$out/scroll-capture-test.txt"
+grep -Fq 'OK (1 test)' "$out/scroll-capture-test.txt"
+adb pull "/sdcard/Android/data/$package/files/visual-scroll" "$out/scroll"
+
+# Runtime evidence of the pending orbit and one-time verified reveal, on fixtures only.
+adb shell settings put global window_animation_scale 1
+adb shell settings put global transition_animation_scale 1
+adb shell settings put global animator_duration_scale 1
+adb shell am force-stop "$package"
+adb shell run-as "$package" rm -f shared_prefs/now_seen_results.xml
+adb shell screenrecord --time-limit 10 /sdcard/now-motion.mp4 > "$out/motion-record.txt" 2>&1 &
+record_pid=$!
+sleep 1
+adb shell am start -W -n "$activity" --es screen verification --ez dark true --ez motion true >/dev/null
+sleep 3
+adb shell am force-stop "$package"
+adb shell am start -W -n "$activity" --es screen verified --ez dark true --ez motion true >/dev/null
+wait "$record_pid"
+adb pull /sdcard/now-motion.mp4 "$out/verification-motion.mp4"
 adb shell wm size reset
 adb shell wm density reset
-printf '%s\n' "Debug fixtures; production composables; 390 dp light/dark; 360/412 dp and 200% font probes." > "$out/capture-context.txt"
+printf '%s\n' "Debug fixtures; production composables; 390 dp light/dark; 360/412 dp and 200% font probes; selected scroll pages; verification motion recording." > "$out/capture-context.txt"

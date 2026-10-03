@@ -368,6 +368,7 @@ fun NowNavHost(
             if (experience != null && uiPreferencesStore != null) {
                 ExperienceScreen(route.destination, experience, uiPreferencesStore, walletInteractionHost,
                     onBack = appState::navigateBack, navigate = ::openExperience,
+                    onActivity = { appState.navigateTo(TopLevelDestination.ACTIVITY) },
                     onNotification = { notification ->
                         val id = notification.text("entity_id")
                         when (notification.text("destination")) {

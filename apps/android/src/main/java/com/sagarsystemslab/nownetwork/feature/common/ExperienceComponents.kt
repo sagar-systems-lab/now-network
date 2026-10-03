@@ -18,6 +18,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -33,22 +34,29 @@ fun ExperienceHeader(
     onArea: () -> Unit, onNotifications: () -> Unit, onProfile: () -> Unit,
     unread: Int = 0,
 ) {
+    val largeText = LocalDensity.current.fontScale >= 1.5f
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(title, style = if (title.length > 5) NowType.TitleL else NowType.TitleXL, color = NowColors.Ink950,
-                modifier = Modifier.semantics { heading() })
-            Surface(onClick = onArea, shape = CircleShape, color = NowColors.InfoSoft,
-                border = BorderStroke(1.dp, NowColors.InfoBorder), modifier = Modifier.weight(1f).testTag("SHARED-AREA")) {
-                Row(Modifier.heightIn(min = 48.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Icon(Icons.Outlined.LocationOn, null, tint = NowColors.Blue600, modifier = Modifier.size(15.dp))
-                    Text(area.ifBlank { "Browse area" }, style = NowType.LabelM, color = NowColors.Ink800, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    Icon(Icons.Outlined.ExpandMore, null, tint = NowColors.Blue600, modifier = Modifier.size(15.dp))
-                }
-            }
+                modifier = Modifier.then(if (largeText) Modifier.weight(1f) else Modifier).semantics { heading() })
+            if (!largeText) AreaPill(area, onArea, Modifier.weight(1f))
             HeaderIcon(Icons.Outlined.Notifications, "Notifications${if (unread > 0) ", $unread unread" else ""}", onNotifications, "SHARED-BELL", unread)
             HeaderIcon(Icons.Outlined.PersonOutline, "Open profile", onProfile, "SHARED-AVATAR")
         }
         Text(subtitle, style = NowType.BodyM, color = NowColors.Ink600)
+        if (largeText) AreaPill(area, onArea, Modifier.fillMaxWidth())
+    }
+}
+
+@Composable
+private fun AreaPill(area: String, onArea: () -> Unit, modifier: Modifier = Modifier) {
+    Surface(onClick = onArea, shape = CircleShape, color = NowColors.InfoSoft,
+        border = BorderStroke(1.dp, NowColors.InfoBorder), modifier = modifier.testTag("SHARED-AREA")) {
+        Row(Modifier.heightIn(min = 48.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            Icon(Icons.Outlined.LocationOn, null, tint = NowColors.Blue600, modifier = Modifier.size(15.dp))
+            Text(area.ifBlank { "Browse area" }, style = NowType.LabelM, color = NowColors.Ink800, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Icon(Icons.Outlined.ExpandMore, null, tint = NowColors.Blue600, modifier = Modifier.size(15.dp))
+        }
     }
 }
 
@@ -78,12 +86,12 @@ fun ExperienceTopBar(title: String, onBack: () -> Unit, subtitle: String? = null
 
 @Composable
 fun ExperienceRow(title: String, subtitle: String? = null, icon: ImageVector = Icons.Outlined.Tune,
-    onClick: (() -> Unit)? = null, tag: String = title, trailing: @Composable (() -> Unit)? = null) {
+    onClick: (() -> Unit)? = null, tag: String = title, compact: Boolean = false, trailing: @Composable (() -> Unit)? = null) {
     Row(Modifier.fillMaxWidth().testTag(tag).then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-        .heightIn(min = 60.dp).padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically,
+        .heightIn(min = if (compact) 48.dp else 60.dp).padding(vertical = if (compact) 4.dp else 8.dp), verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Surface(shape = NowShapes.medium, color = NowColors.InfoSoft, border = BorderStroke(1.dp, NowColors.InfoBorder)) {
-            Icon(icon, null, Modifier.padding(10.dp).size(22.dp), tint = NowColors.Blue600)
+            Icon(icon, null, Modifier.padding(if (compact) 7.dp else 10.dp).size(if (compact) 20.dp else 22.dp), tint = NowColors.Blue600)
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(title, style = NowType.LabelL, color = NowColors.Ink950)
@@ -98,10 +106,10 @@ fun ExperienceRow(title: String, subtitle: String? = null, icon: ImageVector = I
 
 @Composable
 fun SyncStrip(refreshing: Boolean, count: Int, cached: Boolean, onRefresh: () -> Unit) {
-    NowGlassCard(emphasized = true) {
+    NowGlassCard(emphasized = true, contentPadding = 8.dp) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (refreshing) CircularProgressIndicator(Modifier.size(32.dp), color = NowColors.Blue600, strokeWidth = 3.dp)
-            else Icon(Icons.Outlined.Radar, null, Modifier.size(32.dp), tint = NowColors.Blue600)
+            if (refreshing) CircularProgressIndicator(Modifier.padding(start = 4.dp).size(30.dp), color = NowColors.Blue600, strokeWidth = 3.dp)
+            else Icon(Icons.Outlined.Radar, null, Modifier.padding(start = 4.dp).size(30.dp), tint = NowColors.Blue600)
             Column(Modifier.weight(1f)) {
                 Text(if (refreshing) "Scanning nearby states…" else if (cached && count == 0) "Nearby data unavailable" else if (cached) "Saved nearby results" else "Nearby results", style = NowType.LabelL, color = NowColors.Ink950)
                 Text(if (refreshing) "Finding fresh information for this area" else if (cached && count == 0) "Check your connection and browse area" else "$count result${if (count == 1) "" else "s"} · ${if (cached) "Reconnect to update" else "Tap to update"}", style = NowType.BodyS, color = NowColors.Ink600)
@@ -112,12 +120,12 @@ fun SyncStrip(refreshing: Boolean, count: Int, cached: Boolean, onRefresh: () ->
 }
 
 @Composable
-fun MetricStrip(metrics: List<Pair<String, String>>) {
-    NowGlassCard {
+fun MetricStrip(metrics: List<Pair<String, String>>, onMetric: ((Int) -> Unit)? = null) {
+    NowGlassCard(contentPadding = 12.dp) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             metrics.forEachIndexed { index, (value, label) ->
                 if (index > 0) VerticalDivider(Modifier.height(44.dp), color = NowColors.BorderSubtle)
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Column(Modifier.weight(1f).heightIn(min = 48.dp).then(if (onMetric == null) Modifier else Modifier.clickable(role = androidx.compose.ui.semantics.Role.Button) { onMetric(index) }), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(value, style = NowType.DataMedium, color = NowColors.Ink950)
                     Text(label, style = NowType.LabelM, color = NowColors.Ink600)
                 }
@@ -130,7 +138,7 @@ fun MetricStrip(metrics: List<Pair<String, String>>) {
 fun EmptyProofCard(title: String, body: String, onBrowse: () -> Unit, onHelp: () -> Unit, activity: Boolean = false) {
     NowGlassCard(emphasized = true) {
         Image(painterResource(if (activity) R.drawable.now_empty_activity else R.drawable.now_empty_proof), null,
-            Modifier.fillMaxWidth().height(160.dp).nowLivePulse(active = true))
+            Modifier.fillMaxWidth().height(160.dp))
         Text(title, style = NowType.TitleM, color = NowColors.Ink950)
         Text(body, style = NowType.BodyM, color = NowColors.Ink600)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {

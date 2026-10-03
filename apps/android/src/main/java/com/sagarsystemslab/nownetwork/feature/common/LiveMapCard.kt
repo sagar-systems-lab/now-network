@@ -228,7 +228,9 @@ fun LiveMapCard(
                     if (positions.size > 1) map?.moveCamera(CameraUpdateFactory.newLatLngBounds(org.maplibre.android.geometry.LatLngBounds.Builder().includes(positions).build(),60))
                     else positions.firstOrNull()?.let { map?.moveCamera(CameraUpdateFactory.newLatLngZoom(it,15.0)) }
                 },enabled=pins.isNotEmpty()) {Icon(Icons.Outlined.CenterFocusStrong,"Fit results")}
-                FilledTonalIconButton(onClick = { expanded = !expanded }) { Icon(Icons.Outlined.OpenInFull, if (expanded) "Collapse map" else "Expand map") }
+            }
+            FilledTonalIconButton(onClick = { expanded = !expanded }, modifier = Modifier.align(Alignment.TopStart).padding(8.dp)) {
+                Icon(Icons.Outlined.OpenInFull, if (expanded) "Collapse map" else "Expand map")
             }
         }
     }

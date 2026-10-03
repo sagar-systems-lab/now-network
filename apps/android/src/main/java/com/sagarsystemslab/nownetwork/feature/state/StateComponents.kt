@@ -52,6 +52,7 @@ fun StateCard(
     nowMillis: Long,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onRefresh: (() -> Unit)? = null,
 ) {
     val freshness = state.freshnessAt(nowMillis)
     val displayValue = formatStateValue(state.valueJson, state.unitCode)
@@ -83,6 +84,27 @@ fun StateCard(
                 FreshnessChip(freshness)
                 state.distanceMeters?.let { Text(com.sagarsystemslab.nownetwork.experience.displayDistance(it), style = NowType.LabelM, color = NowColors.Ink500) }
             }
+        }
+        if (onRefresh != null) com.sagarsystemslab.nownetwork.designsystem.NowPrimaryButton(
+            "Refresh state", onRefresh, Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 12.dp).testTag("NOW-REFRESH-${state.stateId}"),
+        )
+    }
+}
+
+@Composable
+fun NearbyStateCard(state: StateSummary, nowMillis: Long, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Card(onClick = onClick, modifier = modifier.testTag("nearby-card-${state.stateId}"),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = NowColors.SurfacePrimary),
+        border = BorderStroke(1.dp, NowColors.BorderSubtle)) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                com.sagarsystemslab.nownetwork.feature.common.CategoryArtwork(state.title, Modifier.size(40.dp))
+                FreshnessChip(state.freshnessAt(nowMillis))
+            }
+            Text(state.title, style = NowType.LabelL, color = NowColors.Ink800)
+            Text(formatStateValue(state.valueJson, state.unitCode), style = NowType.TitleM, color = NowColors.Ink950)
+            Text(listOfNotNull(state.distanceMeters?.let { com.sagarsystemslab.nownetwork.experience.displayDistance(it) }, relativeObservedTime(state.observedAtMillis, nowMillis)).joinToString(" · "), style = NowType.BodyS, color = NowColors.Ink600)
         }
     }
 }
