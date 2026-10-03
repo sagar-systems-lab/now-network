@@ -101,6 +101,7 @@ class AccessibilityBaselineInstrumentedTest {
         repeat(3) {
             composeRule
                 .onNodeWithContentDescription("Back")
+                .performScrollTo()
                 .assertIsDisplayed()
                 .assertHasClickAction()
                 .performClick()
