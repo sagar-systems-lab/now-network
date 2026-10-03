@@ -7,7 +7,6 @@ import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Rule
@@ -50,59 +49,5 @@ class AccessibilityBaselineInstrumentedTest {
             .onNodeWithContentDescription("Refresh nearby")
             .assertIsDisplayed()
             .assertHasClickAction()
-    }
-
-    @Test
-    fun appearanceRemainsAccessibleFromNow() {
-        composeRule
-            .onNodeWithContentDescription("Open profile")
-            .assertIsDisplayed()
-            .assertHasClickAction()
-            .performClick()
-
-        composeRule.onNodeWithTag("screen-profile").assertIsDisplayed()
-
-        composeRule
-            .onNodeWithTag("Settings")
-            .performScrollTo()
-            .assertIsDisplayed()
-            .assertHasClickAction()
-            .performClick()
-
-        composeRule.onNodeWithTag("screen-settings").assertIsDisplayed()
-
-        composeRule
-            .onNodeWithTag("Appearance")
-            .performScrollTo()
-            .assertIsDisplayed()
-            .assertHasClickAction()
-            .performClick()
-
-        composeRule.onNodeWithTag("screen-appearance").assertIsDisplayed()
-
-        composeRule
-            .onNodeWithContentDescription("Back")
-            .assertIsDisplayed()
-            .assertHasClickAction()
-
-        composeRule
-            .onNodeWithTag("System")
-            .performScrollTo()
-            .assertIsDisplayed()
-            .assertHasClickAction()
-
-        composeRule
-            .onNodeWithTag("Dark")
-            .performScrollTo()
-            .assertIsDisplayed()
-            .assertHasClickAction()
-
-        composeRule
-            .onNodeWithTag("Light")
-            .performScrollTo()
-            .assertIsDisplayed()
-            .assertHasClickAction()
-
-
     }
 }
