@@ -73,7 +73,11 @@ data class ActiveRefresh(
     val revision: Long,
 )
 
+@Serializable
+data class NearbyStateCounts(val total: Int, val live: Int, val aging: Int, val stale: Int)
+
 data class NearbyStatePage(
     val items: List<StateSummary>,
     val nextCursor: String?,
+    val counts: NearbyStateCounts? = null,
 )

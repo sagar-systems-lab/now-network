@@ -9,6 +9,7 @@ data class NearbyStatesDto(
     val items: List<StateSummaryDto>,
     @SerialName("next_cursor")
     val nextCursor: String? = null,
+    val counts: com.sagarsystemslab.nownetwork.model.NearbyStateCounts? = null,
 )
 
 @Serializable
@@ -138,6 +139,8 @@ data class NearbyOpportunitiesDto(
     val items: List<OpportunityDto>,
     @SerialName("next_cursor")
     val nextCursor: String? = null,
+    val total: Int? = null,
+    val categories: List<String> = emptyList(),
 )
 
 @Serializable

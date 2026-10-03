@@ -23,7 +23,7 @@ fun VerificationScreen(uiState: VerificationUiState, onBack: () -> Unit, onRetry
         NowSecondaryButton("Done",onDone,Modifier.fillMaxWidth())
     }) {
         Column(Modifier.fillMaxWidth().testTag(if(checking) "verification-progress" else if(verified) "verification-live-result" else "verification-result"),horizontalAlignment=Alignment.CenterHorizontally) {
-            ResultEmblem(verified,checking)
+            ResultEmblem(verified,checking, eventKey = uiState.verificationResultId?.let { "verification:$it" })
             NowStatusChip(uiState.stage.name.replace('_',' '),when { verified -> NowStatusTone.LIVE; checking -> NowStatusTone.INFO; else -> NowStatusTone.AGING })
             Text(when(uiState.stage) {
                 VerificationStage.VERIFIED -> if(uiState.projectionSuperseded) "Proof verified" else "State updated"

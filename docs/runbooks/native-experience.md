@@ -31,6 +31,18 @@ before a new opportunity lookup, since an already claimed refresh is excluded fr
 Committed proof opens verification; an expired or released claim cannot start another signature.
 Payout estimates apply the locked witness split and are labeled separately from reward pools.
 
+NOW searches the selected area before pagination and exposes live, aging, stale, unobserved and
+conflict filters. EARN applies category and nearest/ending/payout order before its page limit.
+Payout order uses the floored required-witness estimate and groups different token mints separately;
+it does not convert token units into a shared cash value. Area totals come from the matching
+server query. Cursors bind the area and filters, and private opportunity cursors also bind the
+actor. Changing a filter starts a new first page. Offline snapshots retain the accepted server
+order without presenting an unknown payout estimate as a guaranteed reward.
+
+Map rings identify the selected browse center. They pause during gestures and when motion is
+reduced. Pending verification has a blue orbital treatment; finalized proof and receipt reveals
+are recorded per result so returning to the same result does not replay the celebration.
+
 ## Push configuration
 
 The in-app inbox works without Firebase. To enable device delivery, configure the Android build
@@ -55,12 +67,15 @@ against the freshly migrated PostGIS service:
 
 ```bash
 NOW_TEST_DB_URL=postgres://postgres:postgres@127.0.0.1:5432/now_test \
-  deno test --allow-env --allow-net=127.0.0.1:5432 backend/tests/experience_database_test.ts
+  deno test --allow-env --allow-net=127.0.0.1:5432 backend/tests/experience_database_test.ts backend/tests/discovery_database_test.ts
 ```
 
 Use a disposable test database. The test inserts and removes its own actor-owned fixtures. The
 debug-only Experience Lab exposes deterministic transaction states for layout inspection;
-fixtures and its launcher are excluded from release builds.
+fixtures and its launcher are excluded from release builds. The CI artifact `android-visuals`
+contains rendered debug APK screenshots and accessibility hierarchies in both themes at 390 dp,
+with additional 360/412 dp and 200% font probes. Captures use production composables with read-only
+fixtures and do not certify live services, physical camera quality or device frame timings.
 
 Before shipping, exercise physical camera capture, wallet handoff, device-credential lock,
 permission changes, background push delivery and requester/contributor operation on separate

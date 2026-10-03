@@ -4,6 +4,8 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.LinearEasing
+import kotlinx.coroutines.isActive
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -20,6 +22,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
@@ -41,27 +45,94 @@ fun TransactionPage(title: String, subtitle: String, tag: String, onBack: () -> 
     }
 }
 
-/** Native vector layers, not a screenshot: the reveal runs once and respects reduced motion. */
+/** A pending orbit and a single persisted success reveal; all information also has text. */
 @Composable
-fun ResultEmblem(success: Boolean, active: Boolean = false, modifier: Modifier = Modifier) {
+fun ResultEmblem(
+    success: Boolean,
+    active: Boolean = false,
+    modifier: Modifier = Modifier,
+    eventKey: String? = null,
+) {
     val enabled = rememberNowMotionEnabled()
-    val reveal = remember(success) { Animatable(if (enabled) 0f else 1f) }
-    LaunchedEffect(success, enabled) { if (enabled) reveal.animateTo(1f, tween(520)) else reveal.snapTo(1f) }
+    var visible by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val seen = remember(context) { context.getSharedPreferences("now_seen_results", android.content.Context.MODE_PRIVATE) }
+    var firstResult by remember(eventKey) { mutableStateOf(eventKey != null && !seen.getBoolean(eventKey, false)) }
+    val reveal = remember(eventKey, success) { Animatable(if (success && firstResult && enabled) 0f else 1f) }
+    val orbit = remember { Animatable(0f) }
+    LaunchedEffect(success, enabled, eventKey, visible) {
+        if (success && firstResult && visible) {
+            firstResult = false
+            eventKey?.let { seen.edit().putBoolean(it, true).apply() }
+            if (enabled) reveal.animateTo(1f, tween(650)) else reveal.snapTo(1f)
+        } else if (!firstResult || !enabled) reveal.snapTo(1f)
+    }
+    LaunchedEffect(active, enabled, visible) {
+        orbit.snapTo(0f)
+        if (active && enabled && visible) while (isActive) {
+            orbit.animateTo(360f, tween(1800, easing = LinearEasing))
+            orbit.snapTo(0f)
+        }
+    }
     val blue = NowColors.Blue600
     val accent = if (success) Color(0xFF24DFB0) else blue
-    Canvas(modifier.fillMaxWidth().height(146.dp).semantics { contentDescription = if (success) "Verified result" else if (active) "Result pending" else "Result needs attention" }) {
-        val c = center; val r = size.height * .32f
+    Canvas(modifier.fillMaxWidth().height(146.dp).onGloballyPositioned { coordinates ->
+        visible = coordinates.boundsInWindow().let { it.width > 0f && it.height > 0f }
+    }.semantics {
+        contentDescription = if (success) "Verified result" else if (active) "Result pending" else "Result needs attention"
+    }) {
+        val c = center
+        val r = size.height * .32f
         drawCircle(Brush.radialGradient(listOf(accent.copy(alpha = .35f), blue.copy(alpha = .12f), Color.Transparent), c, r * 2.2f), r * 2.2f, c)
         drawCircle(blue.copy(alpha = .23f), r * 1.43f, c, style = Stroke(1.dp.toPx()))
-        drawCircle(Brush.sweepGradient(listOf(blue.copy(alpha=.1f), Color(0xFF55E5FF), blue.copy(alpha=.1f)), c), r * 1.16f, c, style = Stroke(2.dp.toPx()))
-        val shield = Path().apply { moveTo(c.x,c.y-r*.86f); lineTo(c.x+r*.62f,c.y-r*.57f); lineTo(c.x+r*.57f,c.y+r*.25f); cubicTo(c.x+r*.46f,c.y+r*.60f,c.x+r*.20f,c.y+r*.77f,c.x,c.y+r*.91f); cubicTo(c.x-r*.20f,c.y+r*.77f,c.x-r*.46f,c.y+r*.60f,c.x-r*.57f,c.y+r*.25f); lineTo(c.x-r*.62f,c.y-r*.57f); close() }
-        drawPath(shield, Brush.linearGradient(listOf(accent.copy(alpha=.95f),Color(0xFF045B7A),Color(0xFF07243D)),Offset(c.x-r,c.y-r),Offset(c.x+r,c.y+r)))
-        drawPath(shield, Brush.linearGradient(listOf(Color.White.copy(alpha=.8f),accent.copy(alpha=.65f))), style=Stroke(2.dp.toPx()))
+        drawCircle(Brush.sweepGradient(listOf(blue.copy(alpha = .1f), Color(0xFF55E5FF), blue.copy(alpha = .1f)), c), r * 1.16f, c, style = Stroke(2.dp.toPx()))
+        if (active) drawArc(
+            Color(0xFF69D9FF), orbit.value - 80f, 70f, false,
+            Offset(c.x - r * 1.43f, c.y - r * 1.43f),
+            androidx.compose.ui.geometry.Size(r * 2.86f, r * 2.86f),
+            style = Stroke(3.dp.toPx(), cap = StrokeCap.Round),
+        )
+        val shield = Path().apply {
+            moveTo(c.x, c.y - r * .86f)
+            lineTo(c.x + r * .62f, c.y - r * .57f)
+            lineTo(c.x + r * .57f, c.y + r * .25f)
+            cubicTo(c.x + r * .46f, c.y + r * .60f, c.x + r * .20f, c.y + r * .77f, c.x, c.y + r * .91f)
+            cubicTo(c.x - r * .20f, c.y + r * .77f, c.x - r * .46f, c.y + r * .60f, c.x - r * .57f, c.y + r * .25f)
+            lineTo(c.x - r * .62f, c.y - r * .57f)
+            close()
+        }
+        drawPath(shield, Brush.linearGradient(listOf(accent.copy(alpha = .95f), Color(0xFF045B7A), Color(0xFF07243D)), Offset(c.x - r, c.y - r), Offset(c.x + r, c.y + r)))
+        drawPath(shield, Brush.linearGradient(listOf(Color.White.copy(alpha = .8f), accent.copy(alpha = .65f))), style = Stroke(2.dp.toPx()))
         if (success) {
-            val check = Path().apply { moveTo(c.x-r*.26f,c.y); lineTo(c.x-r*.02f,c.y+r*.24f); lineTo(c.x+r*.34f,c.y-r*.23f) }
-            drawPath(check, Color.White.copy(alpha=reveal.value), style = Stroke(5.dp.toPx(), cap=StrokeCap.Round, join=StrokeJoin.Round))
-            repeat(12) { i -> val angle = i * Math.PI / 6 + .24; val radius = r * (1.47f + (i % 3)*.16f); val pos=Offset(c.x+(cos(angle)*radius).toFloat(),c.y+(sin(angle)*radius).toFloat()); drawCircle(if (i%2==0) accent else blue, (if (i%3==0) 2.2f else 1.2f).dp.toPx()*reveal.value,pos) }
-        } else { drawCircle(Color.White.copy(alpha=.85f), 3.dp.toPx(), c); drawLine(Color.White.copy(alpha=.85f), Offset(c.x,c.y-r*.36f),Offset(c.x,c.y-r*.1f),4.dp.toPx(),StrokeCap.Round) }
+            val start = Offset(c.x - r * .26f, c.y)
+            val joint = Offset(c.x - r * .02f, c.y + r * .24f)
+            val end = Offset(c.x + r * .34f, c.y - r * .23f)
+            val progress = reveal.value
+            val check = Path().apply {
+                moveTo(start.x, start.y)
+                val first = (progress / .4f).coerceIn(0f, 1f)
+                lineTo(start.x + (joint.x - start.x) * first, start.y + (joint.y - start.y) * first)
+                if (progress > .4f) {
+                    val second = ((progress - .4f) / .6f).coerceIn(0f, 1f)
+                    lineTo(joint.x + (end.x - joint.x) * second, joint.y + (end.y - joint.y) * second)
+                }
+            }
+            drawPath(check, Color.White, style = Stroke(5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+            if (progress < 1f) repeat(16) { i ->
+                val angle = i * Math.PI / 8 + .24
+                val radius = r * (1.15f + progress * .75f + (i % 3) * .12f)
+                val pos = Offset(c.x + (cos(angle) * radius).toFloat(), c.y + (sin(angle) * radius).toFloat())
+                drawCircle((if (i % 2 == 0) accent else blue).copy(alpha = 1f - progress),
+                    (if (i % 3 == 0) 2.2f else 1.2f).dp.toPx(), pos)
+            }
+        } else if (active) {
+            drawCircle(Color.White.copy(alpha = .9f), r * .26f, c, style = Stroke(2.dp.toPx()))
+            drawLine(Color.White, c, Offset(c.x, c.y - r * .17f), 2.dp.toPx(), StrokeCap.Round)
+            drawLine(Color.White, c, Offset(c.x + r * .14f, c.y + r * .08f), 2.dp.toPx(), StrokeCap.Round)
+        } else {
+            drawCircle(Color.White.copy(alpha = .85f), 3.dp.toPx(), c)
+            drawLine(Color.White.copy(alpha = .85f), Offset(c.x, c.y - r * .36f), Offset(c.x, c.y - r * .1f), 4.dp.toPx(), StrokeCap.Round)
+        }
     }
 }
 

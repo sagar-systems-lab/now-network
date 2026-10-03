@@ -34,7 +34,7 @@ fun ReceiptScreen(uiState: ReceiptUiState,onBack:()->Unit,onRetry:()->Unit,onDon
         } else { NowPrimaryButton("Check receipt",onRetry,Modifier.fillMaxWidth()); NowSecondaryButton("Back to activity",onDone,Modifier.fillMaxWidth()) }
     }) {
         Column(Modifier.fillMaxWidth().testTag(if(receipt!=null) "receipt-final" else "receipt-finalizing"),horizontalAlignment=Alignment.CenterHorizontally) {
-            ResultEmblem(receipt!=null,uiState.stage==ReceiptStage.FINALIZING)
+            ResultEmblem(receipt!=null,uiState.stage==ReceiptStage.FINALIZING, eventKey = receipt?.receiptId?.let { "receipt:$it" })
             Text(if(receipt!=null) "Verified & paid" else if(uiState.stage==ReceiptStage.ATTENTION) "Receipt unavailable" else "Finalizing your receipt",style=NowType.TitleXL,color=NowColors.Ink950,textAlign=TextAlign.Center)
             Text(if(receipt!=null) "This contribution and settlement are finalized on Solana." else uiState.message,style=NowType.BodyS,color=NowColors.Ink600,textAlign=TextAlign.Center)
         }

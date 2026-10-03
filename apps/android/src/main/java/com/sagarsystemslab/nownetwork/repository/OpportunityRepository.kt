@@ -92,6 +92,8 @@ class DefaultOpportunityRepository @Inject constructor(
         return OpportunityPage(
             items = items,
             nextCursor = remote.nextCursor,
+            total = remote.total,
+            categories = remote.categories,
         )
     }
 }

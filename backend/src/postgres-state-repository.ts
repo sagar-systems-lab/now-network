@@ -1,6 +1,7 @@
 import postgres from "npm:postgres@3.4.7";
 import type {
   NearbyStateRecord,
+  NearbyStateInput,
   StateActiveRefreshSummary,
   StateDetailRecord,
   StateHistoryRecord,
@@ -183,29 +184,78 @@ export class PostgresStateRepository implements StateRepository {
     });
   }
 
-  async listNearby(
-    input: Parameters<StateRepository["listNearby"]>[0],
-  ): Promise<NearbyStateRecord[]> {
-    const rows = await this.sql`
-      select q.*, jsonb_build_object(
-        'locationId', l.location_id, 'name', l.name, 'locationType', l.location_type,
-        'displayAddress', l.display_address,
-        'center', jsonb_build_object('latitude', extensions.st_y(l.center::extensions.geometry),
-                                   'longitude', extensions.st_x(l.center::extensions.geometry))
-      ) as map_location
-      from app.query_nearby_states_v1(
-        ${input.lat},
-        ${input.lng},
-        ${input.radiusM},
-        ${input.limit},
-        ${input.cursor?.distanceM ?? null},
-        ${input.cursor?.stateId ?? null}::uuid
-      ) q
-      join app.state_definitions sd on sd.state_id = q.state_id and sd.status = 'ACTIVE'
+  private candidates(input: NearbyStateInput) {
+    return this.sql`
+      select sd.state_id, sd.title, sd.question, sd.state_type, sd.unit_code,
+        ls.current_value, ls.observed_at, ls.aging_at, ls.fresh_until, ls.verification_class,
+        ar.status as refresh_status, coalesce(ls.conflict_active, false) as conflict_active,
+        extensions.st_distance(l.center, extensions.st_setsrid(
+          extensions.st_makepoint(${input.lng}, ${input.lat}), 4326
+        )::extensions.geography) as distance_m,
+        coalesce(ls.revision, sd.revision) as revision,
+        jsonb_build_object(
+          'locationId', l.location_id, 'name', l.name, 'locationType', l.location_type,
+          'displayAddress', l.display_address,
+          'center', jsonb_build_object('latitude', extensions.st_y(l.center::extensions.geometry),
+                                     'longitude', extensions.st_x(l.center::extensions.geometry))
+        ) as map_location,
+        case when coalesce(ls.conflict_active, false) then 'conflict'
+          when ls.observed_at is null or ls.aging_at is null or ls.fresh_until is null then 'unobserved'
+          when ${input.asOf ?? new Date()} < ls.aging_at then 'live'
+          when ${input.asOf ?? new Date()} < ls.fresh_until then 'aging'
+          else 'stale' end as freshness
+      from app.state_definitions sd
       join app.locations l on l.location_id = sd.location_id
-      order by q.distance_m, q.state_id
+      left join app.live_states ls on ls.state_id = sd.state_id
+      left join lateral (
+        select rr.status from app.refresh_requests rr
+        where rr.state_id = sd.state_id and rr.state_version = sd.version
+          and rr.status not in ('COMPLETED', 'CANCELLED', 'EXPIRED', 'FAILED')
+        order by rr.created_at desc, rr.refresh_id desc limit 1
+      ) ar on true
+      where sd.status = 'ACTIVE'
+        and extensions.st_dwithin(l.center, extensions.st_setsrid(
+          extensions.st_makepoint(${input.lng}, ${input.lat}), 4326
+        )::extensions.geography, ${input.radiusM})
+        and (${input.search ?? ""} = '' or
+          position(lower(${input.search ?? ""}) in lower(sd.title)) > 0 or
+          position(lower(${input.search ?? ""}) in lower(sd.question)) > 0)
+    `;
+  }
+
+  async listNearby(input: NearbyStateInput): Promise<NearbyStateRecord[]> {
+    const rows = await this.sql`
+      with candidates as (${this.candidates(input)})
+      select * from candidates
+      where (${input.freshness ?? "all"} = 'all' or freshness = ${input.freshness ?? "all"})
+        and (${input.cursor === null} or (distance_m, state_id) >
+          (${input.cursor?.distanceM ?? null}::double precision, ${input.cursor?.stateId ?? null}::uuid))
+      order by distance_m, state_id limit ${input.limit}
     `;
     return rows.map((row) => nearbyFromRow(row as NearbyRow));
+  }
+
+  async summarizeNearby(input: NearbyStateInput) {
+    const rows = await this.sql`
+      with candidates as (${this.candidates(input)})
+      select count(*) filter (where ${input.freshness ?? "all"} = 'all'
+        or freshness = ${input.freshness ?? "all"})::integer as total,
+        count(*) filter (where freshness = 'live')::integer as live,
+        count(*) filter (where freshness = 'aging')::integer as aging,
+        count(*) filter (where freshness in ('stale', 'unobserved'))::integer as stale
+      from candidates
+    `;
+    const row = rows[0];
+    return {
+      total: Number(row.total),
+      live: Number(row.live),
+      aging: Number(row.aging),
+      stale: Number(row.stale),
+    };
+  }
+
+  async close(): Promise<void> {
+    await this.sql.end({ timeout: 1 });
   }
 
   async getState(stateId: string): Promise<StateDetailRecord | null> {

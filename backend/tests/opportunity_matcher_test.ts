@@ -244,3 +244,29 @@ Deno.test("missing opportunity returns stable not-found error", async () => {
     if (faultCode(error) !== "OPPORTUNITY_NOT_FOUND") throw error;
   }
 });
+
+Deno.test("opportunity cursors cannot cross filters, locations or actors", async () => {
+  const repository: OpportunityRepository = new MemoryOpportunityRepository();
+  repository.summarizeNearby = () => Promise.resolve({ total: 17, categories: ["PARKING", "SHOP"] });
+  const matcher = new OpportunityMatcher(repository);
+  const query = { lat: 29.4, lng: 76.9, radiusM: 1000, limit: 1, cursor: null };
+  const first = await matcher.nearby(actor(), query);
+  if (first.total !== 17 || !Array.isArray(first.categories) || first.categories.length !== 2) {
+    throw new Error("area totals were replaced by the visible page length");
+  }
+  const cursor = first.next_cursor as string;
+  for (const change of [{ sort: "payout" }, { category: "SHOP" }, { lat: 29.5 }]) {
+    try {
+      await matcher.nearby(actor(), { ...query, cursor, ...change });
+      throw new Error("cursor crossed its query boundary");
+    } catch (error) {
+      if (faultCode(error) !== "INVALID_CURSOR") throw error;
+    }
+  }
+  try {
+    await matcher.nearby({ ...actor(), actorId: REFRESH_B }, { ...query, cursor });
+    throw new Error("cursor crossed its actor boundary");
+  } catch (error) {
+    if (faultCode(error) !== "INVALID_CURSOR") throw error;
+  }
+});

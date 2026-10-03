@@ -36,6 +36,8 @@ class KtorNowApiClientTest {
                 assertEquals("3000", request.url.parameters["radius_m"])
                 assertEquals("12", request.url.parameters["limit"])
                 assertEquals("cursor-a", request.url.parameters["cursor"])
+                assertEquals("parking lot", request.url.parameters["q"])
+                assertEquals("stale", request.url.parameters["freshness"])
 
                 val requestId = request.headers["x-request-id"]
                 requireNotNull(requestId)
@@ -83,6 +85,8 @@ class KtorNowApiClientTest {
                 radiusMeters = 3_000,
                 limit = 12,
                 cursor = "cursor-a",
+                search = "parking lot",
+                freshness = "stale",
             ),
         )
 
@@ -100,6 +104,8 @@ class KtorNowApiClientTest {
                 assertEquals("Bearer token-a", request.headers[HttpHeaders.Authorization])
                 assertEquals("12.5", request.url.parameters["lat"])
                 assertEquals("77.25", request.url.parameters["lng"])
+                assertEquals("payout", request.url.parameters["sort"])
+                assertEquals("PARKING", request.url.parameters["category"])
 
                 respond(
                     content = """
@@ -161,6 +167,8 @@ class KtorNowApiClientTest {
                 latitude = 12.5,
                 longitude = 77.25,
                 radiusMeters = 3_000,
+                sort = "payout",
+                category = "PARKING",
             ),
             accessToken = "token-a",
         )

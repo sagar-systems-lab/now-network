@@ -22,10 +22,19 @@ class BrowseContextStore @Inject constructor(@ApplicationContext context: Contex
         val identity = "$kind|${actor ?: "public"}|${area.latitude}|${area.longitude}|${area.radiusMeters}"
         return "snapshot_" + java.security.MessageDigest.getInstance("SHA-256").digest(identity.toByteArray()).joinToString("") { "%02x".format(it) }
     }
-    fun snapshot(kind: String, actor: String? = null, area: BrowseAreaConfig = state.value): Set<String> =
-        preferences.getStringSet(snapshotKey(kind, actor, area), emptySet()).orEmpty().toSet()
+    fun snapshot(kind: String, actor: String? = null, area: BrowseAreaConfig = state.value): Set<String> {
+        val key = snapshotKey(kind, actor, area)
+        val ordered = preferences.getString("${key}_order", null)
+        if (ordered != null) runCatching {
+            val ids = org.json.JSONArray(ordered)
+            return (0 until ids.length()).mapTo(linkedSetOf()) { ids.getString(it) }
+        }
+        return preferences.getStringSet(key, emptySet()).orEmpty().toSet()
+    }
     fun saveSnapshot(kind: String, ids: Set<String>, actor: String? = null, area: BrowseAreaConfig = state.value) {
-        preferences.edit().putStringSet(snapshotKey(kind, actor, area), ids).apply()
+        val key = snapshotKey(kind, actor, area)
+        preferences.edit().putStringSet(key, ids)
+            .putString("${key}_order", org.json.JSONArray(ids.toList()).toString()).apply()
     }
     fun select(label: String, latitude: Double, longitude: Double, radius: Int = 3000) {
         val area = BrowseAreaConfig(label, latitude, longitude, radius)

@@ -27,6 +27,8 @@ data class OpportunitySummary(
 data class OpportunityPage(
     val items: List<OpportunitySummary>,
     val nextCursor: String?,
+    val total: Int? = null,
+    val categories: List<String> = emptyList(),
 )
 
 data class ActivityItem(

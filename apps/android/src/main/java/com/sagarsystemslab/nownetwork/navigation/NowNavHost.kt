@@ -106,6 +106,8 @@ fun NowNavHost(
                 serverNowMillis = browseViewModel::serverNowMillis,
                 onRefresh = browseViewModel::refreshHome,
                 onLoadMore = browseViewModel::loadMore,
+                onSearch = browseViewModel::search,
+                onFreshness = browseViewModel::selectFreshness,
                 onStateClick = appState::navigateToState,
                 onEarnClick = {
                     appState.navigateTo(TopLevelDestination.EARN)
@@ -181,6 +183,8 @@ fun NowNavHost(
                 serverNowMillis = earnViewModel::serverNowMillis,
                 onRefresh = { earnViewModel.refresh(); experience?.activeWork() },
                 onLoadMore = earnViewModel::loadMore,
+                onSort = earnViewModel::selectSort,
+                onCategory = earnViewModel::selectCategory,
                 onEarningAlerts = { openExperience(ExperienceDestination.NOTIFICATION_PREFERENCES) },
                 onOpportunityClick = appState::navigateToOpportunity,
                 onBrowseAreas = { openExperience(ExperienceDestination.BROWSE_AREAS) },

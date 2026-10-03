@@ -5,6 +5,22 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
 import android.os.Bundle
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -61,6 +77,20 @@ fun LiveMapCard(
     var loaded by remember { mutableStateOf(false) }
     var map by remember { mutableStateOf<MapLibreMap?>(null) }
     val motion = rememberNowMotionEnabled()
+    var moving by remember { mutableStateOf(false) }
+    var visible by remember { mutableStateOf(false) }
+    var centerPoint by remember { mutableStateOf<Offset?>(null) }
+    val pulse = remember { Animatable(0f) }
+    val mapAlpha by animateFloatAsState(if (loaded) 1f else 0f,
+        tween(nowMotionDuration(motion, 180)), label = "map-style-ready")
+    val compactHeight = if (LocalConfiguration.current.screenHeightDp < 740) 190.dp else 210.dp
+    LaunchedEffect(motion, moving, loaded, center, visible) {
+        pulse.snapTo(0f)
+        if (motion && visible && !moving && loaded && center?.valid == true) while (isActive) {
+            pulse.animateTo(1f, tween(2600, easing = LinearEasing))
+            pulse.snapTo(0f)
+        }
+    }
     val mapView = remember(context) {
         MapLibre.getInstance(context)
         MapView(context, MapLibreMapOptions.createFromAttributes(context).textureMode(true)).apply { onCreate(Bundle()) }
@@ -88,7 +118,16 @@ fun LiveMapCard(
             ready.uiSettings.isLogoEnabled = false
             ready.uiSettings.isAttributionEnabled = true
             ready.setOnMarkerClickListener { marker -> selectedPin = marker.snippet; true }
+            fun updateCenterPoint() {
+                centerPoint = latestCenter?.takeIf { it.valid }?.let { c ->
+                    ready.projection.toScreenLocation(LatLng(c.latitude, c.longitude)).let { Offset(it.x, it.y) }
+                }
+            }
+            ready.addOnCameraMoveStartedListener { moving = true }
+            ready.addOnCameraMoveListener { updateCenterPoint() }
             ready.addOnCameraIdleListener {
+                moving = false
+                updateCenterPoint()
                 ready.cameraPosition.target?.let { target ->
                     cameraSnapshot = doubleArrayOf(target.latitude,target.longitude,ready.cameraPosition.zoom,ready.cameraPosition.tilt)
                     val origin = latestCenter
@@ -104,7 +143,9 @@ fun LiveMapCard(
         val ready = map ?: return@LaunchedEffect
         loaded = false; failed = false
         val json = context.assets.open("maps/${if (dark) "night" else "day"}.json").bufferedReader().use { it.readText() }
-        ready.setStyle(Style.Builder().fromJson(json)) { loaded = true }
+        ready.setStyle(Style.Builder().fromJson(json)) { loaded = true; failed = false }
+        delay(15_000)
+        if (!loaded) failed = true
     }
     LaunchedEffect(map, center, tilted) {
         val c = center?.takeIf { it.valid } ?: pins.firstOrNull()?.center ?: return@LaunchedEffect
@@ -112,7 +153,7 @@ fun LiveMapCard(
         map?.moveCamera(CameraUpdateFactory.newCameraPosition(CameraPosition.Builder()
             .target(if(saved != null) LatLng(saved[0], saved[1]) else LatLng(c.latitude, c.longitude)).zoom(saved?.get(2) ?: 13.4).tilt(if (tilted) 38.0 else 0.0).build()))
     }
-    LaunchedEffect(map, pins, loaded) {
+    LaunchedEffect(map, pins, loaded, selectedPin) {
         val ready = map ?: return@LaunchedEffect
         if (selectedPin != null && pins.none { it.id == selectedPin }) selectedPin = null
         ready.clear()
@@ -124,13 +165,34 @@ fun LiveMapCard(
                 else -> android.graphics.Color.rgb(127, 152, 183)
             }
             ready.addMarker(MarkerOptions().position(LatLng(pin.center.latitude, pin.center.longitude))
-                .title(pin.title).snippet(pin.id).icon(IconFactory.getInstance(context).fromBitmap(pinBitmap(color))))
+                .title(pin.title).snippet(pin.id).icon(IconFactory.getInstance(context).fromBitmap(pinBitmap(color, pin.id == selectedPin))))
         }
     }
-    Surface(modifier.fillMaxWidth().height(if (expanded) 420.dp else 230.dp).testTag("LIVE-MAP"),
+    Surface(modifier.fillMaxWidth().height(if (expanded) 420.dp else compactHeight)
+        .onGloballyPositioned { coordinates ->
+            visible = coordinates.boundsInWindow().let { it.width > 0f && it.height > 0f }
+        }.testTag("LIVE-MAP"),
         shape = NowShapes.extraLarge, color = NowColors.SurfaceRaised, border = BorderStroke(1.dp, NowColors.InfoBorder)) {
         Box {
-            AndroidView(factory = { mapView }, modifier = Modifier.fillMaxSize())
+            AndroidView(factory = { mapView }, modifier = Modifier.fillMaxSize().graphicsLayer { alpha = mapAlpha })
+            if (loaded && center?.valid == true) androidx.compose.foundation.Canvas(
+                Modifier.fillMaxSize().semantics { contentDescription = "Selected browse area center" },
+            ) {
+                centerPoint?.let { point ->
+                    val blue = Color(0xFF168BFF)
+                    drawCircle(Brush.radialGradient(listOf(blue.copy(alpha = .34f), Color.Transparent), point, 42.dp.toPx()), 42.dp.toPx(), point)
+                    if (motion && visible && !moving) repeat(2) { ring ->
+                        val phase = (pulse.value + ring * .5f) % 1f
+                        drawCircle(blue.copy(alpha = (1f - phase) * .45f),
+                            (14 + phase * 28).dp.toPx(), point, style = Stroke(1.5.dp.toPx()))
+                    } else drawCircle(blue.copy(alpha = .35f), 25.dp.toPx(), point, style = Stroke(1.5.dp.toPx()))
+                    drawCircle(Color.White, 8.dp.toPx(), point)
+                    drawCircle(blue, 6.dp.toPx(), point)
+                }
+            }
+            if (!loaded && !failed) Surface(Modifier.align(Alignment.BottomStart).padding(12.dp), color = NowColors.SurfacePrimary, shape = NowShapes.medium) {
+                Text("Loading map…", Modifier.padding(horizontal = 12.dp, vertical = 8.dp), style = NowType.BodyS, color = NowColors.Ink700)
+            }
             if (center == null && pins.isEmpty()) {
                 Surface(Modifier.align(Alignment.Center).padding(20.dp), shape = NowShapes.medium, color = NowColors.SurfacePrimary) {
                     Text("Choose an area to explore the map", Modifier.padding(14.dp), color = NowColors.Ink700, style = NowType.BodyM)
@@ -172,9 +234,10 @@ fun LiveMapCard(
     }
 }
 
-private fun pinBitmap(color: Int): Bitmap {
+private fun pinBitmap(color: Int, selected: Boolean = false): Bitmap {
     val bitmap = Bitmap.createBitmap(64, 80, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bitmap)
+    if (selected) canvas.scale(1.08f, 1.08f, 32f, 74f)
     val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     val path = Path().apply { moveTo(32f, 74f); cubicTo(26f, 62f, 9f, 43f, 9f, 29f); cubicTo(9f, 0f, 55f, 0f, 55f, 29f); cubicTo(55f, 43f, 38f, 62f, 32f, 74f); close() }
     paint.color = color; paint.setShadowLayer(5f, 0f, 0f, color); canvas.drawPath(path, paint)

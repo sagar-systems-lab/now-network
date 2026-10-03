@@ -38,6 +38,12 @@ enum class EarnNotice {
     DATA_UNAVAILABLE,
 }
 
+enum class EarnSort(val apiValue: String, val label: String) {
+    NEAREST("nearest", "Nearest"),
+    PAYOUT("payout", "Highest est. payout"),
+    ENDING("ending", "Ending soon"),
+}
+
 data class EarnUiState(
     val areaLabel: String,
     val opportunities: List<OpportunitySummary> = emptyList(),
@@ -46,6 +52,10 @@ data class EarnUiState(
     val nextCursor: String? = null,
     val loadingMore: Boolean = false,
     val moreFailed: Boolean = false,
+    val sort: EarnSort = EarnSort.NEAREST,
+    val category: String? = null,
+    val categories: List<String> = emptyList(),
+    val total: Int? = null,
 )
 
 @HiltViewModel
@@ -70,6 +80,8 @@ class EarnViewModel @Inject constructor(
     )
     val state: StateFlow<EarnUiState> = mutableState.asStateFlow()
 
+    private fun snapshotKind(sort: EarnSort = mutableState.value.sort, category: String? = mutableState.value.category) = "opportunities:${sort.apiValue}:${category.orEmpty()}"
+
     private var activeSnapshotIds: Set<String>? = emptySet()
     private var actorId: String? = null
     private var sessionReady = false
@@ -81,9 +93,9 @@ class EarnViewModel @Inject constructor(
                 areaVersion++
                 refreshJob?.cancel()
                 pageJob?.cancel()
-                activeSnapshotIds = actorId?.let { browseContext.snapshot("opportunities", it, area) }.orEmpty()
+                activeSnapshotIds = actorId?.let { browseContext.snapshot(snapshotKind(), it, area) }.orEmpty()
                 val cached = withContext(Dispatchers.IO) { repository.get().observeCached().first() }.filter { it.refreshId in activeSnapshotIds.orEmpty() }
-                mutableState.update { it.copy(areaLabel = area.label.ifBlank { "Browse area" }, opportunities = rank(cached), nextCursor = null, loadingMore = false, moreFailed = false) }
+                mutableState.update { it.copy(areaLabel = area.label.ifBlank { "Browse area" }, opportunities = rank(cached), nextCursor = null, loadingMore = false, moreFailed = false, total = null, categories = emptyList()) }
                 refresh()
             }
         }
@@ -121,9 +133,9 @@ class EarnViewModel @Inject constructor(
                             if (actorId != sessionState.actorId) {
                                 refreshJob?.cancel(); pageJob?.cancel(); areaVersion++; initialRefreshStarted = false
                                 actorId = sessionState.actorId
-                                activeSnapshotIds = browseContext.snapshot("opportunities", actorId)
+                                activeSnapshotIds = browseContext.snapshot(snapshotKind(), actorId)
                                 val cached = withContext(Dispatchers.IO) { repository.get().observeCached().first() }.filter { it.refreshId in activeSnapshotIds.orEmpty() }
-                                mutableState.update { it.copy(opportunities = rank(cached), nextCursor = null, loadingMore = false, moreFailed = false) }
+                                mutableState.update { it.copy(opportunities = rank(cached), nextCursor = null, loadingMore = false, moreFailed = false, total = null, categories = emptyList()) }
                             }
                             sessionReady = true
                             mutableState.update { it.copy(notice = EarnNotice.NONE) }
@@ -155,7 +167,7 @@ class EarnViewModel @Inject constructor(
                         SessionBootstrapState.Idle -> {
                             sessionReady = false; initialRefreshStarted = false; actorId = null
                             refreshJob?.cancel(); pageJob?.cancel(); areaVersion++; activeSnapshotIds = emptySet()
-                            mutableState.update { it.copy(notice = EarnNotice.AUTH_REQUIRED, opportunities = emptyList(), refreshing = false, nextCursor = null, loadingMore = false, moreFailed = false) }
+                            mutableState.update { it.copy(notice = EarnNotice.AUTH_REQUIRED, opportunities = emptyList(), refreshing = false, nextCursor = null, loadingMore = false, moreFailed = false, total = null, categories = emptyList()) }
                         }
                     }
                 }
@@ -163,7 +175,13 @@ class EarnViewModel @Inject constructor(
         }
     }
 
-    fun refresh() {
+    fun refresh() = refreshQuery(mutableState.value.sort, mutableState.value.category)
+
+    fun selectSort(sort: EarnSort) = refreshQuery(sort, mutableState.value.category)
+
+    fun selectCategory(category: String?) = refreshQuery(mutableState.value.sort, category)
+
+    private fun refreshQuery(sort: EarnSort, category: String?) {
         val notice = configurationNotice()
         if (notice != EarnNotice.NONE) {
             mutableState.update { it.copy(refreshing = false, notice = notice) }
@@ -195,15 +213,21 @@ class EarnViewModel @Inject constructor(
                             latitude = requireNotNull(requestedArea.latitude),
                             longitude = requireNotNull(requestedArea.longitude),
                             radiusMeters = requestedArea.radiusMeters,
+                            sort = sort.apiValue,
+                            category = category,
                         ),
                     )
                 }
                 if (requestedVersion != areaVersion) return@launch
                 activeSnapshotIds = page.items.mapTo(linkedSetOf()) { it.refreshId }
-                browseContext.saveSnapshot("opportunities", activeSnapshotIds.orEmpty(), actorId, requestedArea)
+                browseContext.saveSnapshot(snapshotKind(sort, category), activeSnapshotIds.orEmpty(), actorId, requestedArea)
                 mutableState.update {
                     it.copy(
-                        opportunities = rank(page.items),
+                        opportunities = page.items,
+                        sort = sort,
+                        category = category,
+                        categories = page.categories,
+                        total = page.total,
                         refreshing = false,
                         notice = EarnNotice.NONE,
                         nextCursor = page.nextCursor,
@@ -240,13 +264,17 @@ class EarnViewModel @Inject constructor(
                         longitude = requireNotNull(requestedArea.longitude),
                         radiusMeters = requestedArea.radiusMeters,
                         cursor = cursor,
+                        sort = current.sort.apiValue,
+                        category = current.category,
                     ))
                 }
                 if (requestedVersion != areaVersion || requestedActor != actorId) return@launch
                 activeSnapshotIds = activeSnapshotIds.orEmpty() + page.items.map { it.refreshId }
-                browseContext.saveSnapshot("opportunities", activeSnapshotIds.orEmpty(), requestedActor, requestedArea)
+                browseContext.saveSnapshot(snapshotKind(current.sort, current.category), activeSnapshotIds.orEmpty(), requestedActor, requestedArea)
                 mutableState.update { state -> state.copy(
-                    opportunities = rank((state.opportunities + page.items).associateBy { it.refreshId }.values.toList()),
+                    opportunities = (state.opportunities + page.items).associateBy { it.refreshId }.values.toList(),
+                    total = page.total,
+                    categories = page.categories,
                     nextCursor = page.nextCursor?.takeUnless { it == cursor },
                     loadingMore = false,
                     moreFailed = false,
@@ -275,8 +303,11 @@ class EarnViewModel @Inject constructor(
             else -> EarnNotice.NONE
         }
 
-    private fun rank(items: List<OpportunitySummary>): List<OpportunitySummary> =
-        items.sortedWith(compareBy<OpportunitySummary> { it.distanceMeters ?: Double.MAX_VALUE }.thenBy { it.refreshId })
+    private fun rank(items: List<OpportunitySummary>): List<OpportunitySummary> {
+        val positions = activeSnapshotIds.orEmpty().withIndex().associate { it.value to it.index }
+        return items.sortedWith(compareBy<OpportunitySummary> { positions[it.refreshId] ?: Int.MAX_VALUE }
+            .thenBy { it.refreshId })
+    }
 
     private fun Exception.toNotice(): EarnNotice =
         when (this) {

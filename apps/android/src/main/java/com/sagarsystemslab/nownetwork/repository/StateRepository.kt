@@ -65,6 +65,7 @@ class DefaultStateRepository @Inject constructor(
         return NearbyStatePage(
             items = states,
             nextCursor = remote.nextCursor,
+            counts = remote.counts,
         )
     }
 

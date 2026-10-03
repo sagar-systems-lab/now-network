@@ -30,7 +30,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import com.sagarsystemslab.nownetwork.feature.common.*
 import com.sagarsystemslab.nownetwork.model.GeoCenter
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -73,7 +78,10 @@ fun EarnScreen(
     onLoadMore: () -> Unit = {},
     activeWork: (@Composable () -> Unit)? = null,
     onEarningAlerts: (() -> Unit)? = null,
+    onSort: (EarnSort) -> Unit = {},
+    onCategory: (String?) -> Unit = {},
 ) {
+    var sortMenu by remember { mutableStateOf(false) }
     val nowMillis = rememberVisibleServerTime(serverNowMillis)
     val listMotionDuration = nowMotionDuration(
         enabled = rememberNowMotionEnabled(),
@@ -102,7 +110,28 @@ fun EarnScreen(
         item { LiveMapCard(center, visibleOpportunities.mapNotNull { o -> o.center?.let { LiveMapPin(o.refreshId, o.title, it, if (o.claimable && !o.cachedOnly) "CLAIMABLE" else "UNKNOWN") } }, onOpportunityClick, onSearchArea = onSearchArea) }
         item { SyncStrip(uiState.refreshing, visibleOpportunities.size, uiState.notice != EarnNotice.NONE, onRefresh) }
         if (activeWork != null) item { activeWork() }
-        if (visibleOpportunities.isNotEmpty()) item { MetricStrip(listOf(liveCount.toString() to "Available shown", visibleOpportunities.size.toString() to "Results shown")) }
+        if (visibleOpportunities.isNotEmpty()) item { MetricStrip(listOf((uiState.total?.toString() ?: "—") to "Available nearby", visibleOpportunities.size.toString() to "Results shown")) }
+        if (visibleOpportunities.isNotEmpty() || uiState.category != null) item {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("Explore opportunities", Modifier.weight(1f), style = NowType.TitleS, color = NowColors.Ink950)
+                Box {
+                    TextButton({ sortMenu = true }, enabled = !uiState.refreshing) { Text(uiState.sort.label + " ▾") }
+                    DropdownMenu(sortMenu, { sortMenu = false }) {
+                        EarnSort.entries.forEach { sort -> DropdownMenuItem(
+                            text = { Text(sort.label) }, onClick = { sortMenu = false; onSort(sort) },
+                        ) }
+                    }
+                }
+            }
+            if (uiState.categories.isNotEmpty() || uiState.category != null) LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                item { FilterChip(uiState.category == null, { onCategory(null) }, enabled = !uiState.refreshing, label = { Text("All") }) }
+                items((uiState.categories + listOfNotNull(uiState.category)).distinct(), key = { it }) { category ->
+                    FilterChip(uiState.category == category, { onCategory(category) }, enabled = !uiState.refreshing,
+                        label = { Text(category.lowercase().replace('_', ' ').replaceFirstChar { it.uppercase() }) })
+                }
+            }
+            if (uiState.sort == EarnSort.PAYOUT) Text("Estimated share, highest first within each token. Tokens are grouped separately.", style = NowType.BodyS, color = NowColors.Ink600)
+        }
 
         if (uiState.notice != EarnNotice.NONE) {
             item {
@@ -142,9 +171,9 @@ fun EarnScreen(
                     )
                     Text(
                         text = if (liveCount == 1) {
-                            "1 available task shown, ordered by distance."
+                            "1 available task shown."
                         } else {
-                            liveCount.toString() + " available tasks shown, ordered by distance."
+                            liveCount.toString() + " available tasks shown."
                         },
                         style = NowType.BodyS,
                         color = NowColors.Ink500,
@@ -159,11 +188,19 @@ fun EarnScreen(
             }
         } else if (visibleOpportunities.isEmpty() && uiState.notice == EarnNotice.NONE) {
             item {
-                EmptyProofCard(
-                    "Nothing nearby needs fresh proof",
-                    "New earning opportunities appear when nearby states become stale or need another verified observation.",
-                    onBrowseAreas, onHelp,
-                )
+                if (uiState.category != null) {
+                    com.sagarsystemslab.nownetwork.designsystem.NowGlassCard {
+                        Text("No opportunities in this category", style = NowType.TitleS, color = NowColors.Ink950)
+                        Text("Try all categories or choose another area to explore available work.", style = NowType.BodyM, color = NowColors.Ink600)
+                        NowSecondaryButton("Show all categories", { onCategory(null) }, Modifier.fillMaxWidth())
+                    }
+                } else {
+                    EmptyProofCard(
+                        "Nothing nearby needs fresh proof",
+                        "New earning opportunities appear when nearby states become stale or need another verified observation.",
+                        onBrowseAreas, onHelp,
+                    )
+                }
             }
         } else if (visibleOpportunities.isNotEmpty()) {
             items(

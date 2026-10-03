@@ -45,6 +45,8 @@ class KtorNowApiClient @Inject constructor(
             parameter("lng", query.longitude)
             parameter("radius_m", query.radiusMeters)
             parameter("limit", query.limit)
+            parameter("q", query.search)
+            parameter("freshness", query.freshness)
             query.cursor?.let { parameter("cursor", it) }
         }
 
@@ -70,6 +72,8 @@ class KtorNowApiClient @Inject constructor(
             parameter("lng", query.longitude)
             parameter("radius_m", query.radiusMeters)
             parameter("limit", query.limit)
+            parameter("sort", query.sort)
+            query.category?.let { parameter("category", it) }
             query.cursor?.let { parameter("cursor", it) }
         }
 

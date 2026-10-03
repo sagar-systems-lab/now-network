@@ -144,13 +144,28 @@ jobs:
           bash scripts/android/capture-visuals.sh "$RUNNER_TEMP/now-visuals"
 
       - name: Android visual captures
+        id: visual-upload
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: android-visuals
           path: ${{ runner.temp }}/now-visuals
           if-no-files-found: error
           retention-days: 14
+
+      - name: Preserve visual captures when artifact transport is unavailable
+        if: always() && steps.visual-upload.outcome == 'failure'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s "$RUNNER_TEMP/now-visuals/capture-context.txt"
+          java scripts/android/VisualPreview.java "$RUNNER_TEMP/now-visuals" "$RUNNER_TEMP/now-visual-previews"
+          tar -czf "$RUNNER_TEMP/now-visual-previews.tgz" -C "$RUNNER_TEMP/now-visual-previews" .
+          sha256sum "$RUNNER_TEMP/now-visual-previews.tgz"
+          echo NOW_VISUAL_ARCHIVE_START
+          base64 "$RUNNER_TEMP/now-visual-previews.tgz"
+          echo NOW_VISUAL_ARCHIVE_END
 
 
   api:
@@ -168,7 +183,11 @@ jobs:
       - name: Checks
         shell: bash
         run: |
-          deno fmt --check backend packages/contracts packages/domain packages/policy supabase/functions/now-api supabase/functions/now-worker tests scripts/solana/local-validator-client.ts scripts/performance
+          if ! deno fmt --check backend packages/contracts packages/domain packages/policy supabase/functions/now-api supabase/functions/now-worker tests scripts/solana/local-validator-client.ts scripts/performance; then
+            deno fmt backend packages/contracts packages/domain packages/policy supabase/functions/now-api supabase/functions/now-worker tests scripts/solana/local-validator-client.ts scripts/performance
+            git -c color.ui=false diff -- backend packages supabase/functions tests scripts
+            exit 1
+          fi
           deno lint backend packages/contracts packages/domain packages/policy supabase/functions/now-api supabase/functions/now-worker tests scripts/solana/local-validator-client.ts scripts/performance
           deno test scripts/performance/summarize_latency_test.ts
           bash -n scripts/performance/android-device-baseline.sh
@@ -265,7 +284,7 @@ jobs:
         shell: bash
         env:
           NOW_TEST_DB_URL: postgres://postgres:postgres@127.0.0.1:5432/now_test
-        run: deno test --allow-env --allow-net=127.0.0.1:5432 backend/tests/experience_database_test.ts
+        run: deno test --allow-env --allow-net=127.0.0.1:5432 backend/tests/experience_database_test.ts backend/tests/discovery_database_test.ts
 
       - name: Exercise performance query-plan capture
         shell: bash

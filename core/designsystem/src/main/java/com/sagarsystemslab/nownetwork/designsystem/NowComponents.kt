@@ -60,9 +60,10 @@ fun NowPrimaryButton(
 ) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
+    val motionEnabled = rememberNowMotionEnabled()
     val scale by animateFloatAsState(
-        targetValue = if (pressed && enabled) .975f else 1f,
-        animationSpec = tween(nowMotionDuration(rememberNowMotionEnabled(), if (pressed) 90 else 120)),
+        targetValue = if (pressed && enabled && motionEnabled) .985f else 1f,
+        animationSpec = tween(nowMotionDuration(motionEnabled, if (pressed) 90 else 120)),
         label = "primary-press",
     )
     Button(

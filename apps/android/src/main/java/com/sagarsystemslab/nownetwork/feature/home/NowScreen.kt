@@ -37,11 +37,12 @@ fun NowScreen(
     unread: Int = 0,
     onSearchArea: ((GeoCenter) -> Unit)? = null,
     onLoadMore: () -> Unit = {},
+    onSearch: (String) -> Unit = {},
+    onFreshness: (String) -> Unit = {},
 ) {
     val nowMillis = rememberVisibleServerTime(serverNowMillis)
-    var filter by rememberSaveable { mutableStateOf("All") }
-    var search by rememberSaveable { mutableStateOf("") }
-    val states = uiState.states.filter { (filter == "All" || it.freshnessAt(nowMillis).name == filter.uppercase()) && (it.title.contains(search, ignoreCase = true) || it.question.contains(search, ignoreCase = true)) }
+    var search by rememberSaveable(uiState.search) { mutableStateOf(uiState.search) }
+    val states = uiState.states
     val candidate = uiState.states.firstOrNull { it.freshnessAt(nowMillis) == FreshnessKind.STALE && !it.conflictActive }
     val duration = nowMotionDuration(rememberNowMotionEnabled(), 220)
     LazyColumn(Modifier.testTag("screen-now"), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -67,8 +68,11 @@ fun NowScreen(
         }
         if (uiState.notice != BrowseNotice.NONE) item { BrowseNoticeCard(uiState.notice, uiState.states.isNotEmpty()) }
         item {
-            val known = uiState.states.isNotEmpty() || (!uiState.refreshing && uiState.notice == BrowseNotice.NONE)
-            MetricStrip(listOf((if (known) uiState.states.size.toString() else "—") to "States shown", (if (known) uiState.states.count { it.freshnessAt(nowMillis) == FreshnessKind.STALE }.toString() else "—") to "Stale shown", (if (known) uiState.states.count { it.freshnessAt(nowMillis) == FreshnessKind.LIVE }.toString() else "—") to "Live shown"))
+            MetricStrip(listOf(
+                (uiState.counts?.total?.toString() ?: "—") to "Matching nearby",
+                (uiState.counts?.stale?.toString() ?: "—") to "Need proof",
+                (uiState.counts?.live?.toString() ?: "—") to "Live nearby",
+            ))
         }
         if (candidate != null) item {
             NowGlassCard(emphasized = true) {
@@ -78,15 +82,21 @@ fun NowScreen(
         }
         item {
             NowSectionTitle("Nearby now", "Freshness changes as observations age")
-            NowTextField(search, { search = it }, "Search loaded states")
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("All", "Live", "Aging", "Stale").forEach { value -> FilterChip(filter == value, { filter = value }, label = { Text(value) }) }
+            NowTextField(search, { search = it.take(120) }, "Search this area")
+            NowSecondaryButton("Search area", { onSearch(search) }, Modifier.fillMaxWidth(), enabled = !uiState.refreshing)
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(listOf("all", "live", "aging", "stale", "unobserved", "conflict")) { value ->
+                    FilterChip(uiState.freshness == value, { onFreshness(value) },
+                        enabled = !uiState.refreshing,
+                        label = { Text(value.replaceFirstChar { it.uppercase() }) })
+                }
             }
+            Text("Area totals from the last refresh. Observations keep aging.", style = NowType.BodyS, color = NowColors.Ink600)
         }
         if (uiState.refreshing && states.isEmpty()) item { LinearProgressIndicator(Modifier.fillMaxWidth(), color = NowColors.Blue600) }
         else if (states.isEmpty() && (uiState.states.isNotEmpty() || uiState.notice == BrowseNotice.NONE)) item {
             NowGlassCard {
-                Text(if (uiState.states.isEmpty()) "No nearby states yet" else "No states match these filters", style = NowType.TitleM, color = NowColors.Ink950)
+                Text(if (uiState.search.isBlank() && uiState.freshness == "all") "No nearby states yet" else "No states match these filters", style = NowType.TitleM, color = NowColors.Ink950)
                 Text("Choose an area with coverage or check again for new observations.", style = NowType.BodyM, color = NowColors.Ink600)
                 NowSecondaryButton("Browse areas", onBrowseAreas, Modifier.fillMaxWidth())
             }

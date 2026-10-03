@@ -240,6 +240,8 @@ export function createApp(dependencies: AppDependencies): (request: Request) => 
           radiusM: requiredQueryNumber(url, "radius_m", 1, MAX_NEARBY_RADIUS_M, true),
           limit: optionalQueryInteger(url, "limit", DEFAULT_NEARBY_LIMIT, 1, MAX_NEARBY_LIMIT),
           cursor: url.searchParams.get("cursor"),
+          search: url.searchParams.get("q") ?? "",
+          freshness: url.searchParams.get("freshness") ?? "all",
         });
         return successResponse(id, data);
       }
@@ -299,6 +301,8 @@ export function createApp(dependencies: AppDependencies): (request: Request) => 
             MAX_OPPORTUNITY_LIMIT,
           ),
           cursor: url.searchParams.get("cursor"),
+          sort: url.searchParams.get("sort") ?? "nearest",
+          category: url.searchParams.get("category"),
         });
         return successResponse(id, data);
       }
