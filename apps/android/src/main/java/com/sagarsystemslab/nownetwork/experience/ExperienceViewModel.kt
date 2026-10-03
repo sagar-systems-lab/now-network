@@ -44,19 +44,25 @@ class ExperienceViewModel @Inject constructor(
     val state = mutable.asStateFlow()
     private var areaJob: Job? = null
     private var refreshJob: Job? = null
+    private var mutationJob: Job? = null
+    private var identityMutation = false
     private var lastAreaQuery = ""
     private var lastAreaFilter = "all"
     private val accountMutex = kotlinx.coroutines.sync.Mutex()
     private var lastInboxFilter = "all"
-    private var generation = 0
 
     init {
         viewModelScope.launch {
             sessions.state.collectLatest { session ->
-                if (session is com.sagarsystemslab.nownetwork.repository.SessionBootstrapState.Ready && mutable.value.me != null && mutable.value.me?.actorId != session.actorId) {
+                if (!identityMutation && session is com.sagarsystemslab.nownetwork.repository.SessionBootstrapState.Ready && mutable.value.me != null && mutable.value.me?.actorId != session.actorId) {
                     refreshJob?.cancel()
-                    mutable.value = ExperienceUiState(saving = mutable.value.saving)
+                    mutationJob?.cancel()
+                    mutable.value = ExperienceUiState()
                     refresh()
+                } else if (!identityMutation && session is com.sagarsystemslab.nownetwork.repository.SessionBootstrapState.Idle) {
+                    refreshJob?.cancel()
+                    mutationJob?.cancel()
+                    mutable.value = ExperienceUiState()
                 }
             }
         }
@@ -69,7 +75,7 @@ class ExperienceViewModel @Inject constructor(
             try {
                 withContext(Dispatchers.IO) { accountMutex.withLock {
                     val me = repository.me()
-                    if (mutable.value.me?.actorId != me.actorId) { generation++; mutable.value = ExperienceUiState(me = me, loading = true) }
+                    if (mutable.value.me?.actorId != me.actorId) { mutable.value = ExperienceUiState(me = me, loading = true) }
                     val profile = repository.get("/v1/me/profile")
                     mutable.update { it.copy(me = me, profile = profile, preferences = profile.objectAt("preferences")) }
                     val inbox = repository.get("/v1/me/notifications", mapOf("filter" to lastInboxFilter))
@@ -78,7 +84,7 @@ class ExperienceViewModel @Inject constructor(
                     try { repository.registerInstallation() } catch (cancel: CancellationException) { throw cancel } catch (_: Exception) { /* Device settings expose registration errors on retry. */ }
                 } }
             } catch (cancel: CancellationException) { throw cancel }
-            catch (error: Exception) { mutable.update { it.copy(error = safeMessage(error)) } }
+            catch (error: Exception) { mutable.update { if (error is com.sagarsystemslab.nownetwork.network.ApiFailure.AuthExpired) ExperienceUiState(error = safeMessage(error)) else it.copy(error = safeMessage(error)) } }
             finally { mutable.update { it.copy(loading = false) } }
         }
     }
@@ -141,18 +147,19 @@ class ExperienceViewModel @Inject constructor(
         val response = repository.get("/v1/me/installations")
         mutable.update { it.copy(installations = response.rows()) }
     }
-    fun revokeDevice(id: String) = mutation("Device access revoked") {
-        repository.post("/v1/me/installations/revoke", buildJsonObject { put("installation_id", id) })
+    fun revokeDevice(id: String) = mutation("Device access revoked", changesIdentity = true) {
         if (mutable.value.installations.any { it.text("installation_id") == id && it.flag("current") }) {
-            mutable.value = ExperienceUiState(error = "This device is revoked. Sign in again to recover access.")
+            repository.safeSignOut()
+            mutable.value = ExperienceUiState(notice = "This device is signed out. Recover your account with a linked wallet.")
         } else {
+            repository.post("/v1/me/installations/revoke", buildJsonObject { put("installation_id", id) })
             val response = repository.get("/v1/me/installations")
             mutable.update { it.copy(installations = response.rows()) }
         }
     }
-    fun connectWallet(host: WalletInteractionHost) = mutation("Wallet ownership verified") {
+    fun connectWallet(host: WalletInteractionHost) = mutation("Wallet ownership verified", changesIdentity = true) {
         val me = repository.connectWallet(host)
-        if (mutable.value.me?.actorId != me.actorId) { generation++; mutable.value = ExperienceUiState(me = me, saving = true) }
+        if (mutable.value.me?.actorId != me.actorId) { mutable.value = ExperienceUiState(me = me, saving = true) }
         else mutable.update { it.copy(me = me) }
         val profile = repository.get("/v1/me/profile")
         mutable.update { it.copy(profile = profile, preferences = profile.objectAt("preferences")) }
@@ -168,8 +175,8 @@ class ExperienceViewModel @Inject constructor(
         val result = repository.balances(wallet)
         mutable.update { it.copy(balances = it.balances + (wallet.walletBindingId to result)) }
     }
-    fun signOut() = mutation("Signed out on this device") {
-        repository.safeSignOut(); generation++; mutable.value = ExperienceUiState()
+    fun signOut() = mutation("Signed out on this device", changesIdentity = true) {
+        repository.safeSignOut(); mutable.value = ExperienceUiState()
     }
     fun amount(atomic: String, mint: String) = repository.amount(atomic, mint)
     fun history(stateId: String, more: Boolean = false) {
@@ -196,15 +203,16 @@ class ExperienceViewModel @Inject constructor(
     fun dismissProof() { mutable.update { it.copy(privateProof = null) } }
     fun dismissMessage() { mutable.update { it.copy(error = null, notice = null) } }
 
-    private fun mutation(message: String?, block: suspend () -> Unit) {
+    private fun mutation(message: String?, changesIdentity: Boolean = false, block: suspend () -> Unit) {
         if (mutable.value.saving) return
         refreshJob?.cancel()
-        viewModelScope.launch {
-            mutable.update { it.copy(saving = true, error = null, notice = null) }
+        identityMutation = changesIdentity
+        mutable.update { it.copy(saving = true, error = null, notice = null) }
+        mutationJob = viewModelScope.launch {
             try { withContext(Dispatchers.IO) { accountMutex.withLock { block() } }; mutable.update { it.copy(notice = message) } }
             catch (cancel: CancellationException) { throw cancel }
-            catch (error: Exception) { mutable.update { it.copy(error = safeMessage(error)) } }
-            finally { mutable.update { it.copy(saving = false) } }
+            catch (error: Exception) { mutable.update { if (error is com.sagarsystemslab.nownetwork.network.ApiFailure.AuthExpired) ExperienceUiState(error = safeMessage(error)) else it.copy(error = safeMessage(error)) } }
+            finally { identityMutation = false; mutable.update { it.copy(saving = false) } }
         }
     }
     private fun safeMessage(error: Exception): String = when (error) {

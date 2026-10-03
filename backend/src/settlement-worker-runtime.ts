@@ -71,7 +71,11 @@ export function createProductionSettlementWorkerHandler(): (
     new ReceiptCoordinator(receiptRepository),
     new RealtimePublisher(realtimeRepository),
     Deno.env.get("NOW_FCM_SERVICE_ACCOUNT_JSON")?.trim()
-      ? new PostgresNotificationRunner(connectionString, new FcmSender(requiredEnv("NOW_FCM_SERVICE_ACCOUNT_JSON"))) : undefined,
+      ? new PostgresNotificationRunner(
+        connectionString,
+        new FcmSender(requiredEnv("NOW_FCM_SERVICE_ACCOUNT_JSON")),
+      )
+      : undefined,
   );
 
   const handler = createSettlementWorkerHandler(

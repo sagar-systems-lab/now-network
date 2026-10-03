@@ -16,7 +16,10 @@ export type StateHistoryCursor = {
 };
 
 export type MapLocation = {
-  locationId: string; name: string; locationType: string; displayAddress: string | null;
+  locationId: string;
+  name: string;
+  locationType: string;
+  displayAddress: string | null;
   center: { latitude: number; longitude: number } | null;
 };
 

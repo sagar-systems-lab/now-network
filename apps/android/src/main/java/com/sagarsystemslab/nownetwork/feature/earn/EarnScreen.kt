@@ -152,7 +152,7 @@ fun EarnScreen(
             items(3) {
                 OpportunityLoadingCard()
             }
-        } else if (visibleOpportunities.isEmpty()) {
+        } else if (visibleOpportunities.isEmpty() && uiState.notice == EarnNotice.NONE) {
             item {
                 EmptyProofCard(
                     "Nothing nearby needs fresh proof",
@@ -160,7 +160,7 @@ fun EarnScreen(
                     onBrowseAreas, onHelp,
                 )
             }
-        } else {
+        } else if (visibleOpportunities.isNotEmpty()) {
             items(
                 items = visibleOpportunities,
                 key = { it.refreshId },
@@ -244,159 +244,28 @@ private fun OpportunityCard(
     modifier: Modifier = Modifier,
 ) {
     val timeText = formatOpportunityTime(opportunity.expiresAtMillis, nowMillis)
-
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .testTag("opportunity-card-" + opportunity.refreshId),
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(
-            containerColor = NowColors.SurfacePrimary,
-        ),
-        border = BorderStroke(1.dp, NowColors.BorderSubtle),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(NowSpacing.Space4),
-            verticalArrangement = Arrangement.spacedBy(NowSpacing.Space3),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.Top,
-                horizontalArrangement = Arrangement.spacedBy(NowSpacing.Space3),
-            ) {
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
-                ) {
-                    Text(
-                        text = "REWARD",
-                        style = NowType.LabelM,
-                        color = NowColors.Ink500,
-                    )
-                    Text(
-                        text = reward,
-                        style = NowType.DataMedium,
-                        color = NowColors.Ink950,
-                        modifier = Modifier.nowPulseOnChange(
-                            key = reward,
-                            durationMillis = com.sagarsystemslab.nownetwork.designsystem.NowMotion.BaseMillis,
-                        ),
-                    )
-                }
-
-                OpportunityAvailability(opportunity)
+    com.sagarsystemslab.nownetwork.designsystem.NowGlassCard(modifier = modifier.testTag("opportunity-card-" + opportunity.refreshId), emphasized = opportunity.claimable) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            com.sagarsystemslab.nownetwork.feature.common.CategoryArtwork(opportunity.title, Modifier.size(60.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Text(opportunity.title, style = NowType.TitleS, color = NowColors.Ink950)
+                Text(locationSummary(opportunity), style = NowType.BodyS, color = NowColors.Ink600)
+                Text(timeText, style = NowType.BodyS, color = NowColors.AgingText)
             }
-
-            Column(
-                verticalArrangement = Arrangement.spacedBy(NowSpacing.Space1),
-            ) {
-                Text(
-                    text = opportunity.title,
-                    style = NowType.TitleM,
-                    color = NowColors.Ink950,
-                )
-                Text(
-                    text = opportunity.question,
-                    style = NowType.BodyM,
-                    color = NowColors.Ink600,
-                )
-            }
-
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.medium,
-                color = NowColors.SurfaceSecondary,
-                border = BorderStroke(1.dp, NowColors.BorderSubtle),
-            ) {
-                Column(
-                    modifier = Modifier.padding(NowSpacing.Space3),
-                    verticalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
-                ) {
-                    OpportunityMetaRow(
-                        icon = Icons.Outlined.LocationOn,
-                        label = locationSummary(opportunity),
-                    )
-                    OpportunityMetaRow(
-                        icon = Icons.Outlined.Schedule,
-                        label = timeText,
-                        emphasized = true,
-                    )
-                }
-            }
-
-            Column(
-                verticalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
-            ) {
-                Text(
-                    text = "Proof required",
-                    style = NowType.LabelM,
-                    color = NowColors.Ink500,
-                )
-
-                opportunity.verificationClass
-                    ?.takeIf(String::isNotBlank)
-                    ?.let { verificationClass ->
-                        ProofRequirement(
-                            icon = Icons.Outlined.Verified,
-                            text = humanizeRequirement(verificationClass),
-                        )
-                    }
-
-                if (opportunity.mediaRequired == true) {
-                    ProofRequirement(
-                        icon = Icons.Outlined.CameraAlt,
-                        text = "Fresh photo",
-                    )
-                }
-
-                if (opportunity.locationRequired == true) {
-                    ProofRequirement(
-                        icon = Icons.Outlined.LocationOn,
-                        text = "Location match",
-                    )
-                }
-
-                opportunity.remainingSlots?.let { slots ->
-                    Text(
-                        text = if (slots == 1) {
-                            "1 contributor slot remaining"
-                        } else {
-                            slots.toString() + " contributor slots remaining"
-                        },
-                        style = NowType.BodyS,
-                        color = NowColors.Ink500,
-                    )
-                }
-            }
-
-            when {
-                opportunity.cachedOnly -> {
-                    NowNotice(
-                        body = "Saved opportunity · reconnect to confirm live availability before claiming.",
-                        tone = NowNoticeTone.NEUTRAL,
-                    )
-                }
-
-                opportunity.claimable -> {
-                    NowPrimaryButton(
-                        text = "View opportunity",
-                        onClick = onOpen,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-
-                else -> {
-                    NowSecondaryButton(
-                        text = "Opportunity filled",
-                        onClick = {},
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = false,
-                    )
-                }
-            }
+            Text(reward, style = NowType.LabelL, color = NowColors.Blue600)
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            OpportunityAvailability(opportunity)
+            Text(buildList {
+                if(opportunity.mediaRequired == true) add("Fresh photo")
+                if(opportunity.locationRequired == true) add("On site")
+                opportunity.remainingSlots?.let { add("$it slots") }
+            }.joinToString(" · "), style = NowType.BodyS, color = NowColors.Ink600, modifier = Modifier.weight(1f))
+        }
+        when {
+            opportunity.cachedOnly -> NowNotice("Saved opportunity · reconnect to confirm availability.")
+            opportunity.claimable -> NowPrimaryButton("View opportunity", onOpen, Modifier.fillMaxWidth())
+            else -> NowSecondaryButton("Opportunity filled", {}, Modifier.fillMaxWidth(), enabled = false)
         }
     }
 }

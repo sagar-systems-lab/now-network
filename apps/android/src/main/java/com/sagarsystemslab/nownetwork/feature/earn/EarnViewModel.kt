@@ -65,7 +65,7 @@ class EarnViewModel @Inject constructor(
     )
     val state: StateFlow<EarnUiState> = mutableState.asStateFlow()
 
-    private var activeSnapshotIds: Set<String>? = null
+    private var activeSnapshotIds: Set<String>? = emptySet()
     private var actorId: String? = null
     private var sessionReady = false
     private var initialRefreshStarted = false

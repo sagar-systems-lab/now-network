@@ -33,7 +33,7 @@ fun AccountActivityScreen(
     val pending = local.active.filter { it.entityId !in serverIds }
     LazyColumn(Modifier.testTag("screen-activity"), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { ExperienceHeader("ACTIVITY", "Your refreshes, proofs & earnings", area, onArea, onNotifications, onProfile, state.inbox.number("unread_count")) }
-        item { MetricStrip(listOf(rows.count { it.text("status") !in finished }.toString() to "In progress shown", rows.count { it.text("status") in finished }.toString() to "Completed shown")) }
+        item { MetricStrip(listOf((if (state.activity.isEmpty()) "—" else rows.count { it.text("status") !in finished }.toString()) to "In progress shown", (if (state.activity.isEmpty()) "—" else rows.count { it.text("status") in finished }.toString()) to "Completed shown")) }
         item { ExperienceFeedback(state, viewModel) }
         if (rows.isNotEmpty()) {
             item { NowTextField(query, { query = it }, "Search your activity") }

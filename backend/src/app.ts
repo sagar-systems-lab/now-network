@@ -270,7 +270,11 @@ export function createApp(dependencies: AppDependencies): (request: Request) => 
         principal.authUserId,
         principal.principalType,
       );
-      const experience = await dependencies.experienceService?.privateRequest(request, actor, principal);
+      const experience = await dependencies.experienceService?.privateRequest(
+        request,
+        actor,
+        principal,
+      );
       if (experience != null) return successResponse(id, experience);
 
       if (

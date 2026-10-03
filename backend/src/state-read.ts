@@ -108,7 +108,15 @@ function decodeHistoryCursor(value: string | null): StateHistoryCursor | null {
 function nearbyCard(record: NearbyStateRecord, now: Date): Record<string, unknown> {
   return {
     state_id: record.stateId,
-    location: record.location ? { location_id: record.location.locationId, name: record.location.name, location_type: record.location.locationType, display_address: record.location.displayAddress, center: record.location.center } : null,
+    location: record.location
+      ? {
+        location_id: record.location.locationId,
+        name: record.location.name,
+        location_type: record.location.locationType,
+        display_address: record.location.displayAddress,
+        center: record.location.center,
+      }
+      : null,
     title: record.title,
     question: record.question,
     state_type: record.stateType,

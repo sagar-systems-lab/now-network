@@ -34,17 +34,23 @@ fun BrowseAreasScreen(state: ExperienceUiState, viewModel: ExperienceViewModel, 
     var filter by rememberSaveable { mutableStateOf("All") }
     var locationMessage by remember { mutableStateOf<String?>(null) }
     var locating by remember { mutableStateOf(false) }
-    val cancellation = remember { CancellationTokenSource() }
+    var cancellation by remember { mutableStateOf(CancellationTokenSource()) }
+    LaunchedEffect(locating, cancellation) { if (locating) { delay(30_000); cancellation.cancel(); locating = false; locationMessage = "Location timed out. Try again or choose an area below." } }
     DisposableEffect(Unit) { onDispose { cancellation.cancel() } }
     fun locate() {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED && ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) return
+        cancellation.cancel()
+        cancellation = CancellationTokenSource()
+        val request = cancellation
         locating = true
+        locationMessage = null
         LocationServices.getFusedLocationProviderClient(context).getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, cancellation.token)
             .addOnSuccessListener { location ->
+                if (request.token.isCancellationRequested) return@addOnSuccessListener
                 locating = false
                 if (location == null) locationMessage = "Couldn't find your position. Choose a supported area below."
                 else { viewModel.browseContext.select("Near my location", location.latitude, location.longitude); onBack() }
-            }.addOnFailureListener { locating = false; locationMessage = "Location is unavailable. You can still choose an area below." }
+            }.addOnFailureListener { if (request.token.isCancellationRequested) return@addOnFailureListener; locating = false; locationMessage = "Location is unavailable. You can still choose an area below." }
     }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
         if (grants.values.any { it }) locate() else locationMessage = "Location permission was not granted. Browse manually below."
@@ -65,7 +71,7 @@ fun BrowseAreasScreen(state: ExperienceUiState, viewModel: ExperienceViewModel, 
         items(visible, key = { it.text("area_id") }) { area ->
             NowGlassCard {
                 ExperienceRow(area.text("name"), area.text("display_address").ifBlank { "3 km browse area" }, Icons.Outlined.LocationOn, { viewModel.selectArea(area); onBack() })
-                MetricStrip(listOf(area.number("total").toString() to "States", area.number("live").toString() to "Live", area.number("stale").toString() to "Need proof"))
+                MetricStrip(listOf(area.number("total").toString() to "States", area.number("live").toString() to "Live", (area.number("stale") + area.number("unobserved")).toString() to "Need proof"))
                 NowPrimaryButton("Explore this area", { viewModel.selectArea(area); onBack() }, Modifier.fillMaxWidth().testTag("AREA-SELECT-${area.text("area_id")}"))
             }
         }
@@ -84,7 +90,7 @@ fun NotificationsScreen(state: ExperienceUiState, viewModel: ExperienceViewModel
         item {
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("all", "unread", "proof", "payments", "security", "opportunities").forEach { category ->
-                    FilterChip(filter == category, { filter = category; viewModel.inbox(category) }, label = { Text(category.replaceFirstChar { it.uppercase() }) })
+                    FilterChip(filter == category, { filter = category; viewModel.inbox(category) }, label = { Text(category.replaceFirstChar { it.uppercase() }) }, enabled = !state.saving && !state.loading)
                 }
             }
             TextButton({ viewModel.markRead() }, enabled = state.inbox.number("unread_count") > 0 && !state.saving) { Text("Mark all read") }
@@ -101,7 +107,7 @@ fun NotificationsScreen(state: ExperienceUiState, viewModel: ExperienceViewModel
                 if (unread) TextButton({ viewModel.markRead(notification.text("notification_id")) }, enabled = !state.saving) { Text("Mark read") }
             }
         }
-        if (rows.isEmpty() && !state.loading && !state.saving) item {
+        if (rows.isEmpty() && !state.loading && !state.saving && state.error == null && state.inbox.isNotEmpty()) item {
             NowGlassCard { Icon(Icons.Outlined.NotificationsNone, null, Modifier.size(48.dp), tint = NowColors.Blue600); Text("You're all caught up", style = NowType.TitleM, color = NowColors.Ink950); Text("Real proof, payment and account events will appear here.", style = NowType.BodyM, color = NowColors.Ink600) }
         }
         if (state.inbox.text("next_offset").isNotBlank()) item { NowSecondaryButton("Load earlier updates", { viewModel.inbox(filter, more = true) }, Modifier.fillMaxWidth(), enabled = !state.saving) }

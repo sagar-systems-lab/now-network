@@ -357,7 +357,7 @@ fun NowNavHost(
                             "payment" -> if (id.isNotBlank()) appState.navigateToPayment(id)
                             "verification" -> if (id.isNotBlank()) appState.navigateToVerification(id)
                             "opportunity" -> if (id.isNotBlank()) appState.navigateToOpportunity(id)
-                            "wallet" -> openExperience(ExperienceDestination.WALLET)
+                            "wallet" -> openExperience(if (notification.text("category") == "security") ExperienceDestination.CONNECTED_SESSIONS else ExperienceDestination.WALLET)
                             else -> appState.navigateTo(TopLevelDestination.ACTIVITY)
                         }
                     },

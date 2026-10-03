@@ -151,7 +151,11 @@ export function createProductionHandler(): (request: Request) => Promise<Respons
   const paymentStatusService = new PaymentStatusService(paymentStatusRepository);
   const receiptService = new ReceiptService(receiptRepository);
   const app = createApp({
-    experienceService: new PostgresExperienceService(connectionString, { url: supabaseUrl, serviceKey: requiredEnv("SUPABASE_SERVICE_ROLE_KEY"), evidenceBucket: requiredEnv("NOW_EVIDENCE_STORAGE_BUCKET") }, Boolean(Deno.env.get("NOW_FCM_SERVICE_ACCOUNT_JSON"))),
+    experienceService: new PostgresExperienceService(connectionString, {
+      url: supabaseUrl,
+      serviceKey: requiredEnv("SUPABASE_SERVICE_ROLE_KEY"),
+      evidenceBucket: requiredEnv("NOW_EVIDENCE_STORAGE_BUCKET"),
+    }, Boolean(Deno.env.get("NOW_FCM_SERVICE_ACCOUNT_JSON"))),
     authVerifier,
     identityRepository,
     stateRepository,

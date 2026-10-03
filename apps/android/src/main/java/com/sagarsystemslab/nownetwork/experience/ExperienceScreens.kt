@@ -435,7 +435,7 @@ private fun HelpContent() {
     NowGlassCard {
         ExperienceRow("NOW Network", "Version ${BuildConfig.VERSION_NAME} · ${BuildConfig.SOLANA_CLUSTER}", Icons.Outlined.Info)
         ExperienceRow("Project & support", "Open the project's GitHub repository", Icons.Outlined.Code, { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/sagar-systems-lab/now-network"))) })
-        ExperienceRow("Map attribution", "© OpenStreetMap contributors · OpenFreeMap · MapLibre", Icons.Outlined.Map, { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.openstreetmap.org/copyright"))) })
+        ExperienceRow("Map attribution", "© OpenStreetMap contributors · OpenMapTiles · OpenFreeMap · MapLibre", Icons.Outlined.Map, { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.openstreetmap.org/copyright"))) })
         Text("Terms and privacy publication are pending. No unapproved policy text is presented as final.", style = NowType.BodyS, color = NowColors.Ink600)
     }
 }

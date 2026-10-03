@@ -95,6 +95,16 @@ class ContributorClaimRepositoryTest {
         assertTrue(fixture.api.detailCalls >= 2)
     }
 
+    @Test
+    fun differentDefaultPayoutWalletStopsBeforePreparingOrSigningAClaim() = runBlocking {
+        val fixture = fixture(WalletResult.UnknownFailure("unused"), observeUnknown = false)
+        fixture.api.preferredWallet = "55555555-5555-4555-8555-555555555555"
+        val failure = runCatching { fixture.repository.prepareNew(HOST, REFRESH_ID) }.exceptionOrNull()
+        assertTrue(failure != null)
+        assertEquals(0, fixture.api.prepareCalls)
+        assertEquals(0, fixture.wallet.signCalls)
+    }
+
     private fun fixture(
         walletSubmission: WalletResult<WalletSubmission>,
         observeUnknown: Boolean,
@@ -227,6 +237,10 @@ private class ClaimApi(
 ) : NowApiClient {
     var observeCalls = 0
     var detailCalls = 0
+    var prepareCalls = 0
+    var preferredWallet: String? = null
+
+    override suspend fun payoutWalletBindingId(accessToken: String): String? = preferredWallet
 
     override suspend fun me(accessToken: String): MeDto =
         MeDto(
@@ -248,7 +262,7 @@ private class ClaimApi(
         request: ClaimPrepareRequest,
         idempotencyKey: String,
         accessToken: String,
-    ): ClaimIntentDto = intent
+    ): ClaimIntentDto { prepareCalls += 1; return intent }
 
     override suspend fun claimDetail(
         acceptanceId: String,

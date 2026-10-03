@@ -59,7 +59,10 @@ export class SupabaseAuthVerifier implements AuthVerifier {
     try {
       const part = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
       const claims = JSON.parse(atob(part));
-      if (claims.sub === id && typeof claims.session_id === "string" && UUID_PATTERN.test(claims.session_id)) sessionId = claims.session_id;
+      if (
+        claims.sub === id && typeof claims.session_id === "string" &&
+        UUID_PATTERN.test(claims.session_id)
+      ) sessionId = claims.session_id;
     } catch { /* Registration stays unavailable for tokens without a verified session claim. */ }
     return {
       sessionId,

@@ -24,7 +24,12 @@ export class NowWorkerCoordinator {
     const receipts = await this.receipts.runOnce(bounded);
     const realtime = await this.realtime.runOnce(bounded * 2);
     // Notification transport must never fail money reconciliation. Durable delivery retries next tick.
-    const notifications = await this.notifications?.runOnce(bounded).catch(() => ({ sent: 0, skipped: 0, deferred: 0, failed: 1 }));
+    const notifications = await this.notifications?.runOnce(bounded).catch(() => ({
+      sent: 0,
+      skipped: 0,
+      deferred: 0,
+      failed: 1,
+    }));
     return { settlement, receipts, realtime, ...(notifications ? { notifications } : {}) };
   }
 }

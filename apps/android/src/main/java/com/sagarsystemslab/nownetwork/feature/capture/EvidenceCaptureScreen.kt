@@ -40,6 +40,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import com.sagarsystemslab.nownetwork.feature.common.TransactionPage
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -137,22 +139,35 @@ fun EvidenceCaptureScreen(
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(
-                horizontal = NowSpacing.PageHorizontal,
-                vertical = NowSpacing.Space2,
-            )
-            .testTag("screen-evidence-capture"),
-        verticalArrangement = Arrangement.spacedBy(NowSpacing.Space4),
+    TransactionPage(
+        title = "Capture evidence",
+        subtitle = when (uiState.stage) {
+            EvidenceCaptureStage.CAMERA -> "Step 1 of 3 · Take a clear photo"
+            EvidenceCaptureStage.REVIEW -> "Step 2 of 3 · Review your observation"
+            EvidenceCaptureStage.SUBMITTING, EvidenceCaptureStage.QUEUED -> "Step 3 of 3 · Submit your proof"
+            else -> "Fresh proof, captured on site"
+        },
+        tag = "screen-evidence-capture",
+        onBack = onBack,
+        footer = {
+            when (uiState.stage) {
+                EvidenceCaptureStage.READY, EvidenceCaptureStage.ERROR -> NowPrimaryButton(
+                    if (uiState.stage == EvidenceCaptureStage.ERROR) "Try again" else "Start fresh capture",
+                    ::requestCapturePermissions, Modifier.fillMaxWidth())
+                EvidenceCaptureStage.CAMERA -> NowPrimaryButton("Capture now", {
+                    uiState.localFilePath?.let { path -> cameraController?.capture(File(path), onPhotoCaptured, { onCameraError() }) }
+                }, Modifier.fillMaxWidth(), enabled = cameraController != null && uiState.localFilePath != null)
+                EvidenceCaptureStage.REVIEW -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    NowSecondaryButton("Retake", onRecapture, Modifier.weight(1f))
+                    NowPrimaryButton("Submit evidence", onSubmit, Modifier.weight(1f).testTag("submit-evidence"), enabled = uiState.canSubmit)
+                }
+                EvidenceCaptureStage.QUEUED -> NowSecondaryButton("Check submission", onRetry, Modifier.fillMaxWidth())
+                EvidenceCaptureStage.SUBMITTED -> NowPrimaryButton("Check verification", onContinueVerification, Modifier.fillMaxWidth())
+                else -> Unit
+            }
+        },
     ) {
-        EvidenceTopBar(onBack = onBack)
-
-        if (uiState.question.isNotBlank()) {
-            EvidenceTaskCard(uiState)
-        }
+        if (uiState.question.isNotBlank()) EvidenceTaskCard(uiState)
 
         when (uiState.stage) {
             EvidenceCaptureStage.LOADING -> {
@@ -165,11 +180,7 @@ fun EvidenceCaptureScreen(
 
             EvidenceCaptureStage.READY -> {
                 PermissionCard(uiState)
-                NowPrimaryButton(
-                    text = "Start fresh capture",
-                    onClick = ::requestCapturePermissions,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+
             }
 
             EvidenceCaptureStage.PREPARING -> {
@@ -242,11 +253,7 @@ fun EvidenceCaptureScreen(
                         ?: "Your capture is preserved locally. NOW will not ask you to recapture unless the evidence expires.",
                     tone = NowNoticeTone.WARNING,
                 )
-                NowSecondaryButton(
-                    text = "Check submission",
-                    onClick = onRetry,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+
             }
 
             EvidenceCaptureStage.SUBMITTED -> {
@@ -291,11 +298,7 @@ fun EvidenceCaptureScreen(
                     }
                 }
 
-                NowPrimaryButton(
-                    text = "Check verification",
-                    onClick = onContinueVerification,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+
             }
 
             EvidenceCaptureStage.EXPIRED -> {
@@ -314,11 +317,7 @@ fun EvidenceCaptureScreen(
                         ?: "Evidence capture could not continue safely.",
                     tone = NowNoticeTone.ERROR,
                 )
-                NowPrimaryButton(
-                    text = "Try again",
-                    onClick = ::requestCapturePermissions,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+
             }
         }
 
@@ -368,7 +367,7 @@ private fun EvidenceTaskCard(
         ) {
             Text(
                 text = uiState.question,
-                style = NowType.TitleM,
+                style = NowType.TitleS,
                 color = NowColors.Ink950,
             )
 
@@ -468,7 +467,7 @@ private fun CameraCaptureSurface(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(3f / 4f),
+                .aspectRatio(1f),
             shape = MaterialTheme.shapes.large,
             color = Color(0xFF050816),
         ) {
@@ -512,18 +511,7 @@ private fun CameraCaptureSurface(
             }
         }
 
-        NowPrimaryButton(
-            text = "Capture now",
-            onClick = {
-                controller?.capture(
-                    file = File(localFilePath),
-                    onSuccess = onPhotoCaptured,
-                    onError = { onCameraError() },
-                )
-            },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = controller != null,
-        )
+
     }
 }
 
@@ -682,24 +670,17 @@ private fun EvidenceReview(
             )
         }
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
-        ) {
-            NowSecondaryButton(
-                text = "Recapture",
-                onClick = onRecapture,
-                modifier = Modifier.weight(1f),
-            )
-            NowPrimaryButton(
-                text = "Submit evidence",
-                onClick = onSubmit,
-                modifier = Modifier
-                    .weight(1f)
-                    .testTag("submit-evidence"),
-                enabled = uiState.canSubmit,
-            )
+        var note by rememberSaveable(uiState.evidenceId) { mutableStateOf("") }
+        var noteOpen by rememberSaveable(uiState.evidenceId) { mutableStateOf(false) }
+        androidx.compose.material3.TextButton({ noteOpen = !noteOpen }) {
+            Text(if (noteOpen) "Hide personal note" else "Add a personal note (optional)")
         }
+        if (noteOpen) NowTextField(
+            value = note, onValueChange = { note = it.take(240) }, label = "Personal note",
+            supportingText = "For this capture session only; not included in your submitted proof.",
+            modifier = Modifier.fillMaxWidth(),
+        )
+
     }
 }
 
@@ -729,7 +710,7 @@ private fun EvidencePreview(path: String) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .aspectRatio(4f / 3f),
+            .aspectRatio(1f),
         shape = MaterialTheme.shapes.large,
         color = Color(0xFF050816),
         border = BorderStroke(1.dp, NowColors.BorderSubtle),

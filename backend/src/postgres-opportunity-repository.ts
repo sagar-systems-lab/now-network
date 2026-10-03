@@ -4,7 +4,8 @@ import type { OpportunityRecord, OpportunityRepository } from "./opportunity-rep
 type DateLike = Date | string;
 
 type OpportunityRow = {
-  latitude: number; longitude: number;
+  latitude: number;
+  longitude: number;
   refresh_id: string;
   state_id: string;
   state_version: number | string;

@@ -33,23 +33,22 @@ fun ExperienceHeader(
     onArea: () -> Unit, onNotifications: () -> Unit, onProfile: () -> Unit,
     unread: Int = 0,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(title, style = NowType.TitleXL, color = NowColors.Ink950,
-                modifier = Modifier.weight(1f).semantics { heading() })
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(title, style = if (title.length > 5) NowType.TitleL else NowType.TitleXL, color = NowColors.Ink950,
+                modifier = Modifier.semantics { heading() })
+            Surface(onClick = onArea, shape = CircleShape, color = NowColors.InfoSoft,
+                border = BorderStroke(1.dp, NowColors.InfoBorder), modifier = Modifier.weight(1f).testTag("SHARED-AREA")) {
+                Row(Modifier.heightIn(min = 48.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Icon(Icons.Outlined.LocationOn, null, tint = NowColors.Blue600, modifier = Modifier.size(15.dp))
+                    Text(area.ifBlank { "Browse area" }, style = NowType.LabelM, color = NowColors.Ink800, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Icon(Icons.Outlined.ExpandMore, null, tint = NowColors.Blue600, modifier = Modifier.size(15.dp))
+                }
+            }
             HeaderIcon(Icons.Outlined.Notifications, "Notifications${if (unread > 0) ", $unread unread" else ""}", onNotifications, "SHARED-BELL", unread)
             HeaderIcon(Icons.Outlined.PersonOutline, "Open profile", onProfile, "SHARED-AVATAR")
         }
         Text(subtitle, style = NowType.BodyM, color = NowColors.Ink600)
-        Surface(onClick = onArea, shape = CircleShape, color = NowColors.InfoSoft,
-            border = BorderStroke(1.dp, NowColors.InfoBorder), modifier = Modifier.testTag("SHARED-AREA")) {
-            Row(Modifier.heightIn(min = 48.dp).padding(horizontal = 12.dp),
-                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Icon(Icons.Outlined.LocationOn, null, tint = NowColors.Blue600, modifier = Modifier.size(18.dp))
-                Text(area.ifBlank { "Choose a browse area" }, style = NowType.LabelM, color = NowColors.Ink800, modifier = Modifier.weight(1f, false), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Icon(Icons.Outlined.ExpandMore, null, tint = NowColors.Blue600, modifier = Modifier.size(18.dp))
-            }
-        }
     }
 }
 
@@ -104,8 +103,8 @@ fun SyncStrip(refreshing: Boolean, count: Int, cached: Boolean, onRefresh: () ->
             if (refreshing) CircularProgressIndicator(Modifier.size(32.dp), color = NowColors.Blue600, strokeWidth = 3.dp)
             else Icon(Icons.Outlined.Radar, null, Modifier.size(32.dp), tint = NowColors.Blue600)
             Column(Modifier.weight(1f)) {
-                Text(if (refreshing) "Scanning nearby states…" else if (cached) "Saved nearby results" else "Nearby results", style = NowType.LabelL, color = NowColors.Ink950)
-                Text(if (refreshing) "Finding fresh information for this area" else "$count result${if (count == 1) "" else "s"} · ${if (cached) "Reconnect to update" else "Tap to update"}", style = NowType.BodyS, color = NowColors.Ink600)
+                Text(if (refreshing) "Scanning nearby states…" else if (cached && count == 0) "Nearby data unavailable" else if (cached) "Saved nearby results" else "Nearby results", style = NowType.LabelL, color = NowColors.Ink950)
+                Text(if (refreshing) "Finding fresh information for this area" else if (cached && count == 0) "Check your connection and browse area" else "$count result${if (count == 1) "" else "s"} · ${if (cached) "Reconnect to update" else "Tap to update"}", style = NowType.BodyS, color = NowColors.Ink600)
             }
             IconButton(onRefresh, enabled = !refreshing) { Icon(Icons.Outlined.Refresh, "Refresh nearby", tint = NowColors.Blue600) }
         }

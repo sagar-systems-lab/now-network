@@ -280,16 +280,11 @@ private fun StateHero(
             }
 
             HorizontalDivider(color = NowColors.BorderSubtle)
-            com.sagarsystemslab.nownetwork.feature.common.CategoryArtwork(detail.title, Modifier.size(76.dp))
-            Text(
-                text = displayValue,
-                style = NowType.DataHero,
-                color = NowColors.Ink950,
-                modifier = Modifier.nowPulseOnChange(
-                    key = displayValue,
-                    durationMillis = com.sagarsystemslab.nownetwork.designsystem.NowMotion.StateMillis,
-                ),
-            )
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                com.sagarsystemslab.nownetwork.feature.common.CategoryArtwork(detail.title, Modifier.size(76.dp))
+                Text(displayValue, style = NowType.DataHero, color = NowColors.Ink950, modifier = Modifier.weight(1f).nowPulseOnChange(
+                    key = displayValue, durationMillis = com.sagarsystemslab.nownetwork.designsystem.NowMotion.StateMillis))
+            }
 
             Text(
                 text = detail.question,

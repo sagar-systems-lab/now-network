@@ -97,9 +97,17 @@ class ExperienceRepository @Inject constructor(
     }
 
     suspend fun safeSignOut() {
-        val protected = operations.listAll().any { it.localState.uppercase() !in setOf("ACKNOWLEDGED","COMPLETED","PAID","REFUNDED","REJECTED","EXPIRED","CANCELLED") }
+        val savedOperations = operations.listAll()
+        val protected = savedOperations.any { it.localState.uppercase() !in setOf("ACKNOWLEDGED","COMPLETED","PAID","REFUNDED","REJECTED","EXPIRED","CANCELLED") }
         check(!protected && evidence.observePending().first().isEmpty() && outbox.observeOutstanding().first().isEmpty()) { "Finish or reconcile your pending work before signing out. Your proof and payments are preserved." }
+        for (operation in savedOperations.filter { it.type == "CONTRIBUTOR_CLAIM" && it.localState == "ACKNOWLEDGED" }) {
+            val claim = authenticated { api.claimDetail(operation.operationId, it) }
+            check(claim.status in setOf("EVIDENCE_COMMITTED", "RELEASED", "EXPIRED", "FAILED")) {
+                "Finish your active claim before signing out. Its proof deadline and recovery stay on this device."
+            }
+        }
         check(me().walletBindings.any { it.status == "ACTIVE" }) { "Link a recovery wallet before signing out of this anonymous account." }
+        registerInstallation()
         val current = context.getSharedPreferences("now_installation", Context.MODE_PRIVATE).getString("current_installation", null)
         if (current != null) post("/v1/me/installations/revoke", buildJsonObject { put("installation_id", current) })
         sessions.signOutLocal()

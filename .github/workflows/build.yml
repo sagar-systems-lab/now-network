@@ -246,6 +246,17 @@ jobs:
             docker exec -i "$DB_CONTAINER" psql -X -U postgres -d now_test -v ON_ERROR_STOP=1 < "$migration"
           done < <(find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort)
 
+      - name: Deno for account integration tests
+        uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with:
+          deno-version: "2.9.7"
+
+      - name: Verify account isolation and notification delivery
+        shell: bash
+        env:
+          NOW_TEST_DB_URL: postgres://postgres:postgres@127.0.0.1:5432/now_test
+        run: deno test --allow-env --allow-net=127.0.0.1:5432 backend/tests/experience_database_test.ts
+
       - name: Exercise performance query-plan capture
         shell: bash
         env:
@@ -397,6 +408,11 @@ jobs:
             with expected(schema_name, table_name) as (
               values
                 ('app', 'actors'),
+                ('app', 'actor_profiles'),
+                ('app', 'actor_preferences'),
+                ('app', 'installations'),
+                ('app', 'notifications'),
+                ('app', 'notification_deliveries'),
                 ('app', 'actor_auth_principals'),
                 ('app', 'wallet_bindings'),
                 ('app', 'wallet_binding_challenges'),

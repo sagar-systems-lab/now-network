@@ -9,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -37,7 +38,7 @@ fun NowScreen(
     onSearchArea: ((GeoCenter) -> Unit)? = null,
 ) {
     val nowMillis = rememberVisibleServerTime(serverNowMillis)
-    var filter by remember { mutableStateOf("All") }
+    var filter by rememberSaveable { mutableStateOf("All") }
     val states = uiState.states.filter { filter == "All" || it.freshnessAt(nowMillis).name == filter.uppercase() }
     val candidate = uiState.states.firstOrNull { it.freshnessAt(nowMillis) == FreshnessKind.STALE && !it.conflictActive }
     val duration = nowMotionDuration(rememberNowMotionEnabled(), 220)
