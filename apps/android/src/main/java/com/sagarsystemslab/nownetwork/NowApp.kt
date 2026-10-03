@@ -112,7 +112,7 @@ fun NowApp(
 }
 
 @Composable
-private fun NowBottomBar(
+internal fun NowBottomBar(
     destinations: List<TopLevelDestination>,
     isSelected: (TopLevelDestination) -> Boolean,
     onDestinationSelected: (TopLevelDestination) -> Unit,

@@ -74,8 +74,6 @@ fun ExperienceScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val preferences by uiPreferencesStore.state.collectAsStateWithLifecycle(uiPreferencesStore.initial)
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     LaunchedEffect(destination) {
         when (destination) {
             ExperienceDestination.BROWSE_AREAS -> viewModel.areas()
@@ -85,6 +83,24 @@ fun ExperienceScreen(
             else -> Unit
         }
     }
+    ExperienceScreenContent(destination, state, viewModel, preferences, uiPreferencesStore, walletHost, onBack, navigate, onNotification)
+}
+
+/** Shared rendering boundary; fetching stays with the route above. */
+@Composable
+internal fun ExperienceScreenContent(
+    destination: ExperienceDestination,
+    state: ExperienceUiState,
+    viewModel: ExperienceViewModel,
+    preferences: UiPreferences,
+    uiPreferencesStore: UiPreferencesStore,
+    walletHost: WalletInteractionHost,
+    onBack: () -> Unit,
+    navigate: (ExperienceDestination) -> Unit,
+    onNotification: (JsonObject) -> Unit,
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     if (destination == ExperienceDestination.BROWSE_AREAS) {
         BrowseAreasScreen(state, viewModel, onBack); return
     }
