@@ -24,7 +24,10 @@ Deno.test("state paging preserves freshness time and rejects a changed search", 
   const repository: StateRepository = {
     listNearby: (input) => {
       requested.push(input);
-      return Promise.resolve([record, { ...record, stateId: "71000000-0000-4000-8000-000000000002" }]);
+      return Promise.resolve([record, {
+        ...record,
+        stateId: "71000000-0000-4000-8000-000000000002",
+      }]);
     },
     getState: () => Promise.resolve(null),
     listHistory: () => Promise.resolve([]),
@@ -33,7 +36,9 @@ Deno.test("state paging preserves freshness time and rejects a changed search", 
   const service = new StateReadService(repository, () => new Date(now));
   const query = { lat: 29.4, lng: 76.9, radiusM: 1000, limit: 1, cursor: null, search: "park" };
   const page = await service.nearby(query);
-  if ((page.counts as { total: number }).total !== 24) throw new Error("counts must span the query");
+  if ((page.counts as { total: number }).total !== 24) {
+    throw new Error("counts must span the query");
+  }
   now.setMinutes(now.getMinutes() + 2);
   await service.nearby({ ...query, cursor: page.next_cursor as string });
   if (requested[0].asOf?.getTime() !== requested[1].asOf?.getTime()) {

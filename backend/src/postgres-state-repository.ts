@@ -1,7 +1,7 @@
 import postgres from "npm:postgres@3.4.7";
 import type {
-  NearbyStateRecord,
   NearbyStateInput,
+  NearbyStateRecord,
   StateActiveRefreshSummary,
   StateDetailRecord,
   StateHistoryRecord,
@@ -229,7 +229,9 @@ export class PostgresStateRepository implements StateRepository {
       select * from candidates
       where (${input.freshness ?? "all"} = 'all' or freshness = ${input.freshness ?? "all"})
         and (${input.cursor === null} or (distance_m, state_id) >
-          (${input.cursor?.distanceM ?? null}::double precision, ${input.cursor?.stateId ?? null}::uuid))
+          (${input.cursor?.distanceM ?? null}::double precision, ${
+      input.cursor?.stateId ?? null
+    }::uuid))
       order by distance_m, state_id limit ${input.limit}
     `;
     return rows.map((row) => nearbyFromRow(row as NearbyRow));

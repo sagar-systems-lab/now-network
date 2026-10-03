@@ -219,7 +219,13 @@ export class StateReadService {
     if (!["all", "live", "aging", "stale", "unobserved", "conflict"].includes(freshness)) {
       throw new ApiFault(400, "INVALID_FRESHNESS", "Choose a supported freshness filter.");
     }
-    const query = await discoveryFingerprint([input.lat, input.lng, input.radiusM, search, freshness]);
+    const query = await discoveryFingerprint([
+      input.lat,
+      input.lng,
+      input.radiusM,
+      search,
+      freshness,
+    ]);
     const cursor = decodeNearbyCursor(input.cursor, query);
     const asOf = cursor?.asOf ?? this.now();
     const rows = await this.repository.listNearby({

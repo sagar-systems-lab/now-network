@@ -40,7 +40,9 @@ Deno.test({
       for (let i = 0; i < 6; i++) {
         await sql`insert into app.locations(location_id,name,location_type,center)
           values (${locations[i]}::uuid,${run + i},${i === 2 ? "SHOP" : "PARKING"},
-            extensions.st_setsrid(extensions.st_makepoint(${55 + i * 0.001},12.3),4326)::extensions.geography)`;
+            extensions.st_setsrid(extensions.st_makepoint(${
+          55 + i * 0.001
+        },12.3),4326)::extensions.geography)`;
         await sql`insert into app.state_definitions(state_id,version,canonical_key,title,question,
           state_type,answer_schema,freshness_policy,location_id,status)
           values (${stateIds[i]}::uuid,1,${stateIds[i]},${run + "-" + i},'Available spaces?',
@@ -58,16 +60,21 @@ Deno.test({
         await sql`insert into app.refresh_requests(refresh_id,state_id,state_version,
           requester_actor_id,status,verification_class,required_witnesses,max_witnesses,
           proof_policy_snapshot,proof_policy_digest,intent_core_hash,refresh_expires_at,
-          evidence_deadline,reward_mint,chain_total_funded,payout_rule)
+          evidence_deadline,reward_mint,chain_total_funded,payout_rule,created_at)
           values (${refreshes[i]}::uuid,${stateIds[i]}::uuid,1,
             ${i === 4 ? actors[0] : actors[1]}::uuid,'AVAILABLE','FAST',${i === 1 ? 2 : 1},
             ${i === 1 ? 2 : 1},${sql.json(policy)},decode(repeat('11',32),'hex'),
-            decode(repeat('22',32),'hex'),${expiry},${expiry},${i === 3 ? "MintB" : "MintA"},
-            ${pool},${i === 1 ? "EQUAL_SPLIT_REQUIRED_WITNESSES" : "SINGLE_WINNER_ALL"})`;
+            decode(repeat('22',32),'hex'),${expiry},${new Date(expiry.getTime() - 60_000)},
+            ${i === 3 ? "MintB" : "MintA"},${pool},
+            ${i === 1 ? "EQUAL_SPLIT_REQUIRED_WITNESSES" : "SINGLE_WINNER_ALL"},
+            ${new Date(now.getTime() - 86_400_000)})`;
       }
       const first = await matcher.nearby(actor, query);
       assert(first.total === 4, "self-owned and expired requests must be excluded from total");
-      assert(JSON.stringify(first.categories) === '["PARKING","SHOP"]', "category catalog is global");
+      assert(
+        JSON.stringify(first.categories) === '["PARKING","SHOP"]',
+        "category catalog is global",
+      );
       const ordered: string[] = [];
       let cursor: string | null = null;
       do {
@@ -85,7 +92,10 @@ Deno.test({
       const category = await matcher.nearby(actor, { ...query, category: "SHOP" });
       assert(category.total === 1, "category must filter before the page limit");
       const ending = await matcher.nearby(actor, { ...query, sort: "ending" });
-      assert((ending.items as { refresh_id: string }[])[0].refresh_id === refreshes[3], "ending order");
+      assert(
+        (ending.items as { refresh_id: string }[])[0].refresh_id === refreshes[3],
+        "ending order",
+      );
       const all = await reader.nearby({ ...query, search: run });
       const counts = all.counts as { total: number; live: number; aging: number; stale: number };
       assert(
@@ -93,9 +103,15 @@ Deno.test({
         "area counts must include rows beyond the visible page and distinguish conflicts",
       );
       const stale = await reader.nearby({ ...query, search: run, freshness: "stale" });
-      assert((stale.items as { state_id: string }[])[0].state_id === stateIds[2], "global freshness");
+      assert(
+        (stale.items as { state_id: string }[])[0].state_id === stateIds[2],
+        "global freshness",
+      );
       const searched = await reader.nearby({ ...query, search: run + "-3" });
-      assert((searched.items as { state_id: string }[])[0].state_id === stateIds[3], "global search");
+      assert(
+        (searched.items as { state_id: string }[])[0].state_id === stateIds[3],
+        "global search",
+      );
       try {
         await reader.nearby({ ...query, search: run + "-3", cursor: all.next_cursor as string });
         throw new Error("query-mismatched cursor accepted");

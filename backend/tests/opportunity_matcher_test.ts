@@ -247,7 +247,8 @@ Deno.test("missing opportunity returns stable not-found error", async () => {
 
 Deno.test("opportunity cursors cannot cross filters, locations or actors", async () => {
   const repository: OpportunityRepository = new MemoryOpportunityRepository();
-  repository.summarizeNearby = () => Promise.resolve({ total: 17, categories: ["PARKING", "SHOP"] });
+  repository.summarizeNearby = () =>
+    Promise.resolve({ total: 17, categories: ["PARKING", "SHOP"] });
   const matcher = new OpportunityMatcher(repository);
   const query = { lat: 29.4, lng: 76.9, radiusM: 1000, limit: 1, cursor: null };
   const first = await matcher.nearby(actor(), query);

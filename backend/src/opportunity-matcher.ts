@@ -150,7 +150,12 @@ export class OpportunityMatcher {
       throw new ApiFault(400, "INVALID_CATEGORY", "Choose a valid category.");
     }
     const query = await discoveryFingerprint([
-      actor.actorId, input.lat, input.lng, input.radiusM, sort, category,
+      actor.actorId,
+      input.lat,
+      input.lng,
+      input.radiusM,
+      sort,
+      category,
     ]);
     const cursor = decodeCursor(input.cursor, query);
     const asOf = new Date();
