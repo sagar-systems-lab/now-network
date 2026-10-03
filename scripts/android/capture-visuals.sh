@@ -6,6 +6,8 @@ out="${1:?Usage: capture-visuals.sh OUTPUT_DIRECTORY}"
 mkdir -p "$out"
 package=com.sagarsystemslab.nownetwork
 activity="$package/.VisualSnapshotActivity"
+# The connected-test runner removes the target package when its suite completes.
+adb install -r apps/android/build/outputs/apk/debug/app-debug.apk
 screens=(now earn earn-empty activity activity-empty state funding funding-review claim capture verification verified payment paid receipt profile account notifications wallet settings appearance notification-preferences privacy-permissions data-storage language-region security connected-sessions account-recovery payout-preferences help-about browse-areas)
 
 adb shell wm size 780x1688
@@ -18,15 +20,15 @@ adb shell settings put global animator_duration_scale 0
 capture() {
     local screen="$1" dark="$2" label="$3"
     adb shell am force-stop "$package"
-    adb shell am start -W -n "$activity" --es screen "$screen" --ez dark "$dark" >/dev/null
+    adb shell am start -W -n "$activity" --es screen "$screen" --ez dark "$dark" > "$out/$label-launch.txt"
     # Allow map styling and initial text/layout to settle after Activity Displayed.
     sleep 3
     adb shell dumpsys activity activities > "$out/focused-activity.txt"
     grep -Fq 'VisualSnapshotActivity' "$out/focused-activity.txt"
     timeout 15 adb shell uiautomator dump /sdcard/now-snapshot.xml >/dev/null
     adb exec-out cat /sdcard/now-snapshot.xml > "$out/$label.xml"
-    grep -Fq "snapshot-$screen" "$out/$label.xml"
     adb exec-out screencap -p > "$out/$label.png"
+    grep -Fq "snapshot-$screen" "$out/$label.xml"
     test "$(wc -c < "$out/$label.png")" -gt 5000
 }
 
