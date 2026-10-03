@@ -6,6 +6,6 @@
         <item name="android:navigationBarColor">#050816</item>
         <item name="android:windowActionModeOverlay">true</item>
         <item name="android:windowSplashScreenBackground">#050816</item>
-        <item name="android:windowSplashScreenAnimatedIcon">@drawable/now_brand_mark</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/now_splash_blank</item>
     </style>
 </resources>
