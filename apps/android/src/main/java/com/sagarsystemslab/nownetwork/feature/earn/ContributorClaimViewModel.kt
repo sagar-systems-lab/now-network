@@ -27,6 +27,7 @@ enum class ContributorClaimStage {
     SUBMITTING,
     CONFIRMING,
     CLAIMED,
+    EVIDENCE_COMMITTED,
     ERROR,
 }
 
@@ -50,6 +51,7 @@ class ContributorClaimViewModel @Inject constructor(
     val state: StateFlow<ContributorClaimUiState> = mutableState.asStateFlow()
 
     private var prepared: PreparedContributorClaim? = null
+    private var openJob: kotlinx.coroutines.Job? = null
 
     fun open(refreshId: String) {
         if (mutableState.value.refreshId == refreshId && mutableState.value.opportunity != null) {
@@ -62,65 +64,25 @@ class ContributorClaimViewModel @Inject constructor(
             stage = ContributorClaimStage.LOADING,
         )
 
-        viewModelScope.launch {
+        openJob?.cancel()
+        openJob = viewModelScope.launch {
             try {
-                val opportunity = repository.loadOpportunity(refreshId)
-                mutableState.update { it.copy(opportunity = opportunity) }
-
-                when (val recovered = repository.recover(refreshId)) {
-                    is ClaimReconciliation.Claimed -> {
-                        mutableState.update {
-                            it.copy(
-                                stage = ContributorClaimStage.CLAIMED,
-                                claim = recovered.claim,
-                                message = null,
-                            )
-                        }
-                    }
-
-                    is ClaimReconciliation.Confirming -> {
-                        mutableState.update {
-                            it.copy(
-                                stage = ContributorClaimStage.CONFIRMING,
-                                message = "Claim state is being reconciled. No duplicate transaction will be sent.",
-                            )
-                        }
-                    }
-
-                    is ClaimReconciliation.ReadyForWallet -> {
-                        prepared = recovered.prepared
-                        mutableState.update {
-                            it.copy(
-                                stage = ContributorClaimStage.READY_FOR_WALLET,
-                                walletAddress = recovered.prepared.wallet.address,
-                                claimDurationSeconds = recovered.prepared.intent.claimDurationSeconds,
-                                message = null,
-                            )
-                        }
-                    }
-
-                    ClaimReconciliation.None -> {
-                        mutableState.update {
-                            it.copy(
-                                stage = if (opportunity.availability.claimable) {
-                                    ContributorClaimStage.REVIEW
-                                } else {
-                                    ContributorClaimStage.ERROR
-                                },
-                                message = if (opportunity.availability.claimable) {
-                                    null
-                                } else {
-                                    "This opportunity is no longer available."
-                                },
-                                canPrepare = opportunity.availability.claimable,
-                            )
-                        }
-                    }
+                val entry = recoverClaimEntry(repository, refreshId)
+                if (mutableState.value.refreshId != refreshId) return@launch
+                if (entry.recovery != ClaimReconciliation.None) {
+                    applyReconciliation(entry.recovery)
+                } else {
+                    val opportunity = requireNotNull(entry.opportunity)
+                    mutableState.update { it.copy(
+                        opportunity = opportunity,
+                        stage = if (opportunity.availability.claimable) ContributorClaimStage.REVIEW else ContributorClaimStage.ERROR,
+                        message = if (opportunity.availability.claimable) null else "This opportunity is no longer available.",
+                        canPrepare = opportunity.availability.claimable,
+                    ) }
                 }
-            } catch (error: CancellationException) {
-                throw error
-            } catch (error: Exception) {
-                showError(error)
+            } catch (error: CancellationException) { throw error }
+            catch (error: Exception) {
+                if (mutableState.value.refreshId == refreshId) showError(error)
             }
         }
     }
@@ -231,6 +193,11 @@ class ContributorClaimViewModel @Inject constructor(
 
     private fun applyReconciliation(result: ClaimReconciliation) {
         when (result) {
+            is ClaimReconciliation.EvidenceCommitted -> {
+                prepared = null
+                mutableState.update { it.copy(stage = ContributorClaimStage.EVIDENCE_COMMITTED, claim = result.claim, canPrepare = false, message = null) }
+            }
+
             is ClaimReconciliation.Claimed -> {
                 prepared = null
                 mutableState.update {

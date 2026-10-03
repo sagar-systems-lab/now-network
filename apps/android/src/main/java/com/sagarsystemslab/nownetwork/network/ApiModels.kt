@@ -157,7 +157,7 @@ data class OpportunityDto(
     val location: OpportunityLocationDto,
     val reward: OpportunityRewardDto,
     @SerialName("distance_m")
-    val distanceM: Double,
+    val distanceM: Double? = null,
     @SerialName("expires_at")
     val expiresAt: String,
     @SerialName("evidence_deadline")

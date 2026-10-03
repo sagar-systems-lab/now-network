@@ -70,6 +70,19 @@ fun NowNavHost(
     LaunchedEffect(experience) { experience?.refresh() }
     LaunchedEffect(inboxIntentRevision) { if (inboxIntentRevision > 0) openExperience(ExperienceDestination.NOTIFICATIONS) }
 
+    fun openActivity(row: kotlinx.serialization.json.JsonObject) {
+        val id = row.text("refresh_id")
+        when (com.sagarsystemslab.nownetwork.feature.activity.activityDestination(row.text("receipt_id"), row.text("payment_status"), row.text("claim_status"), row.text("acceptance_id"), row.text("status"))) {
+            com.sagarsystemslab.nownetwork.feature.activity.ActivityDestination.RECEIPT -> appState.navigateToReceipt(id)
+            com.sagarsystemslab.nownetwork.feature.activity.ActivityDestination.PAYMENT -> appState.navigateToPayment(id)
+            com.sagarsystemslab.nownetwork.feature.activity.ActivityDestination.CAPTURE -> appState.navigateToEvidence(row.text("acceptance_id"), id)
+            com.sagarsystemslab.nownetwork.feature.activity.ActivityDestination.CLAIM -> appState.navigateToOpportunity(id)
+            com.sagarsystemslab.nownetwork.feature.activity.ActivityDestination.VERIFICATION -> appState.navigateToVerification(id)
+            com.sagarsystemslab.nownetwork.feature.activity.ActivityDestination.FUNDING -> appState.navigateToRequesterFunding(row.text("state_id"))
+            com.sagarsystemslab.nownetwork.feature.activity.ActivityDestination.STATE -> appState.navigateToState(row.text("state_id"))
+        }
+    }
+
     experienceState?.privateProof?.let { proof ->
         com.sagarsystemslab.nownetwork.experience.PrivateProofDialog(proof) { experience?.dismissProof() }
     }
@@ -92,6 +105,7 @@ fun NowNavHost(
                 onDarkThemeChange = onDarkThemeChange,
                 serverNowMillis = browseViewModel::serverNowMillis,
                 onRefresh = browseViewModel::refreshHome,
+                onLoadMore = browseViewModel::loadMore,
                 onStateClick = appState::navigateToState,
                 onEarnClick = {
                     appState.navigateTo(TopLevelDestination.EARN)
@@ -156,12 +170,18 @@ fun NowNavHost(
         composable<EarnRoute> {
             val earnViewModel = earnViewModelProvider()
             val uiState by earnViewModel.state.collectAsStateWithLifecycle()
+            val localActivity = activityViewModelProvider()
+            val localWork by localActivity.state.collectAsStateWithLifecycle()
+            LaunchedEffect(experience, experienceState?.me?.actorId) { experience?.activeWork() }
 
             EarnScreen(
                 uiState = uiState,
                 rewardText = earnViewModel::rewardText,
+                activeWork = { experienceState?.let { account -> com.sagarsystemslab.nownetwork.feature.earn.ActiveWorkCards(account, localWork, ::openActivity, appState::navigateToOpportunity, { appState.navigateTo(TopLevelDestination.ACTIVITY) }) } },
                 serverNowMillis = earnViewModel::serverNowMillis,
-                onRefresh = earnViewModel::refresh,
+                onRefresh = { earnViewModel.refresh(); experience?.activeWork() },
+                onLoadMore = earnViewModel::loadMore,
+                onEarningAlerts = { openExperience(ExperienceDestination.NOTIFICATION_PREFERENCES) },
                 onOpportunityClick = appState::navigateToOpportunity,
                 onBrowseAreas = { openExperience(ExperienceDestination.BROWSE_AREAS) },
                 onNotifications = { openExperience(ExperienceDestination.NOTIFICATIONS) },
@@ -193,6 +213,7 @@ fun NowNavHost(
                     contributorClaimViewModel.submit(walletInteractionHost)
                 },
                 onCheck = contributorClaimViewModel::checkConfirmation,
+                onViewVerification = { appState.navigateToVerification(route.refreshId) },
                 onCaptureEvidence = {
                     val claim = uiState.claim ?: return@ContributorClaimScreen
                     appState.navigateToEvidence(
@@ -319,17 +340,10 @@ fun NowNavHost(
                     onNotifications = { openExperience(ExperienceDestination.NOTIFICATIONS) },
                     onProfile = { openExperience(ExperienceDestination.PROFILE) },
                     onHelp = { openExperience(ExperienceDestination.HELP_ABOUT) },
-                    onOpen = { row ->
-                        val id = row.text("refresh_id")
-                        when {
-                            row.text("receipt_id").isNotBlank() -> appState.navigateToReceipt(id)
-                            row.text("payment_status").isNotBlank() -> appState.navigateToPayment(id)
-                            row.text("claim_status") == "CLAIMED" -> appState.navigateToEvidence(row.text("acceptance_id"), id)
-                            row.text("acceptance_id").isNotBlank() -> appState.navigateToVerification(id)
-                            row.text("status") in setOf("DRAFT", "AWAITING_FUNDING") -> appState.navigateToRequesterFunding(row.text("state_id"))
-                            else -> appState.navigateToState(row.text("state_id"))
-                        }
-                    }, onLocalPayment = appState::navigateToPayment,
+                    onOpen = ::openActivity,
+                    onLocalPayment = appState::navigateToPayment,
+                    onLocalClaim = appState::navigateToOpportunity,
+                    onLocalFunding = { id -> experience.resumeFunding(id, appState::navigateToRequesterFunding) },
                 )
             } else ActivityScreen(
                 uiState = uiState,

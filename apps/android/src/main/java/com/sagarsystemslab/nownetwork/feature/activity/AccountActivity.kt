@@ -22,15 +22,16 @@ fun AccountActivityScreen(
     state: ExperienceUiState, local: ActivityUiState, viewModel: ExperienceViewModel,
     area: String, onArea: () -> Unit, onNotifications: () -> Unit, onProfile: () -> Unit,
     onHelp: () -> Unit, onOpen: (JsonObject) -> Unit, onLocalPayment: (String) -> Unit,
+    onLocalClaim: (String) -> Unit, onLocalFunding: (String) -> Unit,
 ) {
     var filter by rememberSaveable { mutableStateOf("All") }
     var query by rememberSaveable { mutableStateOf("") }
     val rows = state.activity.rows()
-    val finished = setOf("COMPLETED", "REFUNDED", "CANCELLED", "EXPIRED", "REJECTED")
+    val finished = setOf("COMPLETED", "REFUNDED", "CANCELLED", "EXPIRED", "REJECTED", "FAILED")
     val visible = rows.filter { row -> row.text("title").contains(query, ignoreCase = true) &&
         (filter == "All" || (row.text("status") in finished) == (filter == "Completed")) }
     val serverIds = rows.map { it.text("refresh_id") }.toSet()
-    val pending = local.active.filter { it.entityId !in serverIds }
+    val pending = (local.active + local.completed.filter { it.type == "CONTRIBUTOR_CLAIM" && it.remoteState in setOf("CLAIMED", "CAPTURE_ACTIVE", "EVIDENCE_COMMITTED") }).filter { it.entityId !in serverIds }.distinctBy { it.entityId }
     LazyColumn(Modifier.testTag("screen-activity"), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { ExperienceHeader("ACTIVITY", "Your refreshes, proofs & earnings", area, onArea, onNotifications, onProfile, state.inbox.number("unread_count")) }
         item { MetricStrip(listOf((if (state.activity.isEmpty()) "—" else rows.count { it.text("status") !in finished }.toString()) to "In progress shown", (if (state.activity.isEmpty()) "—" else rows.count { it.text("status") in finished }.toString()) to "Completed shown")) }
@@ -59,10 +60,17 @@ fun AccountActivityScreen(
             }
         }
         // Locally submitted settlement can exist before the server history catches up.
-        items(pending.filter { it.type.uppercase() in setOf("SETTLEMENT", "PAYOUT") }, key = { "local-${it.operationId}" }) { item ->
-            NowGlassCard { ExperienceRow("Payment awaiting sync", "Your saved operation is safe", Icons.Outlined.Sync, { onLocalPayment(item.entityId) }) }
+        items(pending, key = { "local-${it.operationId}" }) { item ->
+            NowGlassCard {
+                val action: () -> Unit = { when (item.type) {
+                    "CONTRIBUTOR_CLAIM" -> onLocalClaim(item.entityId)
+                    "REFRESH_FUNDING" -> onLocalFunding(item.entityId)
+                    else -> onLocalPayment(item.entityId)
+                } }
+                ExperienceRow(if (item.type == "CONTRIBUTOR_CLAIM") "Saved proof operation" else if (item.type == "REFRESH_FUNDING") "Funding awaiting sync" else "Payment awaiting sync", "Open to reconcile your saved operation", Icons.Outlined.Sync, action)
+            }
         }
-        if (rows.isEmpty() && !state.loading && !state.saving && state.error == null) item {
+        if (rows.isEmpty() && pending.isEmpty() && state.activity.isNotEmpty() && !state.loading && !state.saving && state.error == null) item {
             EmptyProofCard("Your activity starts here", "Fund a refresh or capture fresh proof. Track every step and finalized receipt here.", onArea, onHelp, activity = true)
         }
         if (rows.isNotEmpty() && visible.isEmpty()) item { NowNotice("No activity matches this filter.") }

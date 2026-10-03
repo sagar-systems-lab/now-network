@@ -4,6 +4,7 @@ import com.sagarsystemslab.nownetwork.auth.AppSession
 import com.sagarsystemslab.nownetwork.auth.AuthGateway
 import com.sagarsystemslab.nownetwork.data.local.CachedOpportunityDao
 import com.sagarsystemslab.nownetwork.data.local.CachedOpportunityEntity
+import com.sagarsystemslab.nownetwork.model.estimatedPayoutAtomic
 import com.sagarsystemslab.nownetwork.model.NearbyStatePage
 import com.sagarsystemslab.nownetwork.model.StateDetail
 import com.sagarsystemslab.nownetwork.model.StateSummary
@@ -56,10 +57,16 @@ class OpportunityRepositoryTest {
         assertEquals("Parking Lot B", page.items.single().title)
         assertEquals("450000", dao.saved?.rewardAmountAtomic)
         assertEquals("CLAIMABLE", dao.saved?.status)
+        assertEquals("225000", page.items.single().estimatedPayoutAtomic())
+        assertEquals("450000", page.items.single().copy(payoutRule = "SINGLE_WINNER_ALL").estimatedPayoutAtomic())
+        assertEquals(null, page.items.single().copy(payoutRule = null).estimatedPayoutAtomic())
+        assertEquals(null, page.items.single().copy(requiredWitnesses = 0).estimatedPayoutAtomic())
+        assertEquals("9223372036854775807", page.items.single().copy(rewardAtomic = "18446744073709551615").estimatedPayoutAtomic())
 
         val cached = repository.observeCached().first()
         assertEquals("Refresh available state", cached.single().title)
         assertTrue(cached.single().cachedOnly)
+        assertEquals(null, cached.single().estimatedPayoutAtomic())
     }
 }
 
@@ -110,7 +117,7 @@ private class OpportunityApi : NowApiClient {
                     reward = OpportunityRewardDto(
                         mint = "mint-a",
                         poolAtomic = "450000",
-                        payoutRule = "EQUAL",
+                        payoutRule = "EQUAL_SPLIT_REQUIRED_WITNESSES",
                     ),
                     distanceM = 92.0,
                     expiresAt = "2035-01-01T00:10:00Z",
@@ -120,8 +127,8 @@ private class OpportunityApi : NowApiClient {
                         templateKey = "parking.photo.v1",
                         mediaRequired = true,
                         locationRequired = true,
-                        requiredWitnesses = 1,
-                        maxWitnesses = 1,
+                        requiredWitnesses = 2,
+                        maxWitnesses = 2,
                     ),
                     availability = OpportunityAvailabilityDto(
                         claimable = true,

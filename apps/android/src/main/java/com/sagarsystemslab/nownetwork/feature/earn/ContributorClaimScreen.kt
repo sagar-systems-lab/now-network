@@ -12,7 +12,7 @@ import com.sagarsystemslab.nownetwork.experience.displayDistance
 import com.sagarsystemslab.nownetwork.feature.common.*
 
 @Composable
-fun ContributorClaimScreen(uiState:ContributorClaimUiState,rewardText:String,onBack:()->Unit,onPrepare:()->Unit,onSubmit:()->Unit,onCheck:()->Unit,onCaptureEvidence:()->Unit) {
+fun ContributorClaimScreen(uiState:ContributorClaimUiState,rewardText:String,onBack:()->Unit,onPrepare:()->Unit,onSubmit:()->Unit,onCheck:()->Unit,onCaptureEvidence:()->Unit,onViewVerification:()->Unit = onCheck) {
     val stage=uiState.stage; val opportunity=uiState.opportunity
     var requirements by remember { mutableStateOf(false) }
     TransactionPage("Claim opportunity","Review the details and claim to get started","screen-contributor-claim",onBack,footer={
@@ -20,12 +20,19 @@ fun ContributorClaimScreen(uiState:ContributorClaimUiState,rewardText:String,onB
             ContributorClaimStage.REVIEW -> NowPrimaryButton("Claim and continue",onPrepare,Modifier.fillMaxWidth().testTag("prepare-claim"),enabled=uiState.canPrepare)
             ContributorClaimStage.READY_FOR_WALLET -> NowPrimaryButton("Confirm claim in wallet",onSubmit,Modifier.fillMaxWidth().testTag("confirm-claim-wallet"))
             ContributorClaimStage.CLAIMED -> NowPrimaryButton("Capture evidence",onCaptureEvidence,Modifier.fillMaxWidth().testTag("capture-evidence"))
+            ContributorClaimStage.EVIDENCE_COMMITTED -> NowPrimaryButton("View verification",onViewVerification,Modifier.fillMaxWidth())
             ContributorClaimStage.CONFIRMING -> NowPrimaryButton("Check existing claim",onCheck,Modifier.fillMaxWidth())
             ContributorClaimStage.ERROR -> NowPrimaryButton(if(uiState.canPrepare) "Try preparing again" else "Check claim status",if(uiState.canPrepare) onPrepare else onCheck,Modifier.fillMaxWidth())
             else -> NowPrimaryButton(if(stage==ContributorClaimStage.SUBMITTING) "Waiting for wallet…" else "Checking availability…",{},Modifier.fillMaxWidth(),enabled=false)
         }
         NowSecondaryButton("Review requirements",{requirements=true},Modifier.fillMaxWidth(),enabled=opportunity!=null)
     }) {
+        if (opportunity == null && stage in setOf(ContributorClaimStage.CLAIMED, ContributorClaimStage.EVIDENCE_COMMITTED, ContributorClaimStage.CONFIRMING, ContributorClaimStage.READY_FOR_WALLET)) {
+            NowGlassCard {
+                Text("Your saved claim", style = NowType.TitleM, color = NowColors.Ink950)
+                Text(if (stage == ContributorClaimStage.EVIDENCE_COMMITTED) "Your proof was submitted. Continue to its authoritative verification status." else "Continue your existing operation. Availability for new claims does not affect recovery.", style = NowType.BodyM, color = NowColors.Ink600)
+            }
+        }
         if(opportunity!=null) {
             RefreshContextCard(opportunity.title,opportunity.location.name,opportunity.question)
             NowGlassCard(emphasized=true,modifier=Modifier.testTag("opportunity-detail")) {

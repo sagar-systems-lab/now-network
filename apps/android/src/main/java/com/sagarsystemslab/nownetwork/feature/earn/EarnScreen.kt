@@ -54,6 +54,7 @@ import com.sagarsystemslab.nownetwork.designsystem.rememberNowMotionEnabled
 import com.sagarsystemslab.nownetwork.designsystem.nowPulseOnChange
 import com.sagarsystemslab.nownetwork.feature.state.rememberVisibleServerTime
 import com.sagarsystemslab.nownetwork.model.OpportunitySummary
+import com.sagarsystemslab.nownetwork.model.estimatedPayoutAtomic
 
 @Composable
 fun EarnScreen(
@@ -69,6 +70,9 @@ fun EarnScreen(
     center: GeoCenter? = null,
     unread: Int = 0,
     onSearchArea: ((GeoCenter) -> Unit)? = null,
+    onLoadMore: () -> Unit = {},
+    activeWork: (@Composable () -> Unit)? = null,
+    onEarningAlerts: (() -> Unit)? = null,
 ) {
     val nowMillis = rememberVisibleServerTime(serverNowMillis)
     val listMotionDuration = nowMotionDuration(
@@ -97,7 +101,8 @@ fun EarnScreen(
         }
         item { LiveMapCard(center, visibleOpportunities.mapNotNull { o -> o.center?.let { LiveMapPin(o.refreshId, o.title, it, if (o.claimable && !o.cachedOnly) "CLAIMABLE" else "UNKNOWN") } }, onOpportunityClick, onSearchArea = onSearchArea) }
         item { SyncStrip(uiState.refreshing, visibleOpportunities.size, uiState.notice != EarnNotice.NONE, onRefresh) }
-        if (visibleOpportunities.isNotEmpty()) item { MetricStrip(listOf(liveCount.toString() to "Available here", visibleOpportunities.size.toString() to "Results shown")) }
+        if (activeWork != null) item { activeWork() }
+        if (visibleOpportunities.isNotEmpty()) item { MetricStrip(listOf(liveCount.toString() to "Available shown", visibleOpportunities.size.toString() to "Results shown")) }
 
         if (uiState.notice != EarnNotice.NONE) {
             item {
@@ -137,9 +142,9 @@ fun EarnScreen(
                     )
                     Text(
                         text = if (liveCount == 1) {
-                            "1 task is available to claim right now."
+                            "1 available task shown, ordered by distance."
                         } else {
-                            liveCount.toString() + " tasks are available to claim right now."
+                            liveCount.toString() + " available tasks shown, ordered by distance."
                         },
                         style = NowType.BodyS,
                         color = NowColors.Ink500,
@@ -176,6 +181,15 @@ fun EarnScreen(
                         fadeOutSpec = tween(listMotionDuration),
                     ),
                 )
+            }
+        }
+        if (uiState.moreFailed) item { NowNotice("More opportunities could not load. Your existing results are still available.") }
+        if (uiState.nextCursor != null) item {
+            NowSecondaryButton(if (uiState.loadingMore) "Loading more…" else if (uiState.moreFailed) "Retry more opportunities" else "Load more opportunities", onLoadMore, Modifier.fillMaxWidth(), enabled = !uiState.refreshing && !uiState.loadingMore)
+        }
+        if (onEarningAlerts != null) item {
+            com.sagarsystemslab.nownetwork.designsystem.NowGlassCard {
+                ExperienceRow("Earning alerts", "Choose areas and check notification permission", Icons.Outlined.LocationOn, onEarningAlerts)
             }
         }
     }
@@ -252,7 +266,10 @@ private fun OpportunityCard(
                 Text(locationSummary(opportunity), style = NowType.BodyS, color = NowColors.Ink600)
                 Text(timeText, style = NowType.BodyS, color = NowColors.AgingText)
             }
-            Text(reward, style = NowType.LabelL, color = NowColors.Blue600)
+            Column(horizontalAlignment = Alignment.End) {
+                Text(reward, style = NowType.LabelL, color = NowColors.Blue600)
+                Text(if (opportunity.estimatedPayoutAtomic() == null) "Reward pool" else "Est. payout", style = NowType.BodyS, color = NowColors.Ink600)
+            }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             OpportunityAvailability(opportunity)
@@ -261,6 +278,9 @@ private fun OpportunityCard(
                 if(opportunity.locationRequired == true) add("On site")
                 opportunity.remainingSlots?.let { add("$it slots") }
             }.joinToString(" · "), style = NowType.BodyS, color = NowColors.Ink600, modifier = Modifier.weight(1f))
+        }
+        opportunity.payoutRule?.let { rule ->
+            Text(if (rule == "EQUAL_SPLIT_REQUIRED_WITNESSES") "Pool split across ${opportunity.requiredWitnesses} accepted witnesses; final settlement determines payment." else "One accepted winner receives the pool; payment requires verification.", style = NowType.BodyS, color = NowColors.Ink600)
         }
         when {
             opportunity.cachedOnly -> NowNotice("Saved opportunity · reconnect to confirm availability.")

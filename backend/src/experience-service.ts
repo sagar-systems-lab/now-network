@@ -407,6 +407,8 @@ export class PostgresExperienceService implements ExperienceApi {
   private async activity(actorId: string, url: URL) {
     const limit = optionalQueryInteger(url, "limit", 30, 1, 50),
       offset = optionalQueryInteger(url, "offset", 0, 0, 10_000);
+    const activeOnly = url.searchParams.get("active") === "true";
+    const contributorOnly = url.searchParams.get("role") === "contributor";
     const refreshId = url.searchParams.get("refresh_id");
     if (refreshId != null) idFromPath(refreshId);
     const rows = await this
@@ -422,7 +424,11 @@ export class PostgresExperienceService implements ExperienceApi {
       left join app.refresh_acceptances ra on ra.refresh_id=rr.refresh_id and ra.actor_id=${actorId}::uuid
       left join app.receipts r on r.refresh_id=rr.refresh_id and r.status='FINAL'
       left join app.settlement_operations so on so.refresh_id=rr.refresh_id
-      where (${refreshId}::uuid is null or rr.refresh_id=${refreshId}::uuid) and (rr.requester_actor_id=${actorId}::uuid or ra.actor_id=${actorId}::uuid or exists
+      where (${refreshId}::uuid is null or rr.refresh_id=${refreshId}::uuid)
+        and (not ${contributorOnly} or ra.actor_id=${actorId}::uuid)
+        and (not ${activeOnly} or (r.receipt_id is null and rr.status not in ('COMPLETED','CANCELLED','EXPIRED','FAILED')
+          and (ra.acceptance_id is null or ra.status not in ('RELEASED','EXPIRED','FAILED'))))
+        and (rr.requester_actor_id=${actorId}::uuid or ra.actor_id=${actorId}::uuid or exists
         (select 1 from app.refresh_contributions c where c.refresh_id=rr.refresh_id and c.actor_id=${actorId}::uuid))
       order by rr.updated_at desc,rr.refresh_id desc limit ${limit + 1} offset ${offset}`;
     return {

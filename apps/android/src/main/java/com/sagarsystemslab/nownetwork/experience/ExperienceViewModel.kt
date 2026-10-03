@@ -22,6 +22,7 @@ data class ExperienceUiState(
     val preferences: JsonObject = JsonObject(emptyMap()),
     val inbox: JsonObject = JsonObject(emptyMap()),
     val activity: JsonObject = JsonObject(emptyMap()),
+    val activeWork: JsonObject = JsonObject(emptyMap()),
     val installations: List<JsonObject> = emptyList(),
     val areas: List<JsonObject> = emptyList(),
     val nextAreaOffset: Int? = null,
@@ -80,7 +81,8 @@ class ExperienceViewModel @Inject constructor(
                     mutable.update { it.copy(me = me, profile = profile, preferences = profile.objectAt("preferences")) }
                     val inbox = repository.get("/v1/me/notifications", mapOf("filter" to lastInboxFilter))
                     val activity = repository.get("/v1/me/activity")
-                    mutable.update { it.copy(inbox = inbox, activity = activity) }
+                    val activeWork = repository.get("/v1/me/activity", mapOf("active" to "true", "role" to "contributor", "limit" to "50"))
+                    mutable.update { it.copy(inbox = inbox, activity = activity, activeWork = activeWork) }
                     try { repository.registerInstallation() } catch (cancel: CancellationException) { throw cancel } catch (_: Exception) { /* Device settings expose registration errors on retry. */ }
                 } }
             } catch (cancel: CancellationException) { throw cancel }
@@ -134,6 +136,14 @@ class ExperienceViewModel @Inject constructor(
         val params = if (more) mapOf("offset" to (previous.text("next_offset").takeIf { it.isNotBlank() } ?: return@mutation)) else emptyMap()
         val response = repository.get("/v1/me/activity", params)
         mutable.update { it.copy(activity = if (more) JsonObject(response + ("items" to JsonArray((previous.rows() + response.rows()).distinctBy { row -> row.text("refresh_id") }))) else response) }
+    }
+
+    fun activeWork() = refresh()
+    fun resumeFunding(refreshId: String, onState: (String) -> Unit) = mutation(null) {
+        val response = repository.get("/v1/refreshes/$refreshId")
+        val stateId = response.text("state_id")
+        require(stateId.isNotBlank()) { "Saved funding details are unavailable. Reconnect and try again." }
+        withContext(Dispatchers.Main) { onState(stateId) }
     }
 
     fun markRead(id: String? = null) = mutation(null) {

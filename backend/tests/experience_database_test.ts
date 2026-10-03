@@ -44,6 +44,7 @@ Deno.test({
       states = [crypto.randomUUID(), crypto.randomUUID()];
     const installations = [crypto.randomUUID(), crypto.randomUUID()];
     const walletIds = [crypto.randomUUID(), crypto.randomUUID()];
+    const refreshes = [crypto.randomUUID(), crypto.randomUUID()];
     const principals: AuthPrincipal[] = actorIds.map(() => ({
       authUserId: crypto.randomUUID(),
       sessionId: crypto.randomUUID(),
@@ -106,6 +107,11 @@ Deno.test({
         "WALLET_UNAVAILABLE",
       );
       const activity = await request(0, "me/activity");
+      const activeWork = await request(0, "me/activity?active=true&role=contributor");
+      assert(
+        Array.isArray(activeWork.items) && activeWork.items.length === 0,
+        "active contribution filter must remain actor scoped",
+      );
       assert(
         Array.isArray(activity.items) && activity.items.length === 0,
         "empty actor activity must be valid",
@@ -114,6 +120,32 @@ Deno.test({
         (await request(0, `me/states/${states[0]}/proof`)).available === false,
         "public state must not expose private proof",
       );
+      for (let i = 0; i < 2; i++) {
+        await sql`insert into app.refresh_requests(refresh_id,state_id,state_version,requester_actor_id,status,verification_class,
+          required_witnesses,max_witnesses,proof_policy_snapshot,proof_policy_digest,intent_core_hash,
+          refresh_expires_at,evidence_deadline,reward_mint,chain_total_funded,payout_rule,updated_at)
+          values (${refreshes[i]}::uuid,${states[i]}::uuid,1,${
+          actorIds[1]
+        }::uuid,'AVAILABLE','FAST',1,1,
+          '{}',decode(repeat('11',32),'hex'),decode(repeat('22',32),'hex'),now()+interval '15 minutes',
+          now()+interval '10 minutes','TestMint',100,'SINGLE_WINNER_ALL',now()+${i}*interval '1 second')`;
+        await sql`insert into app.refresh_acceptances(acceptance_id,refresh_id,actor_id,wallet_address,claim_slot,claim_deadline,status)
+          values (${crypto.randomUUID()}::uuid,${refreshes[i]}::uuid,${
+          actorIds[0]
+        }::uuid,'TestWallet',0,
+          now()+interval '5 minutes',${i === 0 ? "CAPTURE_ACTIVE" : "EXPIRED"})`;
+      }
+      const active = (await request(0, "me/activity?active=true&role=contributor&limit=1"))
+        .items as Record<string, unknown>[];
+      assert(
+        active.length === 1 && active[0].refresh_id === refreshes[0],
+        "active claims must be filtered before the first-page limit",
+      );
+      const requester = (await request(1, "me/activity?active=true&role=contributor"))
+        .items as unknown[];
+      assert(requester.length === 0, "requester ownership must not masquerade as contributor work");
+      await sql`delete from app.refresh_acceptances where refresh_id=any(${refreshes}::uuid[])`;
+      await sql`delete from app.refresh_requests where refresh_id=any(${refreshes}::uuid[])`;
       for (let i = 0; i < 2; i++) {
         await request(i, "me/installations", {
           installation_id: installations[i],
@@ -233,6 +265,8 @@ Deno.test({
       await sql`delete from app.installations where actor_id=any(${actorIds}::uuid[])`;
       await sql`delete from app.actor_preferences where actor_id=any(${actorIds}::uuid[])`;
       await sql`delete from app.actor_profiles where actor_id=any(${actorIds}::uuid[])`;
+      await sql`delete from app.refresh_acceptances where refresh_id=any(${refreshes}::uuid[])`;
+      await sql`delete from app.refresh_requests where refresh_id=any(${refreshes}::uuid[])`;
       await sql`delete from app.wallet_bindings where actor_id=any(${actorIds}::uuid[])`;
       await sql`delete from app.live_states where state_id=any(${states}::uuid[])`;
       await sql`delete from app.state_definitions where state_id=any(${states}::uuid[])`;

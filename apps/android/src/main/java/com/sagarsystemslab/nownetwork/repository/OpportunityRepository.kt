@@ -117,6 +117,8 @@ private fun OpportunityDto.toDomain(): OpportunitySummary =
         revision = revision,
         cachedOnly = false,
         center = location.center,
+        payoutRule = reward.payoutRule,
+        requiredWitnesses = evidenceSummary.requiredWitnesses,
     )
 
 private fun CachedOpportunityEntity.toDomain(

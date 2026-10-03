@@ -168,6 +168,8 @@ class KtorNowApiClientTest {
         assertEquals("Parking Lot B", result.items.single().title)
         assertEquals("450000", result.items.single().reward.poolAtomic)
         assertTrue(result.items.single().availability.claimable)
+        val detailJson = json.encodeToString(OpportunityDto.serializer(), result.items.single().copy(distanceM = null))
+        assertEquals(null, json.decodeFromString(OpportunityDto.serializer(), detailJson).distanceM)
     }
 
     @Test

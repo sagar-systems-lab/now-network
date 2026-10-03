@@ -24,6 +24,13 @@ metadata. Avatar and authorized evidence previews use 60-second signed URLs; evi
 available only to the submitter, requester or confirmed funding participant. Public state reads
 never return evidence object keys or private proof coordinates.
 
+Discovery lists follow server cursors, retain existing cards on a failed tail load, and discard
+late pages when the area or actor changes. EARN pins active contributor work above discovery
+results and keeps locally saved claims reachable while offline. Existing claim recovery runs
+before a new opportunity lookup, since an already claimed refresh is excluded from opportunities.
+Committed proof opens verification; an expired or released claim cannot start another signature.
+Payout estimates apply the locked witness split and are labeled separately from reward pools.
+
 ## Push configuration
 
 The in-app inbox works without Firebase. To enable device delivery, configure the Android build

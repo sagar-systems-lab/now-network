@@ -41,6 +41,8 @@ sealed interface ClaimReconciliation {
         val operation: ActiveOperationEntity,
     ) : ClaimReconciliation
 
+    data class EvidenceCommitted(val claim: ClaimStatusDto) : ClaimReconciliation
+
     data class Confirming(
         val operation: ActiveOperationEntity,
     ) : ClaimReconciliation
@@ -384,6 +386,7 @@ class DefaultContributorClaimRepository @Inject constructor(
                 )
             }
 
+            resolvedClaim(claim, operation)?.let { return it }
             if (claim.status != "CLAIMED") {
                 val confirming = operation.copy(
                     localState = STATE_CONFIRMING,
@@ -452,6 +455,7 @@ class DefaultContributorClaimRepository @Inject constructor(
             return ClaimReconciliation.Confirming(confirming)
         }
 
+        resolvedClaim(claim, operation)?.let { return it }
         if (claim.status == "CLAIMED") {
             val completed = operation.copy(
                 localState = STATE_ACKNOWLEDGED,
@@ -485,9 +489,7 @@ class DefaultContributorClaimRepository @Inject constructor(
         val claim = withAuthRetry { token ->
             api.claimDetail(operation.operationId, token)
         }
-        if (claim.status == "CLAIMED") {
-            return ClaimReconciliation.Claimed(claim, operation)
-        }
+        resolvedClaim(claim, operation)?.let { return it }
 
         val confirming = operation.copy(
             localState = STATE_CONFIRMING,
@@ -496,6 +498,25 @@ class DefaultContributorClaimRepository @Inject constructor(
         )
         operationDao.upsert(confirming)
         return ClaimReconciliation.Confirming(confirming)
+    }
+
+    private suspend fun resolvedClaim(claim: ClaimStatusDto, operation: ActiveOperationEntity): ClaimReconciliation? {
+        if (claim.refreshId != operation.entityId || claim.acceptanceId != operation.operationId) {
+            throw ContributorClaimFailure.Protocol("Recovered claim identity mismatch.")
+        }
+        if (claim.status in setOf("CLAIMED", "CAPTURE_ACTIVE", "EVIDENCE_COMMITTED")) {
+            val acknowledged = operation.copy(localState = STATE_ACKNOWLEDGED, remoteState = claim.status,
+                chainSignature = claim.chainSignature ?: operation.chainSignature, updatedAtMs = serverClock.nowMillis())
+            operationDao.upsert(acknowledged)
+            return if (claim.status == "EVIDENCE_COMMITTED") ClaimReconciliation.EvidenceCommitted(claim)
+                else ClaimReconciliation.Claimed(claim, acknowledged)
+        }
+        if (claim.status in setOf("RELEASED", "EXPIRED", "FAILED")) {
+            operationDao.upsert(operation.copy(localState = STATE_REJECTED, remoteState = claim.status,
+                updatedAtMs = serverClock.nowMillis()))
+            throw ContributorClaimFailure.Rejected("This saved claim is ${claim.status.lowercase()}. Return to EARN for current opportunities.")
+        }
+        return null
     }
 
     private suspend fun ensureBinding(

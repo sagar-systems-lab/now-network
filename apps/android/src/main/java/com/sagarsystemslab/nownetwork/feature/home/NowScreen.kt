@@ -36,10 +36,12 @@ fun NowScreen(
     center: GeoCenter? = null,
     unread: Int = 0,
     onSearchArea: ((GeoCenter) -> Unit)? = null,
+    onLoadMore: () -> Unit = {},
 ) {
     val nowMillis = rememberVisibleServerTime(serverNowMillis)
     var filter by rememberSaveable { mutableStateOf("All") }
-    val states = uiState.states.filter { filter == "All" || it.freshnessAt(nowMillis).name == filter.uppercase() }
+    var search by rememberSaveable { mutableStateOf("") }
+    val states = uiState.states.filter { (filter == "All" || it.freshnessAt(nowMillis).name == filter.uppercase()) && (it.title.contains(search, ignoreCase = true) || it.question.contains(search, ignoreCase = true)) }
     val candidate = uiState.states.firstOrNull { it.freshnessAt(nowMillis) == FreshnessKind.STALE && !it.conflictActive }
     val duration = nowMotionDuration(rememberNowMotionEnabled(), 220)
     LazyColumn(Modifier.testTag("screen-now"), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -64,7 +66,10 @@ fun NowScreen(
             }
         }
         if (uiState.notice != BrowseNotice.NONE) item { BrowseNoticeCard(uiState.notice, uiState.states.isNotEmpty()) }
-        item { MetricStrip(listOf(uiState.states.size.toString() to "States shown", uiState.states.count { it.freshnessAt(nowMillis) == FreshnessKind.STALE }.toString() to "Stale now", uiState.states.count { it.freshnessAt(nowMillis) == FreshnessKind.LIVE }.toString() to "Live now")) }
+        item {
+            val known = uiState.states.isNotEmpty() || (!uiState.refreshing && uiState.notice == BrowseNotice.NONE)
+            MetricStrip(listOf((if (known) uiState.states.size.toString() else "—") to "States shown", (if (known) uiState.states.count { it.freshnessAt(nowMillis) == FreshnessKind.STALE }.toString() else "—") to "Stale shown", (if (known) uiState.states.count { it.freshnessAt(nowMillis) == FreshnessKind.LIVE }.toString() else "—") to "Live shown"))
+        }
         if (candidate != null) item {
             NowGlassCard(emphasized = true) {
                 StateCard(candidate, nowMillis, { onStateClick(candidate.stateId) })
@@ -73,20 +78,25 @@ fun NowScreen(
         }
         item {
             NowSectionTitle("Nearby now", "Freshness changes as observations age")
+            NowTextField(search, { search = it }, "Search loaded states")
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("All", "Live", "Aging", "Stale").forEach { value -> FilterChip(filter == value, { filter = value }, label = { Text(value) }) }
             }
         }
         if (uiState.refreshing && states.isEmpty()) item { LinearProgressIndicator(Modifier.fillMaxWidth(), color = NowColors.Blue600) }
-        else if (states.isEmpty()) item {
+        else if (states.isEmpty() && (uiState.states.isNotEmpty() || uiState.notice == BrowseNotice.NONE)) item {
             NowGlassCard {
-                Text(if (uiState.states.isEmpty()) "No nearby states yet" else "No ${filter.lowercase()} states in these results", style = NowType.TitleM, color = NowColors.Ink950)
+                Text(if (uiState.states.isEmpty()) "No nearby states yet" else "No states match these filters", style = NowType.TitleM, color = NowColors.Ink950)
                 Text("Choose an area with coverage or check again for new observations.", style = NowType.BodyM, color = NowColors.Ink600)
                 NowSecondaryButton("Browse areas", onBrowseAreas, Modifier.fillMaxWidth())
             }
         }
         else items(states, key = { it.stateId }) { state ->
             StateCard(state, nowMillis, { onStateClick(state.stateId) }, Modifier.animateItem(tween(duration), tween(duration), tween(duration)))
+        }
+        if (uiState.moreFailed) item { NowNotice("More states could not load. Your existing results are still available.") }
+        if (uiState.nextCursor != null) item {
+            NowSecondaryButton(if (uiState.loadingMore) "Loading more…" else if (uiState.moreFailed) "Retry more states" else "Load more nearby states", onLoadMore, Modifier.fillMaxWidth(), enabled = !uiState.refreshing && !uiState.loadingMore)
         }
         item {
             NowGlassCard(Modifier.testTag("home-earn-entry")) {
