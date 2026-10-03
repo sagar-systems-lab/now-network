@@ -81,7 +81,7 @@ fun NowScreen(
                 (uiState.counts?.total?.toString() ?: "—") to "Matching nearby",
                 (uiState.counts?.stale?.toString() ?: "—") to "Need proof",
                 (uiState.counts?.live?.toString() ?: "—") to "Live nearby",
-            )) { index -> onFreshness(if (index == 1) "stale" else if (index == 2) "live" else "all"); showNearby = true }
+            )) { index -> onFreshness(if (index == 1) "needs_proof" else if (index == 2) "live" else "all"); showNearby = true }
         }
         if (candidate != null) item {
             StateCard(candidate, nowMillis, { onStateClick(candidate.stateId) }, onRefresh = { onFundState(candidate.stateId) })
@@ -91,7 +91,7 @@ fun NowScreen(
                 Text("Nearby now", Modifier.weight(1f), style = NowType.TitleM, color = NowColors.Ink950)
                 TextButton({ showNearby = true }) { Text("See all"); Icon(Icons.Outlined.ChevronRight, null) }
             }
-            if (uiState.search.isNotBlank() || uiState.freshness != "all") Text("Filtered area · ${uiState.search.ifBlank { uiState.freshness }}", style = NowType.BodyS, color = NowColors.Ink600)
+            if (uiState.search.isNotBlank() || uiState.freshness != "all") Text("Filtered area · ${uiState.search.ifBlank { uiState.freshness.replace('_', ' ') }}", style = NowType.BodyS, color = NowColors.Ink600)
         }
         if (uiState.refreshing && states.isEmpty()) item { LinearProgressIndicator(Modifier.fillMaxWidth(), color = NowColors.Blue600) }
         else if (states.isEmpty() && (uiState.states.isNotEmpty() || uiState.notice == BrowseNotice.NONE)) item {
@@ -118,20 +118,16 @@ fun NowScreen(
             }
         }
     }
-    if (showNearby) ModalBottomSheet(
-        onDismissRequest = { showNearby = false },
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = NowColors.SurfaceCanvas,
-    ) {
+    if (showNearby) NearbyListSurface(onDismiss = { showNearby = false }) {
         LazyColumn(Modifier.fillMaxWidth().fillMaxHeight(.88f).testTag("nearby-state-list"), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item {
                 NowSectionTitle("Nearby states", uiState.areaLabel)
                 NowTextField(search, { search = it.take(120) }, "Search this area")
                 NowSecondaryButton("Search area", { onSearch(search) }, Modifier.fillMaxWidth(), enabled = !uiState.refreshing)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(listOf("all", "live", "aging", "stale", "unobserved", "conflict")) { value ->
+                    items(listOf("all", "live", "aging", "stale", "needs_proof", "unobserved", "conflict")) { value ->
                         FilterChip(uiState.freshness == value, { onFreshness(value) }, enabled = !uiState.refreshing,
-                            label = { Text(value.replaceFirstChar { it.uppercase() }) })
+                            label = { Text(value.replace('_', ' ').replaceFirstChar { it.uppercase() }) })
                     }
                 }
                 Text("${uiState.counts?.total?.toString() ?: "—"} matching nearby · ${states.size} shown. Area totals are from the last refresh.", style = NowType.BodyS, color = NowColors.Ink600)
@@ -144,5 +140,21 @@ fun NowScreen(
             if (uiState.nextCursor != null) item { NowSecondaryButton(if (uiState.loadingMore) "Loading more…" else if (uiState.moreFailed) "Retry more states" else "Load more states", onLoadMore, Modifier.fillMaxWidth(), enabled = !uiState.loadingMore && !uiState.refreshing) }
             item { NowSecondaryButton("Done", { showNearby = false }, Modifier.fillMaxWidth()) }
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun NearbyListSurface(onDismiss: () -> Unit, content: @Composable () -> Unit) {
+    // The app's Reduce Motion setting also applies to this Material sheet.
+    if (!LocalNowMotionAllowed.current || !android.animation.ValueAnimator.areAnimatorsEnabled()) {
+        androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss,
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
+            Surface(Modifier.fillMaxWidth().padding(8.dp).imePadding(), shape = NowShapes.extraLarge, color = NowColors.SurfaceCanvas) { content() }
+        }
+    } else {
+        ModalBottomSheet(onDismissRequest = onDismiss,
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = NowColors.SurfaceCanvas) { content() }
     }
 }

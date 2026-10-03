@@ -120,9 +120,14 @@ fun SyncStrip(refreshing: Boolean, count: Int, cached: Boolean, onRefresh: () ->
 }
 
 @Composable
-fun MetricStrip(metrics: List<Pair<String, String>>, onMetric: ((Int) -> Unit)? = null) {
-    NowGlassCard(contentPadding = 12.dp) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+fun MetricStrip(metrics: List<Pair<String, String>>, framed: Boolean = true, onMetric: ((Int) -> Unit)? = null) {
+    if (framed) NowGlassCard(contentPadding = 12.dp) { MetricValues(metrics, onMetric) }
+    else MetricValues(metrics, onMetric)
+}
+
+@Composable
+private fun MetricValues(metrics: List<Pair<String, String>>, onMetric: ((Int) -> Unit)?) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             metrics.forEachIndexed { index, (value, label) ->
                 if (index > 0) VerticalDivider(Modifier.height(44.dp), color = NowColors.BorderSubtle)
                 Column(Modifier.weight(1f).heightIn(min = 48.dp).then(if (onMetric == null) Modifier else Modifier.clickable(role = androidx.compose.ui.semantics.Role.Button) { onMetric(index) }), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -130,7 +135,6 @@ fun MetricStrip(metrics: List<Pair<String, String>>, onMetric: ((Int) -> Unit)? 
                     Text(label, style = NowType.LabelM, color = NowColors.Ink600)
                 }
             }
-        }
     }
 }
 

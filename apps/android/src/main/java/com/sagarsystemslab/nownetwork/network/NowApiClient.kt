@@ -11,7 +11,7 @@ data class NearbyStateQuery(
 ) {
     init {
         require(search.length <= 120)
-        require(freshness in setOf("all", "live", "aging", "stale", "unobserved", "conflict"))
+        require(freshness in setOf("all", "live", "aging", "stale", "needs_proof", "unobserved", "conflict"))
         require(latitude.isFinite() && latitude in -90.0..90.0) {
             "latitude must be within [-90, 90]"
         }

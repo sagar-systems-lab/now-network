@@ -43,7 +43,7 @@ class VisualSnapshotActivity : ComponentActivity() {
         setContent {
             ApplyNowSystemBars(this, dark)
             CompositionLocalProvider(LocalNowMotionAllowed provides motion) {
-                NowTheme(darkTheme = dark) {
+                NowTheme(darkTheme = dark, reduceMotion = !motion) {
                     val selectedTab = when (screen) {
                         "now" -> TopLevelDestination.NOW
                         "earn", "earn-empty" -> TopLevelDestination.EARN

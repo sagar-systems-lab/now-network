@@ -191,6 +191,15 @@ class ContributorClaimViewModel @Inject constructor(
         )
     }
 
+    fun estimatedRewardText(): String? {
+        val opportunity = mutableState.value.opportunity ?: return null
+        val atomic = com.sagarsystemslab.nownetwork.model.estimatedPayoutAtomic(
+            opportunity.reward.poolAtomic, opportunity.reward.payoutRule,
+            opportunity.evidenceSummary.requiredWitnesses,
+        ) ?: return null
+        return formatReward(atomic, opportunity.reward.mint, rewardConfig)
+    }
+
     private fun applyReconciliation(result: ClaimReconciliation) {
         when (result) {
             is ClaimReconciliation.EvidenceCommitted -> {

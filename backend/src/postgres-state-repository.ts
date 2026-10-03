@@ -227,7 +227,9 @@ export class PostgresStateRepository implements StateRepository {
     const rows = await this.sql`
       with candidates as (${this.candidates(input)})
       select * from candidates
-      where (${input.freshness ?? "all"} = 'all' or freshness = ${input.freshness ?? "all"})
+      where (${input.freshness ?? "all"} = 'all' or freshness = ${input.freshness ?? "all"}
+        or (${input.freshness ?? "all"} = 'needs_proof'
+          and freshness in ('stale', 'unobserved')))
         and (${input.cursor === null} or (distance_m, state_id) >
           (${input.cursor?.distanceM ?? null}::double precision, ${
       input.cursor?.stateId ?? null
@@ -241,7 +243,9 @@ export class PostgresStateRepository implements StateRepository {
     const rows = await this.sql`
       with candidates as (${this.candidates(input)})
       select count(*) filter (where ${input.freshness ?? "all"} = 'all'
-        or freshness = ${input.freshness ?? "all"})::integer as total,
+        or freshness = ${input.freshness ?? "all"}
+        or (${input.freshness ?? "all"} = 'needs_proof'
+          and freshness in ('stale', 'unobserved')))::integer as total,
         count(*) filter (where freshness = 'live')::integer as live,
         count(*) filter (where freshness = 'aging')::integer as aging,
         count(*) filter (where freshness in ('stale', 'unobserved'))::integer as stale

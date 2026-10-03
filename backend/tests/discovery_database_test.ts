@@ -107,6 +107,18 @@ Deno.test({
         (stale.items as { state_id: string }[])[0].state_id === stateIds[2],
         "global freshness",
       );
+      const needProof = await reader.nearby({ ...query, search: run, freshness: "needs_proof" });
+      assert((needProof.counts as { total: number }).total === counts.stale, "proof filter total");
+      const needProofTail = await reader.nearby({
+        ...query,
+        search: run,
+        freshness: "needs_proof",
+        cursor: needProof.next_cursor as string,
+      });
+      assert(
+        (needProofTail.items as { state_id: string }[])[0].state_id === stateIds[3],
+        "need-proof paging must retain unobserved states",
+      );
       const searched = await reader.nearby({ ...query, search: run + "-3" });
       assert(
         (searched.items as { state_id: string }[])[0].state_id === stateIds[3],

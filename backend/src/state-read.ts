@@ -216,7 +216,8 @@ export class StateReadService {
     if (search.length > 120 || Array.from(search).some((c) => c.charCodeAt(0) < 32)) {
       throw new ApiFault(400, "INVALID_SEARCH", "Search must contain at most 120 characters.");
     }
-    if (!["all", "live", "aging", "stale", "unobserved", "conflict"].includes(freshness)) {
+    const kinds = ["all", "live", "aging", "stale", "needs_proof", "unobserved", "conflict"];
+    if (!kinds.includes(freshness)) {
       throw new ApiFault(400, "INVALID_FRESHNESS", "Choose a supported freshness filter.");
     }
     const query = await discoveryFingerprint([

@@ -1202,6 +1202,7 @@ internal fun OpportunityClaimScenario(
         ContributorClaimScreen(
             uiState = uiState,
             rewardText = "0.50 USDC",
+            estimatedRewardText = "0.50 USDC",
             onBack = onBack,
             onPrepare = {
                 stage = ContributorClaimStage.READY_FOR_WALLET
@@ -1469,7 +1470,6 @@ internal fun StateDetailScenario(
             ),
             loading = false,
             notice = BrowseNotice.NONE,
-            counts = com.sagarsystemslab.nownetwork.model.NearbyStateCounts(3, 1, 1, 1),
         )
     }
 

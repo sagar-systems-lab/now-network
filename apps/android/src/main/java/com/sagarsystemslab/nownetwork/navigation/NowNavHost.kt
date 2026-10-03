@@ -209,6 +209,7 @@ fun NowNavHost(
             ContributorClaimScreen(
                 uiState = uiState,
                 rewardText = contributorClaimViewModel.rewardText(),
+                estimatedRewardText = contributorClaimViewModel.estimatedRewardText(),
                 onBack = appState::navigateBack,
                 onPrepare = {
                     contributorClaimViewModel.prepare(walletInteractionHost)
