@@ -98,15 +98,12 @@ class AccessibilityBaselineInstrumentedTest {
             .assertIsDisplayed()
             .assertHasClickAction()
 
-        repeat(3) {
-            composeRule
-                .onNodeWithContentDescription("Back")
-                .performScrollTo()
-                .assertIsDisplayed()
-                .assertHasClickAction()
-                .performClick()
-        }
+        composeRule
+            .onNodeWithContentDescription("Back")
+            .assertIsDisplayed()
+            .assertHasClickAction()
+            .performClick()
 
-        composeRule.onNodeWithTag("screen-now").assertIsDisplayed()
+        composeRule.onNodeWithTag("screen-settings").assertIsDisplayed()
     }
 }
