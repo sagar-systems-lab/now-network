@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -10,7 +12,7 @@ plugins {
 val hostedRuntime = providers.gradleProperty("NOW_RUNTIME")
     .orElse(providers.environmentVariable("NOW_RUNTIME"))
     .getOrElse("offline") == "hosted"
-val hostedPublicConfig = java.util.Properties().apply {
+val hostedPublicConfig = Properties().apply {
     if (hostedRuntime) file("hosted-runtime.properties").inputStream().use { load(it) }
 }
 
