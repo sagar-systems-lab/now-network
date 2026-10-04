@@ -50,3 +50,6 @@ data class PaymentRoute(
 data class ReceiptRoute(
     val refreshId: String,
 )
+
+@Serializable
+data object AskComposerRoute

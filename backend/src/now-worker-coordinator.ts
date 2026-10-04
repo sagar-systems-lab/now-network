@@ -8,6 +8,7 @@ export type NowWorkerTickSummary = {
   receipts: ReceiptTickSummary;
   realtime: RealtimePublishSummary;
   notifications?: PushSummary;
+  discoveryCleanup?: "OK" | "RETRY";
 };
 
 export class NowWorkerCoordinator {
@@ -16,6 +17,7 @@ export class NowWorkerCoordinator {
     private readonly receipts: ReceiptCoordinator,
     private readonly realtime: RealtimePublisher,
     private readonly notifications?: NotificationRunner,
+    private readonly discoveryCleanup?: () => Promise<void>,
   ) {}
 
   async runOnce(limit = 8): Promise<NowWorkerTickSummary> {
@@ -30,6 +32,15 @@ export class NowWorkerCoordinator {
       deferred: 0,
       failed: 1,
     }));
-    return { settlement, receipts, realtime, ...(notifications ? { notifications } : {}) };
+    const discoveryCleanup = await this.discoveryCleanup?.().then(() => "OK" as const).catch(() =>
+      "RETRY" as const
+    );
+    return {
+      settlement,
+      receipts,
+      realtime,
+      ...(notifications ? { notifications } : {}),
+      ...(discoveryCleanup ? { discoveryCleanup } : {}),
+    };
   }
 }

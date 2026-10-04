@@ -52,6 +52,8 @@ class ExperienceRepository @Inject constructor(
         if (public) api.experienceGet(path, parameters = params) else authenticated { api.experienceGet(path, it, params) }
 
     suspend fun post(path: String, payload: JsonObject): JsonObject = authenticated { api.experiencePost(path, payload, it) }
+    suspend fun mutate(path: String, payload: JsonObject, method: String, key: String? = null): JsonObject =
+        authenticated { api.experienceMutate(path, payload, it, method, key) }
     suspend fun me(): MeDto = authenticated(api::me)
 
     private suspend fun <T> authenticated(block: suspend (String) -> T): T {

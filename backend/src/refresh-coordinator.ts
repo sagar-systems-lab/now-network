@@ -233,7 +233,7 @@ export class RefreshCoordinator {
       throw new ApiFault(404, "STATE_NOT_FOUND", "State was not found.");
     }
 
-    const policy = policyTemplateForKey(state.canonicalKey);
+    const policy = policyTemplateForKey(state.policyTemplateKey ?? "");
     if (policy === null || policy.state_type !== state.stateType) {
       throw new ApiFault(
         409,

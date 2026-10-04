@@ -1,3 +1,4 @@
+import { PostgresAskService } from "./ask-service.ts";
 import { FcmSender, PostgresNotificationRunner } from "./notification-delivery.ts";
 import { NowWorkerCoordinator } from "./now-worker-coordinator.ts";
 import { PostgresReceiptRepository } from "./postgres-receipt-repository.ts";
@@ -66,6 +67,7 @@ export function createProductionSettlementWorkerHandler(): (
       60_000,
     ),
   );
+  const discovery = new PostgresAskService(connectionString);
   const coordinator = new NowWorkerCoordinator(
     settlementCoordinator,
     new ReceiptCoordinator(receiptRepository),
@@ -76,6 +78,7 @@ export function createProductionSettlementWorkerHandler(): (
         new FcmSender(requiredEnv("NOW_FCM_SERVICE_ACCOUNT_JSON")),
       )
       : undefined,
+    () => discovery.pruneExpired(),
   );
 
   const handler = createSettlementWorkerHandler(

@@ -8,7 +8,7 @@ import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
-import io.ktor.client.request.post
+import io.ktor.client.request.request
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
@@ -303,12 +303,17 @@ class KtorNowApiClient @Inject constructor(
     suspend fun experiencePost(path: String, payload: kotlinx.serialization.json.JsonObject, token: String): kotlinx.serialization.json.JsonObject =
         post(path, token, payload, kotlinx.serialization.json.JsonObject.serializer())
 
+    suspend fun experienceMutate(path: String, payload: kotlinx.serialization.json.JsonObject, token: String,
+        method: String, key: String? = null): kotlinx.serialization.json.JsonObject =
+        post(path, token, payload, kotlinx.serialization.json.JsonObject.serializer(), key, io.ktor.http.HttpMethod.parse(method))
+
     private suspend fun <T> post(
         path: String,
         accessToken: String,
         requestBody: kotlinx.serialization.json.JsonElement,
         deserializer: DeserializationStrategy<T>,
         idempotencyKey: String? = null,
+        method: io.ktor.http.HttpMethod = io.ktor.http.HttpMethod.Post,
     ): T {
         val baseUrl = config.apiBaseUrl.trim().trimEnd('/')
         if (baseUrl.isEmpty()) {
@@ -316,7 +321,8 @@ class KtorNowApiClient @Inject constructor(
         }
 
         val response = try {
-            client.post("$baseUrl$path") {
+            client.request("$baseUrl$path") {
+                this.method = method
                 header("x-request-id", UUID.randomUUID().toString())
                 bearerAuth(accessToken)
                 header(HttpHeaders.ContentType, ContentType.Application.Json.toString())

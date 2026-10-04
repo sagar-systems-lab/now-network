@@ -67,6 +67,9 @@ fun NowApp(
     walletInteractionHost: WalletInteractionHost,
     experienceViewModelProvider: (() -> com.sagarsystemslab.nownetwork.experience.ExperienceViewModel)? = null,
     uiPreferencesStore: com.sagarsystemslab.nownetwork.experience.UiPreferencesStore? = null,
+    askComposerViewModelProvider: (() -> com.sagarsystemslab.nownetwork.feature.ask.AskComposerViewModel)? = null,
+    availabilityViewModelProvider: (() -> com.sagarsystemslab.nownetwork.feature.ask.ContributorAvailabilityViewModel)? = null,
+
 ) {
     val appState = rememberNowAppState()
     val currentDestination = appState.currentDestination
@@ -92,6 +95,8 @@ fun NowApp(
         NowNavHost(
                 inboxIntentRevision = inboxIntentRevision,
             appState = appState,
+            askComposerViewModelProvider = askComposerViewModelProvider,
+            availabilityViewModelProvider = availabilityViewModelProvider,
             darkTheme = darkTheme,
             onDarkThemeChange = onDarkThemeChange,
             browseViewModelProvider = browseViewModelProvider,

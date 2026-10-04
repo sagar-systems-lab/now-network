@@ -62,12 +62,17 @@ fun LiveMapCard(
     modifier: Modifier = Modifier,
     onSearchArea: ((GeoCenter) -> Unit)? = null,
     onLocateArea: ((GeoCenter) -> Unit)? = onSearchArea,
+    onMapTap: ((GeoCenter) -> Unit)? = null,
+    searchAreaLabel: String = "Search this area",
+    minimumPanMeters: Float = 100f,
 ) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val dark = MaterialTheme.colorScheme.background.red < .2f
     val latestOnPin by rememberUpdatedState(onPin)
     val latestCenter by rememberUpdatedState(center)
+    val latestMapTap by rememberUpdatedState(onMapTap)
+    val latestMinimumPan by rememberUpdatedState(minimumPanMeters)
     var pendingCenter by remember { mutableStateOf<GeoCenter?>(null) }
     var selectedPin by remember { mutableStateOf<String?>(null) }
     var retry by remember { mutableIntStateOf(0) }
@@ -148,6 +153,9 @@ fun LiveMapCard(
             ready.setPrefetchZoomDelta(0)
             ready.uiSettings.isScrollGesturesEnabled = true
             ready.uiSettings.isZoomGesturesEnabled = true
+            ready.addOnMapClickListener { point ->
+                latestMapTap?.let { it(GeoCenter(point.latitude, point.longitude)); true } ?: false
+            }
             ready.setOnMarkerClickListener { marker -> selectedPin = marker.snippet; true }
             fun updateCenterPoint() {
                 centerPoint = latestCenter?.takeIf { it.valid }?.let { c ->
@@ -168,7 +176,7 @@ fun LiveMapCard(
                     val origin = latestCenter
                     val distance = FloatArray(1)
                     if (origin != null) android.location.Location.distanceBetween(origin.latitude,origin.longitude,target.latitude,target.longitude,distance)
-                    pendingCenter = if (gestureMoved && (origin == null || distance[0] > 100)) GeoCenter(target.latitude,target.longitude) else null
+                    pendingCenter = if (gestureMoved && (origin == null || distance[0] > latestMinimumPan)) GeoCenter(target.latitude,target.longitude) else null
                 }
             }
             map = ready
@@ -268,7 +276,7 @@ fun LiveMapCard(
                     TextButton({selectedPin=null}) {Text("Close")}
                 }
             } else if (pendingCenter != null && onSearchArea != null && !failed && mapRendered) {
-                Button({ pendingCenter?.let(onSearchArea); pendingCenter=null },Modifier.align(Alignment.BottomCenter).padding(bottom=28.dp)) {Text("Search this area")}
+                Button({ pendingCenter?.let(onSearchArea); pendingCenter=null },Modifier.align(Alignment.BottomCenter).padding(bottom=28.dp)) {Text(searchAreaLabel)}
             }
             Column(Modifier.align(Alignment.TopEnd).padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 MapLocationButton(onLocation = { c ->

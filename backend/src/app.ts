@@ -1,3 +1,4 @@
+import type { AskApi } from "./ask-service.ts";
 import type { ExperienceApi } from "./experience-service.ts";
 import type { AuthVerifier } from "./auth.ts";
 import type { ClaimCoordinator } from "./claim-coordinator.ts";
@@ -43,6 +44,7 @@ import { handleRequest as handleHealthRequest } from "./health.ts";
 
 export type AppDependencies = {
   authVerifier: AuthVerifier;
+  askService?: AskApi;
   experienceService?: ExperienceApi;
   identityRepository: IdentityRepository;
   stateRepository?: StateRepository;
@@ -272,6 +274,8 @@ export function createApp(dependencies: AppDependencies): (request: Request) => 
         principal.authUserId,
         principal.principalType,
       );
+      const ask = await dependencies.askService?.request(request, actor);
+      if (ask != null) return successResponse(id, ask);
       const experience = await dependencies.experienceService?.privateRequest(
         request,
         actor,

@@ -70,6 +70,7 @@ export type StateDetailRecord = {
   stateId: string;
   version: number;
   canonicalKey: string;
+  policyTemplateKey?: string | null;
   title: string;
   question: string;
   stateType: StateType;

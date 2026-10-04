@@ -1,3 +1,4 @@
+import { PostgresAskService } from "./ask-service.ts";
 import { PostgresExperienceService } from "./experience-service.ts";
 import { createApp } from "./app.ts";
 import { ClaimCoordinator } from "./claim-coordinator.ts";
@@ -151,6 +152,7 @@ export function createProductionHandler(): (request: Request) => Promise<Respons
   const paymentStatusService = new PaymentStatusService(paymentStatusRepository);
   const receiptService = new ReceiptService(receiptRepository);
   const app = createApp({
+    askService: new PostgresAskService(connectionString),
     experienceService: new PostgresExperienceService(connectionString, {
       url: supabaseUrl,
       serviceKey: requiredEnv("SUPABASE_SERVICE_ROLE_KEY"),

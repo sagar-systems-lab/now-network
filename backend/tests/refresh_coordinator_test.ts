@@ -81,6 +81,7 @@ class MemoryStateRepository implements StateRepository {
     stateId: STATE_ID,
     version: 1,
     canonicalKey: "parking.available_spaces.v1",
+    policyTemplateKey: "parking.available_spaces.v1",
     title: "Parking Lot B",
     question: "Available spaces",
     stateType: "NUMERIC",
@@ -595,5 +596,16 @@ Deno.test("refresh ownership is hidden from other actors", async () => {
     throw new Error("other actor read private refresh coordination state");
   } catch (error) {
     if (faultCode(error) !== "REFRESH_NOT_FOUND") throw error;
+  }
+});
+
+Deno.test("dynamic place keys use the registered template when freezing funding policy", async () => {
+  const { service, state } = coordinator();
+  state.detail.canonicalKey = `parking.available_spaces.v1:${state.detail.location.locationId}`;
+  const result = await createDraft(service, "dynamic-place-0001");
+  if (
+    (result.proof_policy as Record<string, unknown>).template_key !== "parking.available_spaces.v1"
+  ) {
+    throw new Error("place identity was used as a policy key");
   }
 });

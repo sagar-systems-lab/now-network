@@ -62,10 +62,28 @@ fun NowNavHost(
     walletInteractionHost: WalletInteractionHost,
     experienceViewModelProvider: (() -> com.sagarsystemslab.nownetwork.experience.ExperienceViewModel)? = null,
     uiPreferencesStore: com.sagarsystemslab.nownetwork.experience.UiPreferencesStore? = null,
+    askComposerViewModelProvider: (() -> com.sagarsystemslab.nownetwork.feature.ask.AskComposerViewModel)? = null,
+    availabilityViewModelProvider: (() -> com.sagarsystemslab.nownetwork.feature.ask.ContributorAvailabilityViewModel)? = null,
     modifier: Modifier = Modifier,
 ) {
+    val availability = availabilityViewModelProvider?.invoke()
+    val availabilityState = availability?.state?.collectAsStateWithLifecycle()?.value
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    androidx.compose.runtime.DisposableEffect(lifecycle, availability) {
+        availability?.foreground(lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED))
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            when(event) {
+                androidx.lifecycle.Lifecycle.Event.ON_START -> availability?.foreground(true)
+                androidx.lifecycle.Lifecycle.Event.ON_STOP -> availability?.foreground(false)
+                else -> Unit
+            }
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer); availability?.foreground(false) }
+    }
     val experience = experienceViewModelProvider?.invoke()
     val experienceState = experience?.state?.collectAsStateWithLifecycle()?.value
+    LaunchedEffect(experienceState?.me?.actorId) { availability?.actorChanged(experienceState?.me?.actorId) }
     val area = experience?.browseContext?.state?.collectAsStateWithLifecycle()?.value
     val center = if (area?.configured == true) com.sagarsystemslab.nownetwork.model.GeoCenter(requireNotNull(area.latitude), requireNotNull(area.longitude)) else null
     fun openExperience(destination: ExperienceDestination) {
@@ -133,6 +151,7 @@ fun NowNavHost(
                 onNotifications = { openExperience(ExperienceDestination.NOTIFICATIONS) },
                 onProfile = { openExperience(ExperienceDestination.PROFILE) },
                 onFundState = appState::navigateToRequesterFunding,
+                onAsk = { appState.navController.navigate(AskComposerRoute) },
                 center = center,
                 onSearchArea = { next -> experience?.browseContext?.select("Selected map area", next.latitude, next.longitude) },
                 onLocateArea = { next -> experience?.browseContext?.select("Near my location", next.latitude, next.longitude) },
@@ -160,6 +179,24 @@ fun NowNavHost(
                 onViewProof = { experience?.proof(route.stateId) },
                 onActivity = { appState.navigateTo(TopLevelDestination.ACTIVITY) },
             )
+        }
+
+        composable<AskComposerRoute> {
+            val composer = askComposerViewModelProvider?.invoke()
+            if (composer != null) {
+                val ask by composer.state.collectAsStateWithLifecycle()
+                LaunchedEffect(composer) { composer.open() }
+                LaunchedEffect(ask.resolvedStateId) {
+                    ask.resolvedStateId?.let { id ->
+                        if (ask.activeRefresh) appState.navigateToState(id) else appState.navigateToRequesterFunding(id)
+                        composer.consumed()
+                    }
+                }
+                com.sagarsystemslab.nownetwork.feature.ask.AskComposerScreen(
+                    ask, composer::name, composer::target, composer::need, composer::stage,
+                    composer::checkCoverage, composer::permissionDenied, composer::resolve, appState::navigateBack,
+                )
+            }
         }
 
         composable<RequesterFundingRoute> { backStackEntry ->
@@ -194,6 +231,10 @@ fun NowNavHost(
             LaunchedEffect(experience, experienceState?.me?.actorId) { experience?.activeWork() }
 
             EarnScreen(
+                availability = { availabilityState?.let { status ->
+                    com.sagarsystemslab.nownetwork.feature.ask.ContributorAvailabilityCard(status,
+                        { availability?.enable() }, { availability?.disable() }, { availability?.permissionDenied() })
+                } },
                 uiState = uiState,
                 rewardText = earnViewModel::rewardText,
                 activeWork = { experienceState?.let { account -> com.sagarsystemslab.nownetwork.feature.earn.ActiveWorkCards(account, localWork, ::openActivity, appState::navigateToOpportunity, { appState.navigateTo(TopLevelDestination.ACTIVITY) }) } },
