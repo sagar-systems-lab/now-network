@@ -97,7 +97,7 @@ export class PostgresRealtimeOutboxRepository implements RealtimeOutboxRepositor
             ${row.audience_type}::app.event_visibility,
             ${row.audience_actor_id}::uuid,
             ${row.area_key},
-            ${JSON.stringify(row.payload)}::jsonb,
+            ${JSON.stringify(row.payload)}::text::jsonb,
             ${date(row.created_at)},
             ${row.expires_at === null ? null : date(row.expires_at)}
           )

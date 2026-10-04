@@ -33,6 +33,7 @@ type DetailRow = {
   state_id: string;
   version: number | string;
   canonical_key: string;
+  policy_template_key: string | null;
   title: string;
   question: string;
   state_type: StateDetailRecord["stateType"];
@@ -130,6 +131,7 @@ function detailFromRow(row: DetailRow): StateDetailRecord {
     stateId: row.state_id,
     version: Number(row.version),
     canonicalKey: row.canonical_key,
+    policyTemplateKey: row.policy_template_key,
     title: row.title,
     question: row.question,
     stateType: row.state_type,
@@ -270,6 +272,7 @@ export class PostgresStateRepository implements StateRepository {
         sd.state_id,
         sd.version,
         sd.canonical_key,
+        sd.policy_template_key,
         sd.title,
         sd.question,
         sd.state_type,

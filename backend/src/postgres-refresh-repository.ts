@@ -255,7 +255,7 @@ export class PostgresRefreshRepository implements RefreshRepository {
           ${refresh.verificationClass},
           ${refresh.requiredWitnesses},
           ${refresh.maxWitnesses},
-          ${JSON.stringify(refresh.proofPolicySnapshot)}::jsonb,
+          ${JSON.stringify(refresh.proofPolicySnapshot)}::text::jsonb,
           ${refresh.proofPolicyDigest},
           ${refresh.intentCoreHash},
           ${refresh.refreshExpiresAt},
@@ -316,7 +316,7 @@ export class PostgresRefreshRepository implements RefreshRepository {
           ${input.requestHash},
           'COMPLETED',
           201,
-          ${JSON.stringify({ refresh_id: refresh.refreshId })}::jsonb,
+          ${JSON.stringify({ refresh_id: refresh.refreshId })}::text::jsonb,
           ${refresh.refreshId}::uuid,
           ${input.idempotencyExpiresAt}
         )
@@ -346,7 +346,7 @@ export class PostgresRefreshRepository implements RefreshRepository {
           status: "DRAFT",
           funding_target_atomic: refresh.fundingTargetAtomic.toString(),
         })
-      }::jsonb
+      }::text::jsonb
         )
       `;
 
@@ -440,7 +440,7 @@ export class PostgresRefreshRepository implements RefreshRepository {
             ${input.requestHash},
             'COMPLETED',
             200,
-            ${JSON.stringify({ refresh_id: current.refreshId })}::jsonb,
+            ${JSON.stringify({ refresh_id: current.refreshId })}::text::jsonb,
             ${current.fundingOperationId}::uuid,
             ${input.idempotencyExpiresAt}
           )
@@ -511,7 +511,7 @@ export class PostgresRefreshRepository implements RefreshRepository {
           ${input.requestHash},
           'COMPLETED',
           200,
-          ${JSON.stringify({ refresh_id: current.refreshId })}::jsonb,
+          ${JSON.stringify({ refresh_id: current.refreshId })}::text::jsonb,
           ${input.operationId}::uuid,
           ${input.idempotencyExpiresAt}
         )
@@ -540,7 +540,7 @@ export class PostgresRefreshRepository implements RefreshRepository {
           status: "AWAITING_FUNDING",
           refresh_address: input.addresses.refreshAddress,
         })
-      }::jsonb
+      }::text::jsonb
         )
       `;
 
@@ -706,7 +706,7 @@ export class PostgresRefreshRepository implements RefreshRepository {
           ${input.requestHash},
           'COMPLETED',
           200,
-          ${JSON.stringify({ refresh_id: input.refreshId })}::jsonb,
+          ${JSON.stringify({ refresh_id: input.refreshId })}::text::jsonb,
           ${current.fundingOperationId}::uuid,
           ${input.idempotencyExpiresAt}
         )
@@ -739,7 +739,7 @@ export class PostgresRefreshRepository implements RefreshRepository {
           chain_signature: input.chainSignature,
           chain_total_funded_atomic: input.chainTotalFundedAtomic.toString(),
         })
-      }::jsonb,
+      }::text::jsonb,
           ${input.observedAt}
         ), (
           ${crypto.randomUUID()}::uuid,
@@ -749,7 +749,7 @@ export class PostgresRefreshRepository implements RefreshRepository {
           ${input.actorId}::uuid,
           ${current.fundingOperationId}::uuid,
           ${availableRevision},
-          ${JSON.stringify({ status: "AVAILABLE" })}::jsonb,
+          ${JSON.stringify({ status: "AVAILABLE" })}::text::jsonb,
           ${input.observedAt}
         )
       `;

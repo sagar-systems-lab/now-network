@@ -45,6 +45,7 @@ const expectedMigrations = [
   "20260930_030_function_search_path_hardening.sql",
   "20261003152110_native_experience.sql",
   "20261003161302_experience_notification_events.sql",
+  "20261004164414_dynamic_ask_coverage.sql",
 ] as const;
 
 async function readMigration(name: string): Promise<string> {
@@ -113,6 +114,8 @@ Deno.test("database lifecycle enums match shared contracts", async () => {
 Deno.test("authoritative tables enable row-level security immediately", async () => {
   const sql = await allSql();
   const tables = [
+    "app.contributor_presence",
+    "app.ask_rate_limits",
     "app.actors",
     "app.actor_auth_principals",
     "app.wallet_bindings",

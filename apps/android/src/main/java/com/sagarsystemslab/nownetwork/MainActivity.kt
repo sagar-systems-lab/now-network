@@ -90,6 +90,8 @@ class MainActivity : ComponentActivity() {
     private val paymentViewModel: PaymentViewModel by viewModels()
     private val receiptViewModel: ReceiptViewModel by viewModels()
     private val activityViewModel: ActivityViewModel by viewModels()
+    private val askComposerViewModel: com.sagarsystemslab.nownetwork.feature.ask.AskComposerViewModel by viewModels()
+    private val availabilityViewModel: com.sagarsystemslab.nownetwork.feature.ask.ContributorAvailabilityViewModel by viewModels()
     private val requesterFundingViewModel: RequesterFundingViewModel by viewModels()
     private lateinit var walletInteractionHost: AndroidWalletInteractionHost
 
@@ -133,6 +135,8 @@ class MainActivity : ComponentActivity() {
                     LaunchedEffect(appLocked) { if (appLocked) focusManager.clearFocus(force = true) }
                     Box(Modifier.then(if (appLocked) Modifier.clearAndSetSemantics {} else Modifier)) {
                     NowApp(
+                        askComposerViewModelProvider = { askComposerViewModel },
+                        availabilityViewModelProvider = { availabilityViewModel },
                         inboxIntentRevision = inboxIntentRevision,
                         darkTheme = darkTheme,
                         onDarkThemeChange = { enabled -> scope.launch { uiPreferencesStore.theme(if (enabled) ThemeMode.DARK else ThemeMode.LIGHT) } },

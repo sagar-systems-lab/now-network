@@ -281,7 +281,7 @@ jobs:
         shell: bash
         env:
           NOW_TEST_DB_URL: postgres://postgres:postgres@127.0.0.1:5432/now_test
-        run: deno test --allow-env --allow-net=127.0.0.1:5432 backend/tests/experience_database_test.ts backend/tests/discovery_database_test.ts
+        run: deno test --allow-env --allow-net=127.0.0.1:5432 backend/tests/experience_database_test.ts backend/tests/discovery_database_test.ts backend/tests/ask_database_test.ts
 
       - name: Exercise performance query-plan capture
         shell: bash

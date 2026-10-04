@@ -303,7 +303,7 @@ export class PostgresEvidenceCommitRepository implements EvidenceCommitRepositor
             ${input.requestHash},
             'COMPLETED',
             200,
-            ${JSON.stringify({ evidence_id: input.evidenceId })}::jsonb,
+            ${JSON.stringify({ evidence_id: input.evidenceId })}::text::jsonb,
             ${input.evidenceId}::uuid,
             ${input.idempotencyExpiresAt}
           )
@@ -424,7 +424,7 @@ export class PostgresEvidenceCommitRepository implements EvidenceCommitRepositor
           ${context.intentCoreHash},
           ${input.executionHash},
           ${input.answerType},
-          ${JSON.stringify(input.answerValue)}::jsonb,
+          ${JSON.stringify(input.answerValue)}::text::jsonb,
           ${input.captureStartedMonotonicMs},
           ${input.captureCompletedMonotonicMs},
           ${context.challengeIssuedAt},
@@ -539,7 +539,7 @@ export class PostgresEvidenceCommitRepository implements EvidenceCommitRepositor
           ${input.requestHash},
           'COMPLETED',
           201,
-          ${JSON.stringify({ evidence_id: input.evidenceId })}::jsonb,
+          ${JSON.stringify({ evidence_id: input.evidenceId })}::text::jsonb,
           ${input.evidenceId}::uuid,
           ${input.idempotencyExpiresAt}
         )
@@ -571,7 +571,7 @@ export class PostgresEvidenceCommitRepository implements EvidenceCommitRepositor
           ${input.actorId}::uuid,
           ${input.evidenceId}::uuid,
           ${evidenceRevision},
-          ${eventPayload}::jsonb,
+          ${eventPayload}::text::jsonb,
           ${input.observedAt}
         ), (
           ${crypto.randomUUID()}::uuid,
@@ -581,7 +581,7 @@ export class PostgresEvidenceCommitRepository implements EvidenceCommitRepositor
           ${input.actorId}::uuid,
           ${input.evidenceId}::uuid,
           ${claimRevision},
-          ${JSON.stringify({ status: "EVIDENCE_COMMITTED" })}::jsonb,
+          ${JSON.stringify({ status: "EVIDENCE_COMMITTED" })}::text::jsonb,
           ${input.observedAt}
         ), (
           ${crypto.randomUUID()}::uuid,
@@ -597,7 +597,7 @@ export class PostgresEvidenceCommitRepository implements EvidenceCommitRepositor
           committed_evidence: committedCount,
           required_witnesses: context.requiredWitnesses,
         })
-      }::jsonb,
+      }::text::jsonb,
           ${input.observedAt}
         )
       `;

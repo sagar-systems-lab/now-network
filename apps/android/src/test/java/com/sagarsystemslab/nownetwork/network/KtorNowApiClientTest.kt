@@ -26,6 +26,24 @@ class KtorNowApiClientTest {
     }
 
     @Test
+    fun askAndAvailabilityUseAuthenticatedMutationMethods() = runBlocking {
+        val calls = mutableListOf<io.ktor.client.request.HttpRequestData>()
+        val api = client(MockEngine { request ->
+            calls += request
+            respond("""{"request_id":"11111111-1111-4111-8111-111111111111","server_time":"2035-01-01T00:00:00Z","data":{}}""",
+                HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
+        }, ServerClock())
+        val body = kotlinx.serialization.json.buildJsonObject {}
+        api.experienceMutate("/v1/asks/resolve", body, "test-token", "POST", "same-durable-key")
+        api.experienceMutate("/v1/asks/resolve", body, "test-token", "POST", "same-durable-key")
+        api.experienceMutate("/v1/me/contributor-presence", body, "test-token", "PUT")
+        api.experienceMutate("/v1/me/contributor-presence", body, "test-token", "DELETE")
+        assertEquals(listOf(HttpMethod.Post,HttpMethod.Post,HttpMethod.Put,HttpMethod.Delete), calls.map { it.method })
+        assertEquals(listOf("same-durable-key","same-durable-key"), calls.take(2).map { it.headers["Idempotency-Key"] })
+        assertTrue(calls.all { it.headers[HttpHeaders.Authorization] == "Bearer test-token" })
+    }
+
+    @Test
     fun nearbyStateResponseMapsEnvelopeAndRequestContract() = runBlocking {
         val clock = ServerClock()
         val client = client(

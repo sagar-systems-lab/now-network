@@ -305,7 +305,7 @@ export class PostgresReceiptRepository implements ReceiptRepository {
           ${locked.verificationResultId}::uuid,
           ${locked.settlementId}::uuid,
           'FINAL',
-          ${JSON.stringify(locked.finalValue)}::jsonb,
+          ${JSON.stringify(locked.finalValue)}::text::jsonb,
           ${locked.observedAt},
           ${locked.verificationClass}::app.verification_class,
           ${locked.rewardAmountAtomic.toString()}::numeric,
@@ -345,7 +345,7 @@ export class PostgresReceiptRepository implements ReceiptRepository {
           refresh_id: locked.refreshId,
           state_id: locked.stateId,
         })
-      }::jsonb,
+      }::text::jsonb,
           ${input.observedAt}
         )
       `;

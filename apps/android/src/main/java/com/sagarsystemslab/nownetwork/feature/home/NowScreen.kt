@@ -37,6 +37,7 @@ fun NowScreen(
     onNotifications: () -> Unit = onSettingsClick,
     onProfile: () -> Unit = onSettingsClick,
     onFundState: (String) -> Unit = onStateClick,
+    onAsk: () -> Unit = onBrowseAreas,
     center: GeoCenter? = null,
     unread: Int = 0,
     onSearchArea: ((GeoCenter) -> Unit)? = null,
@@ -62,7 +63,7 @@ fun NowScreen(
                     LuminousIcon(Icons.Outlined.Search, Modifier.size(48.dp))
                     Column(Modifier.weight(1f)) {
                         Text("What do you need to know?", style = NowType.TitleS, color = NowColors.Ink950)
-                        Text("Refresh a stale nearby state with fresh proof.", style = NowType.BodyM, color = NowColors.Ink600)
+                        Text("Choose a place and ask for fresh, on-site proof.", style = NowType.BodyM, color = NowColors.Ink600)
                     }
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -73,7 +74,8 @@ fun NowScreen(
                         }
                     }
                 }
-                NowPrimaryButton("Choose a browse area  ›", onBrowseAreas, Modifier.fillMaxWidth().testTag("NOW-A01"))
+                NowPrimaryButton("Ask about a place  ›", onAsk, Modifier.fillMaxWidth().testTag("NOW-A01"))
+                NowSecondaryButton("Browse areas", onBrowseAreas, Modifier.fillMaxWidth())
             }
         }
         if (uiState.notice != BrowseNotice.NONE) item { BrowseNoticeCard(uiState.notice, uiState.states.isNotEmpty()) }

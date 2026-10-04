@@ -78,6 +78,7 @@ fun EarnScreen(
     onLocateArea: ((GeoCenter) -> Unit)? = onSearchArea,
     onLoadMore: () -> Unit = {},
     activeWork: (@Composable () -> Unit)? = null,
+    availability: (@Composable () -> Unit)? = null,
     onEarningAlerts: (() -> Unit)? = null,
     onSort: (EarnSort) -> Unit = {},
     onCategory: (String?) -> Unit = {},
@@ -108,6 +109,7 @@ fun EarnScreen(
         item {
             ExperienceHeader("EARN", "Nearby refresh opportunities", uiState.areaLabel, onBrowseAreas, onNotifications, onProfile, unread)
         }
+        if (availability != null) item { availability() }
         item { LiveMapCard(center, visibleOpportunities.mapNotNull { o -> o.center?.let { LiveMapPin(o.refreshId, o.title, it, if (o.claimable && !o.cachedOnly) "CLAIMABLE" else "UNKNOWN") } }, onOpportunityClick, onSearchArea = onSearchArea, onLocateArea = onLocateArea) }
         item { SyncStrip(uiState.refreshing, visibleOpportunities.size, uiState.notice != EarnNotice.NONE, onRefresh) }
         if (activeWork != null) item { activeWork() }

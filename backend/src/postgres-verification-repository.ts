@@ -349,7 +349,7 @@ export class PostgresVerificationRepository implements VerificationRepository {
         select 1
         from app.refresh_requests
         where refresh_id = ${input.refreshId}::uuid
-          and proof_policy_snapshot = ${JSON.stringify(input.policySnapshot)}::jsonb
+          and proof_policy_snapshot = ${JSON.stringify(input.policySnapshot)}::text::jsonb
       `;
       if (!policyRows[0]) return { kind: "policy_changed" } as const;
 
@@ -403,13 +403,13 @@ export class PostgresVerificationRepository implements VerificationRepository {
           ${input.outcome.status},
           ${input.outcome.reasonCodes},
           ${input.evidenceIds}::uuid[],
-          ${JSON.stringify(input.outcome.finalAnswer)}::jsonb,
-          ${JSON.stringify(input.outcome.verificationTrace)}::jsonb,
-          ${JSON.stringify(input.outcome.locationSummary)}::jsonb,
-          ${JSON.stringify(input.outcome.freshnessSummary)}::jsonb,
-          ${JSON.stringify(input.outcome.mediaIntegritySummary)}::jsonb,
-          ${JSON.stringify(input.outcome.replaySummary)}::jsonb,
-          ${JSON.stringify(input.outcome.conflictSummary)}::jsonb,
+          ${JSON.stringify(input.outcome.finalAnswer)}::text::jsonb,
+          ${JSON.stringify(input.outcome.verificationTrace)}::text::jsonb,
+          ${JSON.stringify(input.outcome.locationSummary)}::text::jsonb,
+          ${JSON.stringify(input.outcome.freshnessSummary)}::text::jsonb,
+          ${JSON.stringify(input.outcome.mediaIntegritySummary)}::text::jsonb,
+          ${JSON.stringify(input.outcome.replaySummary)}::text::jsonb,
+          ${JSON.stringify(input.outcome.conflictSummary)}::text::jsonb,
           ${input.executionHash},
           ${input.canonicalDigest},
           ${input.verifierBuild},
@@ -497,7 +497,7 @@ export class PostgresVerificationRepository implements VerificationRepository {
           policy_version: input.policyVersion,
           evidence_ids: input.evidenceIds,
         })
-      }::jsonb,
+      }::text::jsonb,
           ${input.observedAt}
         ), (
           ${crypto.randomUUID()}::uuid,
@@ -513,7 +513,7 @@ export class PostgresVerificationRepository implements VerificationRepository {
           verification_result_id: input.verificationResultId,
           result: input.outcome.result,
         })
-      }::jsonb,
+      }::text::jsonb,
           ${input.observedAt}
         )
       `;

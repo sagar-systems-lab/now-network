@@ -537,7 +537,7 @@ export class PostgresSettlementRepository implements SettlementRepository {
           recipient_wallets: wallets,
           locked_reward_atomic: locked.lockedRewardAtomic.toString(),
         })
-      }::jsonb,
+      }::text::jsonb,
           ${input.observedAt}
         ), (
           ${crypto.randomUUID()}::uuid,
@@ -546,7 +546,7 @@ export class PostgresSettlementRepository implements SettlementRepository {
           'REFRESH_SETTLEMENT_STARTED',
           ${input.operationId}::uuid,
           ${refreshRevision},
-          ${JSON.stringify({ settlement_id: input.settlementId })}::jsonb,
+          ${JSON.stringify({ settlement_id: input.settlementId })}::text::jsonb,
           ${input.observedAt}
         )
       `;
@@ -649,7 +649,7 @@ export class PostgresSettlementRepository implements SettlementRepository {
           last_valid_block_height: input.lastValidBlockHeight,
           attempt: current.attemptCount + 1,
         })
-      }::jsonb,
+      }::text::jsonb,
           ${input.observedAt}
         )
       `;
@@ -743,7 +743,7 @@ export class PostgresSettlementRepository implements SettlementRepository {
           chain_signature: input.chainSignature,
           attempt: current.attemptCount,
         })
-      }::jsonb,
+      }::text::jsonb,
           ${input.observedAt}
         )
       `;
@@ -841,7 +841,7 @@ export class PostgresSettlementRepository implements SettlementRepository {
           chain_signature: input.chainSignature,
           commitment: input.commitment,
         })
-      }::jsonb,
+      }::text::jsonb,
           ${input.observedAt}
         )
       `;
@@ -916,7 +916,7 @@ export class PostgresSettlementRepository implements SettlementRepository {
           chain_signature: current.chainSignature,
           attempt: current.attemptCount,
         })
-      }::jsonb,
+      }::text::jsonb,
           ${input.observedAt}
         )
       `;
@@ -1022,7 +1022,7 @@ export class PostgresSettlementRepository implements SettlementRepository {
           ${current.settlementId}::uuid,
           'SETTLEMENT_AUTHORITY_CONFLICT',
           ${current.operationId}::uuid,
-          ${JSON.stringify({ error_code: input.errorCode })}::jsonb,
+          ${JSON.stringify({ error_code: input.errorCode })}::text::jsonb,
           ${input.observedAt}
         )
       `;
