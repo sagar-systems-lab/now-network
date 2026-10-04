@@ -156,6 +156,9 @@ object RuntimeModule {
         database.pendingEvidenceDao()
 
     @Provides
+    fun provideOutboxDao(database: NowDatabase): com.sagarsystemslab.nownetwork.data.local.OutboxDao = database.outboxDao()
+
+    @Provides
     fun provideWalletSessionMetadataDao(
         database: NowDatabase,
     ): WalletSessionMetadataDao = database.walletSessionMetadataDao()

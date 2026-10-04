@@ -1,6 +1,7 @@
 import type { FreshnessStatus } from "../../packages/contracts/src/core.ts";
 import { deriveFreshness } from "../../packages/domain/src/freshness.ts";
 import { ApiFault } from "./errors.ts";
+import { discoveryFingerprint } from "./discovery-query.ts";
 import type {
   NearbyStateCursor,
   NearbyStateRecord,
@@ -60,7 +61,7 @@ function decodeBase64Url(value: string): unknown {
   }
 }
 
-function decodeNearbyCursor(value: string | null): NearbyStateCursor | null {
+function decodeNearbyCursor(value: string | null, query: string): NearbyStateCursor | null {
   if (value === null) return null;
   const decoded = decodeBase64Url(value);
   if (!decoded || typeof decoded !== "object" || Array.isArray(decoded)) {
@@ -73,12 +74,18 @@ function decodeNearbyCursor(value: string | null): NearbyStateCursor | null {
     !Number.isFinite(cursor.distance_m) ||
     cursor.distance_m < 0 ||
     typeof cursor.state_id !== "string" ||
-    !UUID_PATTERN.test(cursor.state_id)
+    !UUID_PATTERN.test(cursor.state_id) ||
+    cursor.query !== query ||
+    typeof cursor.as_of !== "string" || !Number.isFinite(new Date(cursor.as_of).getTime())
   ) {
     throw new ApiFault(400, "INVALID_CURSOR", "Invalid cursor.");
   }
 
-  return { distanceM: cursor.distance_m, stateId: cursor.state_id };
+  return {
+    distanceM: cursor.distance_m,
+    stateId: cursor.state_id,
+    asOf: new Date(cursor.as_of as string),
+  };
 }
 
 function decodeHistoryCursor(value: string | null): StateHistoryCursor | null {
@@ -108,6 +115,15 @@ function decodeHistoryCursor(value: string | null): StateHistoryCursor | null {
 function nearbyCard(record: NearbyStateRecord, now: Date): Record<string, unknown> {
   return {
     state_id: record.stateId,
+    location: record.location
+      ? {
+        location_id: record.location.locationId,
+        name: record.location.name,
+        location_type: record.location.locationType,
+        display_address: record.location.displayAddress,
+        center: record.location.center,
+      }
+      : null,
     title: record.title,
     question: record.question,
     state_type: record.stateType,
@@ -149,6 +165,7 @@ function detailPayload(record: StateDetailRecord, now: Date): Record<string, unk
       name: record.location.name,
       location_type: record.location.locationType,
       display_address: record.location.displayAddress,
+      center: record.location.center ?? null,
     },
     verification: record.verification === null ? null : {
       status: record.verification.status,
@@ -191,9 +208,31 @@ export class StateReadService {
     radiusM: number;
     limit: number;
     cursor: string | null;
+    search?: string;
+    freshness?: string;
   }): Promise<Record<string, unknown>> {
-    const cursor = decodeNearbyCursor(input.cursor);
+    const search = input.search?.trim() ?? "";
+    const freshness = input.freshness ?? "all";
+    if (search.length > 120 || Array.from(search).some((c) => c.charCodeAt(0) < 32)) {
+      throw new ApiFault(400, "INVALID_SEARCH", "Search must contain at most 120 characters.");
+    }
+    const kinds = ["all", "live", "aging", "stale", "needs_proof", "unobserved", "conflict"];
+    if (!kinds.includes(freshness)) {
+      throw new ApiFault(400, "INVALID_FRESHNESS", "Choose a supported freshness filter.");
+    }
+    const query = await discoveryFingerprint([
+      input.lat,
+      input.lng,
+      input.radiusM,
+      search,
+      freshness,
+    ]);
+    const cursor = decodeNearbyCursor(input.cursor, query);
+    const asOf = cursor?.asOf ?? this.now();
     const rows = await this.repository.listNearby({
+      search,
+      freshness,
+      asOf,
       lat: input.lat,
       lng: input.lng,
       radiusM: input.radiusM,
@@ -205,11 +244,28 @@ export class StateReadService {
     const hasMore = rows.length > input.limit;
     const last = visible.at(-1);
     const nextCursor = hasMore && last
-      ? encodeBase64Url({ distance_m: last.distanceM, state_id: last.stateId })
+      ? encodeBase64Url({
+        distance_m: last.distanceM,
+        state_id: last.stateId,
+        query,
+        as_of: asOf.toISOString(),
+      })
       : null;
     const now = this.now();
 
+    const counts = await this.repository.summarizeNearby?.({
+      lat: input.lat,
+      lng: input.lng,
+      radiusM: input.radiusM,
+      limit: input.limit,
+      cursor: null,
+      search,
+      freshness,
+      asOf,
+    });
     return {
+      counts: counts ?? null,
+      as_of: asOf.toISOString(),
       items: visible.map((record) => nearbyCard(record, now)),
       next_cursor: nextCursor,
     };

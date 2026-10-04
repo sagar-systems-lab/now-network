@@ -7,6 +7,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -16,9 +17,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 
+val LocalNowMotionAllowed = staticCompositionLocalOf { true }
+
 @Composable
-fun rememberNowMotionEnabled(): Boolean =
-    ValueAnimator.areAnimatorsEnabled()
+fun rememberNowMotionEnabled(): Boolean {
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    var resumed by remember(lifecycle) { mutableStateOf(lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) }
+    androidx.compose.runtime.DisposableEffect(lifecycle) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, _ -> resumed = lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED) }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
+    return resumed && LocalNowMotionAllowed.current && ValueAnimator.areAnimatorsEnabled()
+}
 
 fun nowMotionDuration(
     enabled: Boolean,
@@ -66,29 +77,15 @@ fun Modifier.nowPulseOnChange(
 }
 
 @Composable
-fun Modifier.nowLivePulse(
-    active: Boolean,
-): Modifier {
-    val motionEnabled = rememberNowMotionEnabled()
-    if (!active || !motionEnabled) {
-        return this
+fun Modifier.nowLivePulse(active: Boolean): Modifier {
+    val enabled = rememberNowMotionEnabled()
+    val scale = remember { Animatable(1f) }
+    LaunchedEffect(active, enabled) {
+        scale.snapTo(1f)
+        if (active && enabled) repeat(3) {
+            scale.animateTo(NowMotion.LiveScale, tween(NowMotion.LivePulseHalfCycleMillis))
+            scale.animateTo(1f, tween(NowMotion.LivePulseHalfCycleMillis))
+        }
     }
-
-    val transition = rememberInfiniteTransition(
-        label = "now-live-pulse",
-    )
-    val scale by transition.animateFloat(
-        initialValue = 1f,
-        targetValue = NowMotion.LiveScale,
-        animationSpec = infiniteRepeatable(
-            animation = tween(NowMotion.LivePulseHalfCycleMillis),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "now-live-scale",
-    )
-
-    return graphicsLayer {
-        scaleX = scale
-        scaleY = scale
-    }
+    return graphicsLayer { scaleX = scale.value; scaleY = scale.value }
 }

@@ -22,9 +22,9 @@ object NowSpacing {
 object NowRadii {
     val RadiusXS = 4.dp
     val RadiusS = 6.dp
-    val RadiusM = 10.dp
-    val RadiusL = 14.dp
-    val RadiusXL = 20.dp
+    val RadiusM = 14.dp
+    val RadiusL = 18.dp
+    val RadiusXL = 22.dp
     val RadiusFull = 999.dp
 }
 

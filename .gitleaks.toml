@@ -1,0 +1,10 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Android publishable client key; database authorization remains server-side"
+targetRules = ["generic-api-key"]
+condition = "AND"
+paths = ['''(^|/)apps/android/hosted-runtime\.properties$''']
+regexTarget = "secret"
+regexes = ['''^sb_publishable_[A-Za-z0-9_-]+$''']

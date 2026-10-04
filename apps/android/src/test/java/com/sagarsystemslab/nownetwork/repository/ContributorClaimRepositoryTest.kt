@@ -1,5 +1,6 @@
 package com.sagarsystemslab.nownetwork.repository
 
+import com.sagarsystemslab.nownetwork.feature.earn.recoverClaimEntry
 import com.sagarsystemslab.nownetwork.auth.AppSession
 import com.sagarsystemslab.nownetwork.auth.AuthGateway
 import com.sagarsystemslab.nownetwork.config.RewardDisplayConfig
@@ -93,6 +94,53 @@ class ContributorClaimRepositoryTest {
         assertTrue(recovered is ClaimReconciliation.Confirming)
         assertEquals(1, fixture.wallet.signCalls)
         assertTrue(fixture.api.detailCalls >= 2)
+    }
+
+    @Test
+    fun differentDefaultPayoutWalletStopsBeforePreparingOrSigningAClaim() = runBlocking {
+        val fixture = fixture(WalletResult.UnknownFailure("unused"), observeUnknown = false)
+        fixture.api.preferredWallet = "55555555-5555-4555-8555-555555555555"
+        val failure = runCatching { fixture.repository.prepareNew(HOST, REFRESH_ID) }.exceptionOrNull()
+        assertTrue(failure != null)
+        assertEquals(0, fixture.api.prepareCalls)
+        assertEquals(0, fixture.wallet.signCalls)
+    }
+
+    @Test
+    fun confirmedClaimResumesWithoutReadingAnExcludedOpportunity() = runBlocking {
+        val fixture = fixture(WalletResult.Success(WalletSubmission(WalletAccount(WALLET_ADDRESS, "Contributor"), "signature-a")), false)
+        val prepared = fixture.repository.prepareNew(HOST, REFRESH_ID)
+        fixture.repository.submit(HOST, prepared)
+        fixture.api.detailStatus = "CLAIMED"
+        // opportunityDetail throws in this fixture: claimed opportunities no longer appear there.
+        val entry = recoverClaimEntry(fixture.repository, REFRESH_ID)
+        assertTrue(entry.recovery is ClaimReconciliation.Claimed)
+        assertEquals(null, entry.opportunity)
+        assertEquals(1, fixture.wallet.signCalls)
+    }
+
+    @Test
+    fun submittedEvidenceRecoversToVerificationWithoutASecondWalletSubmission() = runBlocking {
+        val fixture = fixture(WalletResult.Success(WalletSubmission(WalletAccount(WALLET_ADDRESS, "Contributor"), "signature-a")), false)
+        val prepared = fixture.repository.prepareNew(HOST, REFRESH_ID)
+        fixture.repository.submit(HOST, prepared)
+        fixture.api.detailStatus = "EVIDENCE_COMMITTED"
+        assertTrue(fixture.repository.recover(REFRESH_ID) is ClaimReconciliation.EvidenceCommitted)
+        assertEquals(1, fixture.wallet.signCalls)
+        assertEquals("EVIDENCE_COMMITTED", fixture.operationDao.listAll().single().remoteState)
+    }
+
+    @Test
+    fun activeCaptureRemainsResumableAndExpiredClaimStopsReconciliation() = runBlocking {
+        val fixture = fixture(WalletResult.Success(WalletSubmission(WalletAccount(WALLET_ADDRESS, "Contributor"), "signature-a")), false)
+        val prepared = fixture.repository.prepareNew(HOST, REFRESH_ID)
+        fixture.repository.submit(HOST, prepared)
+        fixture.api.detailStatus = "CAPTURE_ACTIVE"
+        assertTrue(fixture.repository.recover(REFRESH_ID) is ClaimReconciliation.Claimed)
+        fixture.api.detailStatus = "EXPIRED"
+        assertTrue(runCatching { fixture.repository.recover(REFRESH_ID) }.exceptionOrNull() is ContributorClaimFailure.Rejected)
+        assertEquals("REJECTED", fixture.operationDao.listAll().single().localState)
+        assertEquals(1, fixture.wallet.signCalls)
     }
 
     private fun fixture(
@@ -226,7 +274,12 @@ private class ClaimApi(
     private val observeUnknown: Boolean,
 ) : NowApiClient {
     var observeCalls = 0
+    var detailStatus = "WALLET_PENDING"
     var detailCalls = 0
+    var prepareCalls = 0
+    var preferredWallet: String? = null
+
+    override suspend fun payoutWalletBindingId(accessToken: String): String? = preferredWallet
 
     override suspend fun me(accessToken: String): MeDto =
         MeDto(
@@ -248,14 +301,14 @@ private class ClaimApi(
         request: ClaimPrepareRequest,
         idempotencyKey: String,
         accessToken: String,
-    ): ClaimIntentDto = intent
+    ): ClaimIntentDto { prepareCalls += 1; return intent }
 
     override suspend fun claimDetail(
         acceptanceId: String,
         accessToken: String,
     ): ClaimStatusDto {
         detailCalls += 1
-        return claimStatus(status = "WALLET_PENDING")
+        return claimStatus(status = detailStatus)
     }
 
     override suspend fun observeClaim(

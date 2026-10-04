@@ -28,7 +28,14 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import com.sagarsystemslab.nownetwork.feature.common.*
+import com.sagarsystemslab.nownetwork.model.GeoCenter
+import androidx.compose.runtime.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -52,6 +59,7 @@ import com.sagarsystemslab.nownetwork.designsystem.rememberNowMotionEnabled
 import com.sagarsystemslab.nownetwork.designsystem.nowPulseOnChange
 import com.sagarsystemslab.nownetwork.feature.state.rememberVisibleServerTime
 import com.sagarsystemslab.nownetwork.model.OpportunitySummary
+import com.sagarsystemslab.nownetwork.model.estimatedPayoutAtomic
 
 @Composable
 fun EarnScreen(
@@ -60,7 +68,21 @@ fun EarnScreen(
     serverNowMillis: () -> Long,
     onRefresh: () -> Unit,
     onOpportunityClick: (String) -> Unit,
+    onBrowseAreas: () -> Unit = onRefresh,
+    onNotifications: () -> Unit = onRefresh,
+    onProfile: () -> Unit = onRefresh,
+    onHelp: () -> Unit = onRefresh,
+    center: GeoCenter? = null,
+    unread: Int = 0,
+    onSearchArea: ((GeoCenter) -> Unit)? = null,
+    onLocateArea: ((GeoCenter) -> Unit)? = onSearchArea,
+    onLoadMore: () -> Unit = {},
+    activeWork: (@Composable () -> Unit)? = null,
+    onEarningAlerts: (() -> Unit)? = null,
+    onSort: (EarnSort) -> Unit = {},
+    onCategory: (String?) -> Unit = {},
 ) {
+    var sortMenu by remember { mutableStateOf(false) }
     val nowMillis = rememberVisibleServerTime(serverNowMillis)
     val listMotionDuration = nowMotionDuration(
         enabled = rememberNowMotionEnabled(),
@@ -84,17 +106,35 @@ fun EarnScreen(
         verticalArrangement = Arrangement.spacedBy(NowSpacing.Space4),
     ) {
         item {
-            EarnHeader(
-                areaLabel = uiState.areaLabel,
-                availableCount = liveCount,
-                refreshing = uiState.refreshing,
-                refreshEnabled = uiState.notice != EarnNotice.AREA_REQUIRED &&
-                    uiState.notice != EarnNotice.AUTH_REQUIRED,
-                onRefresh = onRefresh,
-            )
+            ExperienceHeader("EARN", "Nearby refresh opportunities", uiState.areaLabel, onBrowseAreas, onNotifications, onProfile, unread)
+        }
+        item { LiveMapCard(center, visibleOpportunities.mapNotNull { o -> o.center?.let { LiveMapPin(o.refreshId, o.title, it, if (o.claimable && !o.cachedOnly) "CLAIMABLE" else "UNKNOWN") } }, onOpportunityClick, onSearchArea = onSearchArea, onLocateArea = onLocateArea) }
+        item { SyncStrip(uiState.refreshing, visibleOpportunities.size, uiState.notice != EarnNotice.NONE, onRefresh) }
+        if (activeWork != null) item { activeWork() }
+        if (visibleOpportunities.isNotEmpty()) item { MetricStrip(listOf((uiState.total?.toString() ?: "—") to "Available nearby", visibleOpportunities.size.toString() to "Results shown")) }
+        if (visibleOpportunities.isNotEmpty() || uiState.category != null) item {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("Explore opportunities", Modifier.weight(1f), style = NowType.TitleS, color = NowColors.Ink950)
+                Box {
+                    TextButton({ sortMenu = true }, enabled = !uiState.refreshing) { Text(uiState.sort.label + " ▾") }
+                    DropdownMenu(sortMenu, { sortMenu = false }) {
+                        EarnSort.entries.forEach { sort -> DropdownMenuItem(
+                            text = { Text(sort.label) }, onClick = { sortMenu = false; onSort(sort) },
+                        ) }
+                    }
+                }
+            }
+            if (uiState.categories.isNotEmpty() || uiState.category != null) LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                item { FilterChip(uiState.category == null, { onCategory(null) }, enabled = !uiState.refreshing, label = { Text("All") }) }
+                items((uiState.categories + listOfNotNull(uiState.category)).distinct(), key = { it }) { category ->
+                    FilterChip(uiState.category == category, { onCategory(category) }, enabled = !uiState.refreshing,
+                        label = { Text(category.lowercase().replace('_', ' ').replaceFirstChar { it.uppercase() }) })
+                }
+            }
+            if (uiState.sort == EarnSort.PAYOUT) Text("Estimated share, highest first within each token. Tokens are grouped separately.", style = NowType.BodyS, color = NowColors.Ink600)
         }
 
-        if (uiState.notice != EarnNotice.NONE) {
+        if (uiState.notice != EarnNotice.NONE && visibleOpportunities.isNotEmpty()) {
             item {
                 EarnNoticeCard(
                     notice = uiState.notice,
@@ -132,9 +172,9 @@ fun EarnScreen(
                     )
                     Text(
                         text = if (liveCount == 1) {
-                            "1 task is available to claim right now."
+                            "1 available task shown."
                         } else {
-                            liveCount.toString() + " tasks are available to claim right now."
+                            liveCount.toString() + " available tasks shown."
                         },
                         style = NowType.BodyS,
                         color = NowColors.Ink500,
@@ -149,15 +189,21 @@ fun EarnScreen(
             }
         } else if (visibleOpportunities.isEmpty()) {
             item {
-                EmptyEarnState(
-                    canRetry = uiState.notice == EarnNotice.NONE ||
-                        uiState.notice == EarnNotice.NETWORK_UNAVAILABLE ||
-                        uiState.notice == EarnNotice.SERVER_UNAVAILABLE ||
-                        uiState.notice == EarnNotice.DATA_UNAVAILABLE,
-                    onRetry = onRefresh,
-                )
+                if (uiState.category != null) {
+                    com.sagarsystemslab.nownetwork.designsystem.NowGlassCard {
+                        Text("No opportunities in this category", style = NowType.TitleS, color = NowColors.Ink950)
+                        Text("Try all categories or choose another area to explore available work.", style = NowType.BodyM, color = NowColors.Ink600)
+                        NowSecondaryButton("Show all categories", { onCategory(null) }, Modifier.fillMaxWidth())
+                    }
+                } else {
+                    EmptyProofCard(
+                        if (uiState.notice == EarnNotice.NONE) "Nothing nearby needs fresh proof" else "Find your next opportunity",
+                        if (uiState.notice == EarnNotice.NONE) "New opportunities appear when nearby states need a fresh observation." else "Choose an area to explore. Nearby work will appear here when it is available and connected.",
+                        onBrowseAreas, onHelp,
+                    )
+                }
             }
-        } else {
+        } else if (visibleOpportunities.isNotEmpty()) {
             items(
                 items = visibleOpportunities,
                 key = { it.refreshId },
@@ -173,6 +219,15 @@ fun EarnScreen(
                         fadeOutSpec = tween(listMotionDuration),
                     ),
                 )
+            }
+        }
+        if (uiState.moreFailed) item { NowNotice("More opportunities could not load. Your existing results are still available.") }
+        if (uiState.nextCursor != null) item {
+            NowSecondaryButton(if (uiState.loadingMore) "Loading more…" else if (uiState.moreFailed) "Retry more opportunities" else "Load more opportunities", onLoadMore, Modifier.fillMaxWidth(), enabled = !uiState.refreshing && !uiState.loadingMore)
+        }
+        if (onEarningAlerts != null) item {
+            com.sagarsystemslab.nownetwork.designsystem.NowGlassCard {
+                ExperienceRow("Earning alerts", "Choose areas and check notification permission", Icons.Outlined.LocationOn, onEarningAlerts)
             }
         }
     }
@@ -241,159 +296,34 @@ private fun OpportunityCard(
     modifier: Modifier = Modifier,
 ) {
     val timeText = formatOpportunityTime(opportunity.expiresAtMillis, nowMillis)
-
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .testTag("opportunity-card-" + opportunity.refreshId),
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(
-            containerColor = NowColors.SurfacePrimary,
-        ),
-        border = BorderStroke(1.dp, NowColors.BorderSubtle),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(NowSpacing.Space4),
-            verticalArrangement = Arrangement.spacedBy(NowSpacing.Space3),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.Top,
-                horizontalArrangement = Arrangement.spacedBy(NowSpacing.Space3),
-            ) {
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
-                ) {
-                    Text(
-                        text = "REWARD",
-                        style = NowType.LabelM,
-                        color = NowColors.Ink500,
-                    )
-                    Text(
-                        text = reward,
-                        style = NowType.DataMedium,
-                        color = NowColors.Ink950,
-                        modifier = Modifier.nowPulseOnChange(
-                            key = reward,
-                            durationMillis = com.sagarsystemslab.nownetwork.designsystem.NowMotion.BaseMillis,
-                        ),
-                    )
-                }
-
-                OpportunityAvailability(opportunity)
+    com.sagarsystemslab.nownetwork.designsystem.NowGlassCard(modifier = modifier.testTag("opportunity-card-" + opportunity.refreshId), emphasized = opportunity.claimable) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            com.sagarsystemslab.nownetwork.feature.common.CategoryArtwork(opportunity.title, Modifier.size(60.dp), opportunity.stateId)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Text(opportunity.title, style = NowType.TitleS, color = NowColors.Ink950)
+                Text(locationSummary(opportunity), style = NowType.BodyS, color = NowColors.Ink600)
+                Text(timeText, style = NowType.BodyS, color = NowColors.AgingText)
             }
-
-            Column(
-                verticalArrangement = Arrangement.spacedBy(NowSpacing.Space1),
-            ) {
-                Text(
-                    text = opportunity.title,
-                    style = NowType.TitleM,
-                    color = NowColors.Ink950,
-                )
-                Text(
-                    text = opportunity.question,
-                    style = NowType.BodyM,
-                    color = NowColors.Ink600,
-                )
+            Column(horizontalAlignment = Alignment.End) {
+                Text(reward, style = NowType.LabelL, color = NowColors.Blue600)
+                Text(if (opportunity.estimatedPayoutAtomic() == null) "Reward pool" else "Est. payout", style = NowType.BodyS, color = NowColors.Ink600)
             }
-
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.medium,
-                color = NowColors.SurfaceSecondary,
-                border = BorderStroke(1.dp, NowColors.BorderSubtle),
-            ) {
-                Column(
-                    modifier = Modifier.padding(NowSpacing.Space3),
-                    verticalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
-                ) {
-                    OpportunityMetaRow(
-                        icon = Icons.Outlined.LocationOn,
-                        label = locationSummary(opportunity),
-                    )
-                    OpportunityMetaRow(
-                        icon = Icons.Outlined.Schedule,
-                        label = timeText,
-                        emphasized = true,
-                    )
-                }
-            }
-
-            Column(
-                verticalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
-            ) {
-                Text(
-                    text = "Proof required",
-                    style = NowType.LabelM,
-                    color = NowColors.Ink500,
-                )
-
-                opportunity.verificationClass
-                    ?.takeIf(String::isNotBlank)
-                    ?.let { verificationClass ->
-                        ProofRequirement(
-                            icon = Icons.Outlined.Verified,
-                            text = humanizeRequirement(verificationClass),
-                        )
-                    }
-
-                if (opportunity.mediaRequired == true) {
-                    ProofRequirement(
-                        icon = Icons.Outlined.CameraAlt,
-                        text = "Fresh photo",
-                    )
-                }
-
-                if (opportunity.locationRequired == true) {
-                    ProofRequirement(
-                        icon = Icons.Outlined.LocationOn,
-                        text = "Location match",
-                    )
-                }
-
-                opportunity.remainingSlots?.let { slots ->
-                    Text(
-                        text = if (slots == 1) {
-                            "1 contributor slot remaining"
-                        } else {
-                            slots.toString() + " contributor slots remaining"
-                        },
-                        style = NowType.BodyS,
-                        color = NowColors.Ink500,
-                    )
-                }
-            }
-
-            when {
-                opportunity.cachedOnly -> {
-                    NowNotice(
-                        body = "Saved opportunity · reconnect to confirm live availability before claiming.",
-                        tone = NowNoticeTone.NEUTRAL,
-                    )
-                }
-
-                opportunity.claimable -> {
-                    NowPrimaryButton(
-                        text = "View opportunity",
-                        onClick = onOpen,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-
-                else -> {
-                    NowSecondaryButton(
-                        text = "Opportunity filled",
-                        onClick = {},
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = false,
-                    )
-                }
-            }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            OpportunityAvailability(opportunity)
+            Text(buildList {
+                if(opportunity.mediaRequired == true) add("Fresh photo")
+                if(opportunity.locationRequired == true) add("On site")
+                opportunity.remainingSlots?.let { add("$it slots") }
+            }.joinToString(" · "), style = NowType.BodyS, color = NowColors.Ink600, modifier = Modifier.weight(1f))
+        }
+        opportunity.payoutRule?.let { rule ->
+            Text(if (rule == "EQUAL_SPLIT_REQUIRED_WITNESSES") "Pool split across ${opportunity.requiredWitnesses} accepted witnesses; final settlement determines payment." else "One accepted winner receives the pool; payment requires verification.", style = NowType.BodyS, color = NowColors.Ink600)
+        }
+        when {
+            opportunity.cachedOnly -> NowNotice("Saved opportunity · reconnect to confirm availability.")
+            opportunity.claimable -> NowPrimaryButton("View opportunity", onOpen, Modifier.fillMaxWidth())
+            else -> NowSecondaryButton("Opportunity filled", {}, Modifier.fillMaxWidth(), enabled = false)
         }
     }
 }
@@ -606,6 +536,7 @@ private fun EmptyEarnState(
     }
 }
 
+@Composable
 private fun locationSummary(opportunity: OpportunitySummary): String {
     val place = opportunity.locationName
         ?.takeIf(String::isNotBlank)
@@ -613,7 +544,7 @@ private fun locationSummary(opportunity: OpportunitySummary): String {
             ?.takeIf(String::isNotBlank)
         ?: "Location available in task"
 
-    return place + " · " + formatOpportunityDistance(opportunity.distanceMeters)
+    return place + " · " + com.sagarsystemslab.nownetwork.experience.displayDistance(opportunity.distanceMeters)
 }
 
 private fun humanizeRequirement(value: String): String =

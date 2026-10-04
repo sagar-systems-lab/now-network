@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -7,11 +9,29 @@ plugins {
     alias(libs.plugins.androidx.baselineprofile)
 }
 
+val hostedRuntime = providers.gradleProperty("NOW_RUNTIME")
+    .orElse(providers.environmentVariable("NOW_RUNTIME"))
+    .getOrElse("offline") == "hosted"
+val hostedPublicConfig = Properties().apply {
+    if (hostedRuntime) file("hosted-runtime.properties").inputStream().use { load(it) }
+}
+
 fun publicConfig(name: String, fallback: String = ""): String =
     providers.gradleProperty(name)
         .orElse(providers.environmentVariable(name))
-        .orElse(fallback)
+        .orElse(hostedPublicConfig.getProperty(name, fallback))
         .get()
+
+if (hostedRuntime) {
+    listOf("NOW_API_BASE_URL", "NOW_SUPABASE_URL", "NOW_SUPABASE_PUBLISHABLE_KEY").forEach { name ->
+        require(publicConfig(name).isNotBlank()) { "Missing public Android runtime value: $name" }
+    }
+    require(publicConfig("NOW_API_BASE_URL").startsWith("https://")) { "Hosted API requires HTTPS" }
+    require(publicConfig("NOW_SUPABASE_URL").startsWith("https://")) { "Hosted auth requires HTTPS" }
+    require(publicConfig("NOW_SUPABASE_PUBLISHABLE_KEY").startsWith("sb_publishable_")) {
+        "Hosted Android requires a public client key"
+    }
+}
 
 fun buildConfigString(value: String): String =
     "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
@@ -27,6 +47,9 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"
+        listOf("FIREBASE_APP_ID", "FIREBASE_PROJECT_ID", "FIREBASE_API_KEY", "FIREBASE_SENDER_ID").forEach { name ->
+            buildConfigField("String", name, buildConfigString(publicConfig("NOW_$name")))
+        }
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         buildConfigField(
@@ -171,7 +194,10 @@ configurations.configureEach {
 }
 
 dependencies {
+    implementation("com.google.firebase:firebase-messaging:25.1.3")
     implementation(project(":core:designsystem"))
+    implementation("org.maplibre.gl:android-sdk:13.6.1")
+    implementation("androidx.datastore:datastore-preferences:1.2.1")
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

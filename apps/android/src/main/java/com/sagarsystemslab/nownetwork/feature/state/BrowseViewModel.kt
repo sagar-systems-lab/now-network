@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -39,6 +40,12 @@ data class HomeUiState(
     val states: List<StateSummary> = emptyList(),
     val refreshing: Boolean = false,
     val notice: BrowseNotice = BrowseNotice.NONE,
+    val nextCursor: String? = null,
+    val loadingMore: Boolean = false,
+    val moreFailed: Boolean = false,
+    val search: String = "",
+    val freshness: String = "all",
+    val counts: com.sagarsystemslab.nownetwork.model.NearbyStateCounts? = null,
 )
 
 data class StateDetailUiState(
@@ -52,11 +59,16 @@ data class StateDetailUiState(
 @HiltViewModel
 class BrowseViewModel @Inject constructor(
     private val repository: Lazy<StateRepository>,
-    private val browseArea: BrowseAreaConfig,
+    private val initialBrowseArea: BrowseAreaConfig,
+    private val browseContext: com.sagarsystemslab.nownetwork.experience.BrowseContextStore,
     private val runtimeConfig: PublicRuntimeConfig,
     private val serverClock: ServerClock,
     private val realtimeGateway: Lazy<NowRealtimeGateway>,
 ) : ViewModel() {
+    private val browseArea: BrowseAreaConfig get() = browseContext.state.value
+    private var areaVersion = 0
+    private var refreshJob: kotlinx.coroutines.Job? = null
+    private var pageJob: kotlinx.coroutines.Job? = null
     private val mutableHomeState = MutableStateFlow(
         HomeUiState(
             areaLabel = browseArea.label.ifBlank { "Browse area" },
@@ -72,19 +84,31 @@ class BrowseViewModel @Inject constructor(
     private val mutableDetailState = MutableStateFlow(StateDetailUiState())
     val detailState: StateFlow<StateDetailUiState> = mutableDetailState.asStateFlow()
 
-    private var activeSnapshotIds: Set<String>? = null
+    private fun snapshotKind(search: String = mutableHomeState.value.search, freshness: String = mutableHomeState.value.freshness) = "states:$freshness:$search"
+
+    private var activeSnapshotIds: Set<String> = emptySet()
     private val realtimeResyncPolicy = RealtimeResyncPolicy()
     private var foregroundCount = 0
 
     init {
         viewModelScope.launch {
+            browseContext.state.collectLatest { area ->
+                areaVersion++
+                refreshJob?.cancel()
+                pageJob?.cancel()
+                activeSnapshotIds = browseContext.snapshot(snapshotKind(), area = area)
+                val cached = withContext(Dispatchers.IO) { repository.get().observeCachedStates().first() }.filter { it.stateId in activeSnapshotIds.orEmpty() }
+                mutableHomeState.update { it.copy(areaLabel = area.label.ifBlank { "Browse area" }, states = cached, nextCursor = null, loadingMore = false, moreFailed = false, counts = null) }
+                refreshHome()
+            }
+        }
+
+        viewModelScope.launch {
             val stateRepository = withContext(Dispatchers.IO) { repository.get() }
             stateRepository.observeCachedStates()
                 .flowOn(Dispatchers.IO)
                 .collectLatest { states ->
-                    val visible = activeSnapshotIds?.let { ids ->
-                        states.filter { it.stateId in ids }
-                    } ?: states
+                    val visible = states.filter { it.stateId in activeSnapshotIds }
 
                     mutableHomeState.update { current ->
                         current.copy(states = visible.sortedWith(stateOrder))
@@ -143,7 +167,13 @@ class BrowseViewModel @Inject constructor(
         }
     }
 
-    fun refreshHome() {
+    fun refreshHome() = refreshQuery(mutableHomeState.value.search, mutableHomeState.value.freshness)
+
+    fun search(value: String) = refreshQuery(value.trim().take(120), mutableHomeState.value.freshness)
+
+    fun selectFreshness(value: String) = refreshQuery(mutableHomeState.value.search, value)
+
+    private fun refreshQuery(search: String, freshness: String) {
         if (!browseArea.configured) {
             mutableHomeState.update {
                 it.copy(refreshing = false, notice = BrowseNotice.AREA_REQUIRED)
@@ -158,36 +188,85 @@ class BrowseViewModel @Inject constructor(
             return
         }
 
-        viewModelScope.launch {
-            mutableHomeState.update { it.copy(refreshing = true, notice = BrowseNotice.NONE) }
+        refreshJob?.cancel()
+        pageJob?.cancel()
+        areaVersion++
+        val requestedArea = browseArea
+        val requestedVersion = areaVersion
+        refreshJob = viewModelScope.launch {
+            mutableHomeState.update { it.copy(refreshing = true, notice = BrowseNotice.NONE, loadingMore = false, moreFailed = false) }
 
             try {
                 val page = withContext(Dispatchers.IO) {
                     repository.get().refreshNearby(
                         NearbyStateQuery(
-                            latitude = requireNotNull(browseArea.latitude),
-                            longitude = requireNotNull(browseArea.longitude),
-                            radiusMeters = browseArea.radiusMeters,
+                            latitude = requireNotNull(requestedArea.latitude),
+                            longitude = requireNotNull(requestedArea.longitude),
+                            radiusMeters = requestedArea.radiusMeters,
+                            search = search,
+                            freshness = freshness,
                         ),
                     )
                 }
+                if (requestedVersion != areaVersion) return@launch
                 activeSnapshotIds = page.items.mapTo(linkedSetOf()) { it.stateId }
+                browseContext.saveSnapshot(snapshotKind(search, freshness), activeSnapshotIds.orEmpty(), area = requestedArea)
                 mutableHomeState.update {
                     it.copy(
                         states = page.items.sortedWith(stateOrder),
+                        search = search,
+                        freshness = freshness,
+                        counts = page.counts,
                         refreshing = false,
                         notice = BrowseNotice.NONE,
+                        nextCursor = page.nextCursor,
                     )
                 }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
+                if (requestedVersion != areaVersion) return@launch
                 mutableHomeState.update {
                     it.copy(
                         refreshing = false,
                         notice = error.toBrowseNotice(),
                     )
                 }
+            }
+        }
+    }
+
+    fun loadMore() {
+        val current = mutableHomeState.value
+        val cursor = current.nextCursor ?: return
+        if (current.refreshing || current.loadingMore || !browseArea.configured || !runtimeConfig.apiConfigured) return
+        val requestedArea = browseArea
+        val requestedVersion = areaVersion
+        mutableHomeState.update { it.copy(loadingMore = true, moreFailed = false) }
+        pageJob = viewModelScope.launch {
+            try {
+                val page = withContext(Dispatchers.IO) {
+                    repository.get().refreshNearby(NearbyStateQuery(
+                        latitude = requireNotNull(requestedArea.latitude),
+                        longitude = requireNotNull(requestedArea.longitude),
+                        radiusMeters = requestedArea.radiusMeters,
+                        cursor = cursor,
+                        search = current.search,
+                        freshness = current.freshness,
+                    ))
+                }
+                if (requestedVersion != areaVersion) return@launch
+                activeSnapshotIds = activeSnapshotIds + page.items.map { it.stateId }
+                browseContext.saveSnapshot(snapshotKind(current.search, current.freshness), activeSnapshotIds, area = requestedArea)
+                mutableHomeState.update { state -> state.copy(
+                    states = (state.states + page.items).associateBy { it.stateId }.values.sortedWith(stateOrder),
+                    nextCursor = page.nextCursor?.takeUnless { it == cursor },
+                    loadingMore = false,
+                    moreFailed = false,
+                ) }
+            } catch (cancel: CancellationException) { throw cancel }
+            catch (error: Exception) {
+                if (requestedVersion == areaVersion) mutableHomeState.update { it.copy(loadingMore = false, moreFailed = true) }
             }
         }
     }
@@ -215,6 +294,7 @@ class BrowseViewModel @Inject constructor(
                 val detail = withContext(Dispatchers.IO) {
                     repository.get().getState(stateId)
                 }
+                if (mutableDetailState.value.stateId != stateId) return@launch
                 mutableDetailState.update {
                     it.copy(
                         detail = detail,
@@ -306,20 +386,6 @@ class BrowseViewModel @Inject constructor(
         }
 
     private companion object {
-        val stateOrder =
-            compareBy<StateSummary>(
-                { freshnessRank(it) },
-                { it.distanceMeters ?: Double.MAX_VALUE },
-                { it.title },
-            )
-
-        fun freshnessRank(state: StateSummary): Int =
-            when {
-                state.conflictActive -> 0
-                state.freshnessStatus == "LIVE" -> 1
-                state.freshnessStatus == "AGING" -> 2
-                state.freshnessStatus == "STALE" -> 3
-                else -> 4
-            }
+        val stateOrder = compareBy<StateSummary> { it.distanceMeters ?: Double.MAX_VALUE }.thenBy { it.stateId }
     }
 }

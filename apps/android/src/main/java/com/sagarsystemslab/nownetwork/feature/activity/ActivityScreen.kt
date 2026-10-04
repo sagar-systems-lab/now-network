@@ -21,6 +21,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import com.sagarsystemslab.nownetwork.feature.common.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -49,6 +50,12 @@ fun ActivityScreen(
     serverNowMillis: () -> Long,
     onPaymentClick: (String) -> Unit,
     onReceiptClick: (String) -> Unit,
+    onBrowseAreas: () -> Unit = {},
+    onNotifications: () -> Unit = {},
+    onProfile: () -> Unit = {},
+    onHelp: () -> Unit = {},
+    areaLabel: String = "Browse area",
+    unread: Int = 0,
 ) {
     val nowMillis = rememberVisibleServerTime(serverNowMillis)
     val listMotionDuration = nowMotionDuration(
@@ -67,24 +74,9 @@ fun ActivityScreen(
         verticalArrangement = Arrangement.spacedBy(NowSpacing.Space4),
     ) {
         item {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(NowSpacing.Space1),
-            ) {
-                Text(
-                    text = "ACTIVITY",
-                    style = NowType.TitleL,
-                    color = NowColors.Ink950,
-                    modifier = Modifier.semantics {
-                        heading()
-                    },
-                )
-                Text(
-                    text = "Pending work stays above history so recovery is always easy to find.",
-                    style = NowType.BodyM,
-                    color = NowColors.Ink600,
-                )
-            }
+            ExperienceHeader("ACTIVITY", "Your refreshes, proofs & earnings", areaLabel, onBrowseAreas, onNotifications, onProfile, unread)
         }
+        item { MetricStrip(listOf(uiState.active.size.toString() to "In progress", uiState.completed.size.toString() to "Completed")) }
 
         if (uiState.active.isNotEmpty()) {
             item {
@@ -148,7 +140,7 @@ fun ActivityScreen(
 
         if (uiState.active.isEmpty() && uiState.completed.isEmpty()) {
             item {
-                EmptyActivityState()
+                EmptyProofCard("Your next contribution starts here", "Track fresh proof, payment progress and finalized receipts in one place.", onBrowseAreas, onHelp)
             }
         }
     }

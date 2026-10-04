@@ -6,8 +6,12 @@ data class NearbyStateQuery(
     val radiusMeters: Int,
     val limit: Int = 30,
     val cursor: String? = null,
+    val search: String = "",
+    val freshness: String = "all",
 ) {
     init {
+        require(search.length <= 120)
+        require(freshness in setOf("all", "live", "aging", "stale", "needs_proof", "unobserved", "conflict"))
         require(latitude.isFinite() && latitude in -90.0..90.0) {
             "latitude must be within [-90, 90]"
         }
@@ -32,8 +36,12 @@ data class NearbyOpportunityQuery(
     val radiusMeters: Int,
     val limit: Int = 30,
     val cursor: String? = null,
+    val sort: String = "nearest",
+    val category: String? = null,
 ) {
     init {
+        require(sort in setOf("nearest", "payout", "ending"))
+        require(category == null || category.length <= 80)
         require(latitude.isFinite() && latitude in -90.0..90.0)
         require(longitude.isFinite() && longitude in -180.0..180.0)
         require(radiusMeters in 1..50_000)
@@ -71,6 +79,7 @@ interface NowApiClient {
         request: ClaimObserveRequest,
         accessToken: String,
     ): ClaimStatusDto
+    suspend fun payoutWalletBindingId(accessToken: String): String? = null
     suspend fun me(accessToken: String): MeDto
 
     suspend fun walletBindingChallenge(

@@ -8,6 +8,7 @@ import type {
 export type NearbyStateCursor = {
   distanceM: number;
   stateId: string;
+  asOf?: Date;
 };
 
 export type StateHistoryCursor = {
@@ -15,7 +16,16 @@ export type StateHistoryCursor = {
   historyId: string;
 };
 
+export type MapLocation = {
+  locationId: string;
+  name: string;
+  locationType: string;
+  displayAddress: string | null;
+  center: { latitude: number; longitude: number } | null;
+};
+
 export type NearbyStateRecord = {
+  location?: MapLocation | null;
   stateId: string;
   title: string;
   question: string;
@@ -33,6 +43,7 @@ export type NearbyStateRecord = {
 };
 
 export type StateLocationRecord = {
+  center?: { latitude: number; longitude: number } | null;
   locationId: string;
   name: string;
   locationType: string;
@@ -90,14 +101,22 @@ export type StateHistoryRecord = {
   verificationStatus: VerificationStatus | null;
 };
 
+export type NearbyStateInput = {
+  lat: number;
+  lng: number;
+  radiusM: number;
+  limit: number;
+  cursor: NearbyStateCursor | null;
+  search?: string;
+  freshness?: string;
+  asOf?: Date;
+};
+
+export type NearbyStateCounts = { total: number; live: number; aging: number; stale: number };
+
 export interface StateRepository {
-  listNearby(input: {
-    lat: number;
-    lng: number;
-    radiusM: number;
-    limit: number;
-    cursor: NearbyStateCursor | null;
-  }): Promise<NearbyStateRecord[]>;
+  listNearby(input: NearbyStateInput): Promise<NearbyStateRecord[]>;
+  summarizeNearby?(input: NearbyStateInput): Promise<NearbyStateCounts>;
 
   getState(stateId: string): Promise<StateDetailRecord | null>;
 

@@ -19,11 +19,16 @@ data class OpportunitySummary(
     val remainingSlots: Int?,
     val revision: Long,
     val cachedOnly: Boolean,
+    val center: GeoCenter? = null,
+    val payoutRule: String? = null,
+    val requiredWitnesses: Int? = null,
 )
 
 data class OpportunityPage(
     val items: List<OpportunitySummary>,
     val nextCursor: String?,
+    val total: Int? = null,
+    val categories: List<String> = emptyList(),
 )
 
 data class ActivityItem(
@@ -35,3 +40,16 @@ data class ActivityItem(
     val updatedAtMillis: Long,
     val active: Boolean,
 )
+
+/** Estimates never replace the finalized personal payout; unknown policy stays a pool. */
+fun OpportunitySummary.estimatedPayoutAtomic(): String? =
+    estimatedPayoutAtomic(rewardAtomic, payoutRule, requiredWitnesses)
+
+fun estimatedPayoutAtomic(poolAtomic: String, payoutRule: String?, requiredWitnesses: Int?): String? {
+    val pool = poolAtomic.toBigIntegerOrNull()?.takeIf { it.signum() >= 0 } ?: return null
+    return when (payoutRule) {
+        "SINGLE_WINNER_ALL" -> pool.toString()
+        "EQUAL_SPLIT_REQUIRED_WITNESSES" -> requiredWitnesses?.takeIf { it > 0 }?.let { pool.divide(java.math.BigInteger.valueOf(it.toLong())).toString() }
+        else -> null
+    }
+}

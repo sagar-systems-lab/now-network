@@ -43,6 +43,8 @@ const expectedMigrations = [
   "20260926_028_receipts_realtime.sql",
   "20260926_029_runtime_health.sql",
   "20260930_030_function_search_path_hardening.sql",
+  "20261003152110_native_experience.sql",
+  "20261003161302_experience_notification_events.sql",
 ] as const;
 
 async function readMigration(name: string): Promise<string> {
@@ -135,6 +137,11 @@ Deno.test("authoritative tables enable row-level security immediately", async ()
     "app.security_events",
     "app.outbox_events",
     "app.runtime_health",
+    "app.actor_profiles",
+    "app.actor_preferences",
+    "app.installations",
+    "app.notifications",
+    "app.notification_deliveries",
     "public.realtime_events_v1",
   ];
 

@@ -52,6 +52,7 @@ fun StateCard(
     nowMillis: Long,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onRefresh: (() -> Unit)? = null,
 ) {
     val freshness = state.freshnessAt(nowMillis)
     val displayValue = formatStateValue(state.valueJson, state.unitCode)
@@ -70,56 +71,40 @@ fun StateCard(
         border = BorderStroke(1.dp, NowColors.BorderSubtle),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(NowSpacing.Space4),
-            verticalArrangement = Arrangement.spacedBy(NowSpacing.Space2),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
+        Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            com.sagarsystemslab.nownetwork.feature.common.CategoryArtwork(state.title, Modifier.size(60.dp), state.stateId)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Text(state.title, style = NowType.TitleS, color = NowColors.Ink950)
+                Text(displayValue, style = NowType.TitleM, color = NowColors.Ink950,
+                    modifier = Modifier.nowPulseOnChange(key = displayValue, durationMillis = com.sagarsystemslab.nownetwork.designsystem.NowMotion.StateMillis))
+                Text(relativeObservedTime(state.observedAtMillis, nowMillis), style = NowType.BodyS, color = freshnessTextColor(freshness))
+                state.refreshStatus?.takeIf { it.isNotBlank() }?.let { Text(humanizeStatus(it), style = NowType.BodyS, color = NowColors.InfoText) }
+            }
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 FreshnessChip(freshness)
-                Spacer(Modifier.weight(1f))
-                state.distanceMeters?.let { distance ->
-                    Text(
-                        text = formatDistance(distance),
-                        style = NowType.LabelM,
-                        color = NowColors.Ink500,
-                    )
-                }
+                state.distanceMeters?.let { Text(com.sagarsystemslab.nownetwork.experience.displayDistance(it), style = NowType.LabelM, color = NowColors.Ink500) }
             }
+        }
+        if (onRefresh != null) com.sagarsystemslab.nownetwork.designsystem.NowPrimaryButton(
+            "Refresh state", onRefresh, Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 12.dp).testTag("NOW-REFRESH-${state.stateId}"),
+        )
+    }
+}
 
-            Text(
-                text = state.title,
-                style = NowType.TitleS,
-                color = NowColors.Ink800,
-            )
-
-            Text(
-                text = displayValue,
-                style = NowType.DataLarge,
-                color = NowColors.Ink950,
-                modifier = Modifier.nowPulseOnChange(
-                    key = displayValue,
-                    durationMillis = com.sagarsystemslab.nownetwork.designsystem.NowMotion.StateMillis,
-                ),
-            )
-
-            Text(
-                text = relativeObservedTime(state.observedAtMillis, nowMillis),
-                style = NowType.LabelM,
-                color = freshnessTextColor(freshness),
-            )
-
-            if (!state.refreshStatus.isNullOrBlank()) {
-                Text(
-                    text = humanizeStatus(state.refreshStatus),
-                    style = NowType.BodyS,
-                    color = NowColors.InfoText,
-                )
+@Composable
+fun NearbyStateCard(state: StateSummary, nowMillis: Long, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Card(onClick = onClick, modifier = modifier.testTag("nearby-card-${state.stateId}"),
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = NowColors.SurfacePrimary),
+        border = BorderStroke(1.dp, NowColors.BorderSubtle)) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                com.sagarsystemslab.nownetwork.feature.common.CategoryArtwork(state.title, Modifier.size(40.dp), state.stateId)
+                FreshnessChip(state.freshnessAt(nowMillis))
             }
+            Text(state.title, style = NowType.LabelL, color = NowColors.Ink800)
+            Text(formatStateValue(state.valueJson, state.unitCode), style = NowType.TitleM, color = NowColors.Ink950)
+            Text(listOfNotNull(state.distanceMeters?.let { com.sagarsystemslab.nownetwork.experience.displayDistance(it) }, relativeObservedTime(state.observedAtMillis, nowMillis)).joinToString(" · "), style = NowType.BodyS, color = NowColors.Ink600)
         }
     }
 }

@@ -1,9 +1,11 @@
 import type { ActorRecord } from "./identity-repository.ts";
 import { ApiFault } from "./errors.ts";
+import { discoveryFingerprint } from "./discovery-query.ts";
 import type {
   OpportunityCursor,
   OpportunityRecord,
   OpportunityRepository,
+  OpportunitySort,
 } from "./opportunity-repository.ts";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -47,7 +49,7 @@ function decodeBase64Url(value: string): unknown {
   }
 }
 
-function decodeCursor(value: string | null): OpportunityCursor | null {
+function decodeCursor(value: string | null, query: string): OpportunityCursor | null {
   if (value === null) return null;
   const decoded = decodeBase64Url(value);
   if (!decoded || typeof decoded !== "object" || Array.isArray(decoded)) {
@@ -60,7 +62,12 @@ function decodeCursor(value: string | null): OpportunityCursor | null {
     !Number.isFinite(cursor.distance_m) ||
     cursor.distance_m < 0 ||
     typeof cursor.refresh_id !== "string" ||
-    !UUID_PATTERN.test(cursor.refresh_id)
+    !UUID_PATTERN.test(cursor.refresh_id) ||
+    cursor.query !== query ||
+    typeof cursor.expires_at !== "string" ||
+    !Number.isFinite(new Date(cursor.expires_at).getTime()) ||
+    typeof cursor.reward_mint !== "string" || cursor.reward_mint.length > 80 ||
+    typeof cursor.estimated_atomic !== "string" || !/^[0-9]{1,20}$/.test(cursor.estimated_atomic)
   ) {
     throw new ApiFault(400, "INVALID_CURSOR", "Invalid cursor.");
   }
@@ -68,6 +75,9 @@ function decodeCursor(value: string | null): OpportunityCursor | null {
   return {
     distanceM: cursor.distance_m,
     refreshId: cursor.refresh_id,
+    expiresAt: new Date(cursor.expires_at as string),
+    rewardMint: cursor.reward_mint as string,
+    estimatedAtomic: cursor.estimated_atomic as string,
   };
 }
 
@@ -85,6 +95,7 @@ function payload(record: OpportunityRecord): Record<string, unknown> {
       name: record.locationName,
       location_type: record.locationType,
       display_address: record.displayAddress,
+      center: record.center ?? null,
     },
     reward: {
       mint: record.rewardMint,
@@ -123,11 +134,35 @@ export class OpportunityMatcher {
       radiusM: number;
       limit: number;
       cursor: string | null;
+      sort?: string;
+      category?: string | null;
     },
   ): Promise<Record<string, unknown>> {
     assertActorActive(actor);
-    const cursor = decodeCursor(input.cursor);
+    const sort = input.sort ?? "nearest";
+    const category = input.category?.trim() || null;
+    if (!["nearest", "payout", "ending"].includes(sort)) {
+      throw new ApiFault(400, "INVALID_SORT", "Choose a supported opportunity sort.");
+    }
+    if (
+      category && (category.length > 80 || Array.from(category).some((c) => c.charCodeAt(0) < 32))
+    ) {
+      throw new ApiFault(400, "INVALID_CATEGORY", "Choose a valid category.");
+    }
+    const query = await discoveryFingerprint([
+      actor.actorId,
+      input.lat,
+      input.lng,
+      input.radiusM,
+      sort,
+      category,
+    ]);
+    const cursor = decodeCursor(input.cursor, query);
+    const asOf = new Date();
     const rows = await this.repository.listNearby({
+      sort: sort as OpportunitySort,
+      category,
+      asOf,
       actorId: actor.actorId,
       lat: input.lat,
       lng: input.lng,
@@ -143,10 +178,31 @@ export class OpportunityMatcher {
       ? encodeBase64Url({
         distance_m: last.distanceM,
         refresh_id: last.refreshId,
+        query,
+        expires_at: last.refreshExpiresAt.toISOString(),
+        reward_mint: last.rewardMint,
+        estimated_atomic: (last.payoutRule === "EQUAL_SPLIT_REQUIRED_WITNESSES"
+          ? last.rewardAtomic / BigInt(last.requiredWitnesses)
+          : last.rewardAtomic).toString(),
       })
       : null;
 
+    const summary = await this.repository.summarizeNearby?.({
+      actorId: actor.actorId,
+      lat: input.lat,
+      lng: input.lng,
+      radiusM: input.radiusM,
+      limit: input.limit,
+      cursor: null,
+      sort: sort as OpportunitySort,
+      category,
+      asOf,
+    });
     return {
+      total: summary?.total ?? null,
+      categories: summary?.categories ?? [],
+      sort,
+      category,
       items: visible.map(payload),
       next_cursor: nextCursor,
     };

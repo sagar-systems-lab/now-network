@@ -9,6 +9,7 @@ data class NearbyStatesDto(
     val items: List<StateSummaryDto>,
     @SerialName("next_cursor")
     val nextCursor: String? = null,
+    val counts: com.sagarsystemslab.nownetwork.model.NearbyStateCounts? = null,
 )
 
 @Serializable
@@ -39,6 +40,7 @@ data class StateSummaryDto(
     @SerialName("distance_m")
     val distanceM: Double,
     val revision: Long,
+    val location: StateLocationDto? = null,
 )
 
 @Serializable
@@ -87,6 +89,7 @@ data class StateLocationDto(
     val locationType: String,
     @SerialName("display_address")
     val displayAddress: String? = null,
+    val center: com.sagarsystemslab.nownetwork.model.GeoCenter? = null,
 )
 
 @Serializable
@@ -136,6 +139,8 @@ data class NearbyOpportunitiesDto(
     val items: List<OpportunityDto>,
     @SerialName("next_cursor")
     val nextCursor: String? = null,
+    val total: Int? = null,
+    val categories: List<String> = emptyList(),
 )
 
 @Serializable
@@ -155,7 +160,7 @@ data class OpportunityDto(
     val location: OpportunityLocationDto,
     val reward: OpportunityRewardDto,
     @SerialName("distance_m")
-    val distanceM: Double,
+    val distanceM: Double? = null,
     @SerialName("expires_at")
     val expiresAt: String,
     @SerialName("evidence_deadline")
@@ -179,6 +184,7 @@ data class OpportunityLocationDto(
     val locationType: String,
     @SerialName("display_address")
     val displayAddress: String? = null,
+    val center: com.sagarsystemslab.nownetwork.model.GeoCenter? = null,
 )
 
 @Serializable

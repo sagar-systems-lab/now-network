@@ -1,0 +1,18 @@
+{
+  "version": 8,
+  "name": "Street map",
+  "sources": {
+    "street-tiles": {
+      "type": "raster",
+      "tiles": ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+      "tileSize": 256,
+      "minzoom": 0,
+      "maxzoom": 19,
+      "attribution": "© OpenStreetMap contributors"
+    }
+  },
+  "layers": [
+    {"id": "background", "type": "background", "paint": {"background-color": "#eaf2fc"}},
+    {"id": "street-map", "type": "raster", "source": "street-tiles", "paint": {"raster-fade-duration": 180}}
+  ]
+}

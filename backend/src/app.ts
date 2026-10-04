@@ -1,3 +1,4 @@
+import type { ExperienceApi } from "./experience-service.ts";
 import type { AuthVerifier } from "./auth.ts";
 import type { ClaimCoordinator } from "./claim-coordinator.ts";
 import type { EvidenceChallengeService } from "./evidence-challenge-service.ts";
@@ -42,6 +43,7 @@ import { handleRequest as handleHealthRequest } from "./health.ts";
 
 export type AppDependencies = {
   authVerifier: AuthVerifier;
+  experienceService?: ExperienceApi;
   identityRepository: IdentityRepository;
   stateRepository?: StateRepository;
   refreshCoordinator?: RefreshCoordinator;
@@ -229,6 +231,8 @@ export function createApp(dependencies: AppDependencies): (request: Request) => 
 
     const id = requestId(request);
     try {
+      const publicExperience = await dependencies.experienceService?.publicRequest(request);
+      if (publicExperience != null) return successResponse(id, publicExperience);
       if (request.method === "GET" && routeMatches(url.pathname, "/v1/states/nearby")) {
         const data = await requireStateRead().nearby({
           lat: requiredQueryNumber(url, "lat", -90, 90),
@@ -236,6 +240,8 @@ export function createApp(dependencies: AppDependencies): (request: Request) => 
           radiusM: requiredQueryNumber(url, "radius_m", 1, MAX_NEARBY_RADIUS_M, true),
           limit: optionalQueryInteger(url, "limit", DEFAULT_NEARBY_LIMIT, 1, MAX_NEARBY_LIMIT),
           cursor: url.searchParams.get("cursor"),
+          search: url.searchParams.get("q") ?? "",
+          freshness: url.searchParams.get("freshness") ?? "all",
         });
         return successResponse(id, data);
       }
@@ -261,10 +267,17 @@ export function createApp(dependencies: AppDependencies): (request: Request) => 
       }
 
       const principal = await dependencies.authVerifier.verify(request);
+      await dependencies.experienceService?.assertSession(principal);
       const actor = await dependencies.identityRepository.resolveActor(
         principal.authUserId,
         principal.principalType,
       );
+      const experience = await dependencies.experienceService?.privateRequest(
+        request,
+        actor,
+        principal,
+      );
+      if (experience != null) return successResponse(id, experience);
 
       if (
         request.method === "GET" &&
@@ -288,6 +301,8 @@ export function createApp(dependencies: AppDependencies): (request: Request) => 
             MAX_OPPORTUNITY_LIMIT,
           ),
           cursor: url.searchParams.get("cursor"),
+          sort: url.searchParams.get("sort") ?? "nearest",
+          category: url.searchParams.get("category"),
         });
         return successResponse(id, data);
       }

@@ -92,6 +92,8 @@ class DefaultOpportunityRepository @Inject constructor(
         return OpportunityPage(
             items = items,
             nextCursor = remote.nextCursor,
+            total = remote.total,
+            categories = remote.categories,
         )
     }
 }
@@ -116,6 +118,9 @@ private fun OpportunityDto.toDomain(): OpportunitySummary =
         remainingSlots = availability.remainingSlots,
         revision = revision,
         cachedOnly = false,
+        center = location.center,
+        payoutRule = reward.payoutRule,
+        requiredWitnesses = evidenceSummary.requiredWitnesses,
     )
 
 private fun CachedOpportunityEntity.toDomain(

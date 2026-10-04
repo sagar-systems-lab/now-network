@@ -3,6 +3,13 @@ package com.sagarsystemslab.nownetwork.designsystem
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,6 +30,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.VisualTransformation
@@ -51,26 +62,39 @@ fun NowPrimaryButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
 ) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val motionEnabled = rememberNowMotionEnabled()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed && enabled && motionEnabled) .985f else 1f,
+        animationSpec = tween(nowMotionDuration(motionEnabled, if (pressed) 90 else 120)),
+        label = "primary-press",
+    )
     Button(
         onClick = onClick,
-        modifier = modifier.heightIn(min = 50.dp),
+        modifier = modifier.heightIn(min = 48.dp)
+            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .shadow(if (enabled) 9.dp else 0.dp, NowShapes.extraLarge, ambientColor = Color(0xFF168BFF), spotColor = Color(0xFF168BFF))
+            .background(
+                brush = if (enabled) nowActionBrush() else androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(NowColors.Ink200, NowColors.Ink200)),
+                shape = NowShapes.extraLarge,
+            ).border(1.dp, if (enabled) Color(0xFF78D8FF).copy(alpha = .8f) else NowColors.BorderSubtle, NowShapes.extraLarge)
+            .drawWithCache {
+                val highlight = Brush.verticalGradient(listOf(Color.White.copy(alpha = if (enabled) .22f else 0f), Color.Transparent), endY = size.height * .55f)
+                onDrawBehind { drawRoundRect(highlight, cornerRadius = androidx.compose.ui.geometry.CornerRadius(22.dp.toPx())) }
+            },
         enabled = enabled,
-        shape = NowShapes.medium,
+        interactionSource = interaction,
+        shape = NowShapes.extraLarge,
         colors = ButtonDefaults.buttonColors(
-            containerColor = NowColors.Blue600,
-            contentColor = androidx.compose.material3.MaterialTheme.colorScheme.onPrimary,
-            disabledContainerColor = NowColors.Ink200,
+            containerColor = Color.Transparent,
+            contentColor = Color(0xFFF5F8FF),
+            disabledContainerColor = Color.Transparent,
             disabledContentColor = NowColors.Ink500,
         ),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(
-            horizontal = NowSpacing.Space4,
-            vertical = NowSpacing.Space3,
-        ),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 14.dp),
     ) {
-        Text(
-            text = text,
-            style = NowType.LabelL,
-        )
+        Text(text = text, style = NowType.LabelL)
     }
 }
 

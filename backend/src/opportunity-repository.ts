@@ -5,9 +5,13 @@ import type { PolicyTemplateV1 } from "../../packages/policy/src/types.ts";
 export type OpportunityCursor = {
   distanceM: number;
   refreshId: string;
+  expiresAt?: Date;
+  rewardMint?: string;
+  estimatedAtomic?: string;
 };
 
 export type OpportunityRecord = {
+  center?: { latitude: number; longitude: number } | null;
   refreshId: string;
   stateId: string;
   stateVersion: number;
@@ -35,15 +39,23 @@ export type OpportunityRecord = {
   refreshRevision: number;
 };
 
+export type OpportunitySort = "nearest" | "payout" | "ending";
+
+export type NearbyOpportunityInput = {
+  actorId: string;
+  lat: number;
+  lng: number;
+  radiusM: number;
+  limit: number;
+  cursor: OpportunityCursor | null;
+  sort?: OpportunitySort;
+  category?: string | null;
+  asOf?: Date;
+};
+
 export interface OpportunityRepository {
-  listNearby(input: {
-    actorId: string;
-    lat: number;
-    lng: number;
-    radiusM: number;
-    limit: number;
-    cursor: OpportunityCursor | null;
-  }): Promise<OpportunityRecord[]>;
+  listNearby(input: NearbyOpportunityInput): Promise<OpportunityRecord[]>;
+  summarizeNearby?(input: NearbyOpportunityInput): Promise<{ total: number; categories: string[] }>;
 
   getOpportunity(input: {
     actorId: string;

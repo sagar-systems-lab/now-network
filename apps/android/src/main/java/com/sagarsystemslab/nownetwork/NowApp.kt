@@ -1,5 +1,7 @@
 package com.sagarsystemslab.nownetwork
 
+import com.sagarsystemslab.nownetwork.designsystem.nowPageBackground
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -50,6 +52,7 @@ import com.sagarsystemslab.nownetwork.wallet.WalletInteractionHost
 
 @Composable
 fun NowApp(
+    inboxIntentRevision: Int = 0,
     darkTheme: Boolean,
     onDarkThemeChange: (Boolean) -> Unit,
     browseViewModelProvider: () -> BrowseViewModel,
@@ -62,6 +65,8 @@ fun NowApp(
     activityViewModelProvider: () -> ActivityViewModel,
     requesterFundingViewModelProvider: () -> RequesterFundingViewModel,
     walletInteractionHost: WalletInteractionHost,
+    experienceViewModelProvider: (() -> com.sagarsystemslab.nownetwork.experience.ExperienceViewModel)? = null,
+    uiPreferencesStore: com.sagarsystemslab.nownetwork.experience.UiPreferencesStore? = null,
 ) {
     val appState = rememberNowAppState()
     val currentDestination = appState.currentDestination
@@ -85,6 +90,7 @@ fun NowApp(
         },
     ) { innerPadding ->
         NowNavHost(
+                inboxIntentRevision = inboxIntentRevision,
             appState = appState,
             darkTheme = darkTheme,
             onDarkThemeChange = onDarkThemeChange,
@@ -98,15 +104,18 @@ fun NowApp(
             activityViewModelProvider = activityViewModelProvider,
             requesterFundingViewModelProvider = requesterFundingViewModelProvider,
             walletInteractionHost = walletInteractionHost,
+            experienceViewModelProvider = experienceViewModelProvider,
+            uiPreferencesStore = uiPreferencesStore,
             modifier = Modifier
                 .fillMaxSize()
+                .nowPageBackground()
                 .padding(innerPadding),
         )
     }
 }
 
 @Composable
-private fun NowBottomBar(
+internal fun NowBottomBar(
     destinations: List<TopLevelDestination>,
     isSelected: (TopLevelDestination) -> Boolean,
     onDestinationSelected: (TopLevelDestination) -> Unit,

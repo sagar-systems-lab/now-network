@@ -53,6 +53,28 @@ jobs:
           bash scripts/security/scan-release-apk.sh
           git diff --exit-code -- gradle/verification-metadata.xml apps/android/schemas
 
+      - name: Build connected phone APK
+        shell: bash
+        run: |
+          bash -n scripts/android/build-connected.sh
+          bash scripts/android/build-connected.sh
+          mkdir -p "$RUNNER_TEMP/now-phone"
+          cp apps/android/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/now-phone/NOW-connected-debug.apk"
+          printf '%s\n' "$GITHUB_SHA" > "$RUNNER_TEMP/now-phone/source-commit.txt"
+          cd "$RUNNER_TEMP/now-phone"
+          sha256sum NOW-connected-debug.apk > SHA256SUMS.txt
+
+      - name: Publish connected phone APK
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        timeout-minutes: 3
+        continue-on-error: true
+        with:
+          name: NOW-connected-debug
+          path: ${{ runner.temp }}/now-phone/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
 
   android-instrumented:
     needs: [android]
@@ -113,7 +135,7 @@ jobs:
 
           AVD_CONFIG="$HOME/.android/avd/$AVD_NAME.avd/config.ini"
           if [ ! -f "$AVD_CONFIG" ]; then
-            echo "no" | avdmanager create avd               --force               --name "$AVD_NAME"               --package "system-images;android-35;aosp_atd;x86_64"
+            echo "no" | avdmanager create avd --force --name "$AVD_NAME" --package "system-images;android-35;aosp_atd;x86_64"
           fi
           test -f "$AVD_CONFIG"
           sed -i '/^disk.dataPartition.size=/d' "$AVD_CONFIG"
@@ -158,7 +180,11 @@ jobs:
       - name: Checks
         shell: bash
         run: |
-          deno fmt --check backend packages/contracts packages/domain packages/policy supabase/functions/now-api supabase/functions/now-worker tests scripts/solana/local-validator-client.ts scripts/performance
+          if ! deno fmt --check backend packages/contracts packages/domain packages/policy supabase/functions/now-api supabase/functions/now-worker tests scripts/solana/local-validator-client.ts scripts/performance; then
+            deno fmt backend packages/contracts packages/domain packages/policy supabase/functions/now-api supabase/functions/now-worker tests scripts/solana/local-validator-client.ts scripts/performance
+            git -c color.ui=false diff -- backend packages supabase/functions tests scripts
+            exit 1
+          fi
           deno lint backend packages/contracts packages/domain packages/policy supabase/functions/now-api supabase/functions/now-worker tests scripts/solana/local-validator-client.ts scripts/performance
           deno test scripts/performance/summarize_latency_test.ts
           bash -n scripts/performance/android-device-baseline.sh
@@ -245,6 +271,17 @@ jobs:
             echo "Applying $migration"
             docker exec -i "$DB_CONTAINER" psql -X -U postgres -d now_test -v ON_ERROR_STOP=1 < "$migration"
           done < <(find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort)
+
+      - name: Deno for account integration tests
+        uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with:
+          deno-version: "2.9.7"
+
+      - name: Verify account isolation and notification delivery
+        shell: bash
+        env:
+          NOW_TEST_DB_URL: postgres://postgres:postgres@127.0.0.1:5432/now_test
+        run: deno test --allow-env --allow-net=127.0.0.1:5432 backend/tests/experience_database_test.ts backend/tests/discovery_database_test.ts
 
       - name: Exercise performance query-plan capture
         shell: bash
@@ -397,6 +434,11 @@ jobs:
             with expected(schema_name, table_name) as (
               values
                 ('app', 'actors'),
+                ('app', 'actor_profiles'),
+                ('app', 'actor_preferences'),
+                ('app', 'installations'),
+                ('app', 'notifications'),
+                ('app', 'notification_deliveries'),
                 ('app', 'actor_auth_principals'),
                 ('app', 'wallet_bindings'),
                 ('app', 'wallet_binding_challenges'),

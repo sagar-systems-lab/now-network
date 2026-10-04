@@ -13,6 +13,9 @@ class WalletRequestCoordinator @Inject constructor(
     suspend fun connect(host: WalletInteractionHost): WalletResult<WalletAccount> =
         serialized { gateway.connect(host) }
 
+    suspend fun disconnect(host: WalletInteractionHost): WalletResult<Unit> =
+        serialized { gateway.disconnect(host) }
+
     suspend fun signWalletProof(
         host: WalletInteractionHost,
         message: String,

@@ -30,6 +30,14 @@ private val NowLightColorScheme = lightColorScheme(
     background = NowLightPalette.surfaceCanvas,
     onBackground = NowLightPalette.ink950,
     surface = NowLightPalette.surfacePrimary,
+    surfaceTint = NowLightPalette.blue600,
+    surfaceDim = NowLightPalette.surfaceSecondary,
+    surfaceBright = NowLightPalette.surfacePrimary,
+    surfaceContainerLowest = NowLightPalette.surfacePrimary,
+    surfaceContainerLow = NowLightPalette.surfaceCanvas,
+    surfaceContainer = NowLightPalette.surfaceSecondary,
+    surfaceContainerHigh = NowLightPalette.infoSoft,
+    surfaceContainerHighest = NowLightPalette.ink100,
     onSurface = NowLightPalette.ink950,
     surfaceVariant = NowLightPalette.surfaceSecondary,
     onSurfaceVariant = NowLightPalette.ink600,
@@ -58,6 +66,14 @@ private val NowDarkColorScheme = darkColorScheme(
     background = NowDarkPalette.surfaceCanvas,
     onBackground = NowDarkPalette.ink950,
     surface = NowDarkPalette.surfacePrimary,
+    surfaceTint = NowDarkPalette.blue600,
+    surfaceDim = NowDarkPalette.surfaceCanvas,
+    surfaceBright = NowDarkPalette.surfaceRaised,
+    surfaceContainerLowest = NowDarkPalette.surfaceCanvas,
+    surfaceContainerLow = NowDarkPalette.surfacePrimary,
+    surfaceContainer = NowDarkPalette.surfaceSecondary,
+    surfaceContainerHigh = NowDarkPalette.infoSoft,
+    surfaceContainerHighest = NowDarkPalette.ink100,
     onSurface = NowDarkPalette.ink950,
     surfaceVariant = NowDarkPalette.surfaceSecondary,
     onSurfaceVariant = NowDarkPalette.ink600,
@@ -69,14 +85,15 @@ private val NowDarkColorScheme = darkColorScheme(
 val NowShapes = Shapes(
     extraSmall = RoundedCornerShape(4.dp),
     small = RoundedCornerShape(6.dp),
-    medium = RoundedCornerShape(10.dp),
-    large = RoundedCornerShape(14.dp),
-    extraLarge = RoundedCornerShape(20.dp),
+    medium = RoundedCornerShape(14.dp),
+    large = RoundedCornerShape(18.dp),
+    extraLarge = RoundedCornerShape(22.dp),
 )
 
 @Composable
 fun NowTheme(
     darkTheme: Boolean = false,
+    reduceMotion: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val palette = if (darkTheme) NowDarkPalette else NowLightPalette
@@ -84,6 +101,7 @@ fun NowTheme(
 
     CompositionLocalProvider(
         LocalNowColorPalette provides palette,
+        LocalNowMotionAllowed provides !reduceMotion,
     ) {
         MaterialTheme(
             colorScheme = materialColorScheme,

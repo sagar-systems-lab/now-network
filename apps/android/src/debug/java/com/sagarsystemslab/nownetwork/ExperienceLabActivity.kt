@@ -126,7 +126,7 @@ class ExperienceLabActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        val initialDarkTheme = NowThemePreferenceStore.readDarkTheme(this)
+        val initialDarkTheme = if(intent.hasExtra("dark")) intent.getBooleanExtra("dark", false) else NowThemePreferenceStore.readDarkTheme(this)
 
         setContent {
             var darkTheme by rememberSaveable {
@@ -140,6 +140,7 @@ class ExperienceLabActivity : ComponentActivity() {
 
             NowTheme(darkTheme = darkTheme) {
                 ExperienceLab(
+                    initialScenario = intent.getStringExtra("scenario"),
                     darkTheme = darkTheme,
                     onDarkThemeChange = { enabled ->
                         darkTheme = enabled
@@ -263,10 +264,11 @@ private val scenarios = listOf(
 
 @Composable
 private fun ExperienceLab(
+    initialScenario: String? = null,
     darkTheme: Boolean,
     onDarkThemeChange: (Boolean) -> Unit,
 ) {
-    var selectedScenarioId by rememberSaveable { mutableStateOf<String?>(null) }
+    var selectedScenarioId by rememberSaveable { mutableStateOf(initialScenario) }
     val selectedScenario = scenarios.firstOrNull { it.id == selectedScenarioId }
 
     BackHandler(enabled = selectedScenario != null) {
@@ -812,16 +814,20 @@ private fun AccessibilityFreezeScenario(
 }
 
 @Composable
-private fun SettlementRecoveryScenario(
+internal fun SettlementRecoveryScenario(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    initialPhase: Int = 0,
+    captureOnly: Boolean = false,
 ) {
     val nowMillis = 1_800_000_000_000L
-    var phase by rememberSaveable { mutableIntStateOf(0) }
+    var phase by rememberSaveable { mutableIntStateOf(initialPhase) }
 
+    Box(modifier) {
     when (phase) {
         0 -> {
-            Box(modifier = modifier) {
+            Column(Modifier.fillMaxSize()) {
+                Box(Modifier.weight(1f)) {
                 PaymentScreen(
                     uiState = PaymentUiState(
                         stage = PaymentStage.VERIFYING,
@@ -836,15 +842,17 @@ private fun SettlementRecoveryScenario(
                     ),
                     onBack = onBack,
                     onRetry = {},
+                    context = kotlinx.serialization.json.JsonObject(mapOf("title" to JsonPrimitive("Sector 7 parking"), "role" to JsonPrimitive("CONTRIBUTOR"))),
+                    personalAmount = "0.50 USDC",
                     onViewReceipt = { phase = 2 },
                     onDone = { phase = 3 },
                 )
+                }
 
-                NowSecondaryButton(
+                if (!captureOnly) NowSecondaryButton(
                     text = "Lab · resolve PAID",
                     onClick = { phase = 1 },
                     modifier = Modifier
-                        .align(Alignment.BottomCenter)
                         .padding(
                             start = NowSpacing.Space4,
                             end = NowSpacing.Space4,
@@ -870,7 +878,9 @@ private fun SettlementRecoveryScenario(
                 ),
                 onBack = { phase = 0 },
                 onRetry = {},
-                onViewReceipt = { phase = 2 },
+                context = kotlinx.serialization.json.JsonObject(mapOf("title" to JsonPrimitive("Sector 7 parking"), "role" to JsonPrimitive("CONTRIBUTOR"))),
+                    personalAmount = "0.50 USDC",
+                    onViewReceipt = { phase = 2 },
                 onDone = { phase = 3 },
             )
         }
@@ -900,6 +910,8 @@ private fun SettlementRecoveryScenario(
                     ),
                     message = "Final receipt is ready.",
                 ),
+                context = kotlinx.serialization.json.JsonObject(mapOf("title" to JsonPrimitive("Sector 7 parking"))),
+                personalAmount = "0.50 USDC", poolAmount = "0.50 USDC",
                 onBack = { phase = 1 },
                 onRetry = {},
                 onDone = { phase = 3 },
@@ -938,19 +950,22 @@ private fun SettlementRecoveryScenario(
             )
         }
     }
+    }
 }
 
 @Composable
-private fun ProofLoopScenario(
+internal fun ProofLoopScenario(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    initialPhase: Int = 0,
+    captureOnly: Boolean = false,
 ) {
     val context = LocalContext.current
     val capturePath = remember {
         File(context.cacheDir, "now-lab-evidence.jpg").absolutePath
     }
 
-    var phase by rememberSaveable { mutableIntStateOf(0) }
+    var phase by rememberSaveable { mutableIntStateOf(initialPhase) }
     var captureStage by rememberSaveable {
         mutableStateOf(EvidenceCaptureStage.READY)
     }
@@ -980,6 +995,7 @@ private fun ProofLoopScenario(
             },
         )
 
+        Box(modifier) {
         EvidenceCaptureScreen(
             uiState = captureState,
             onBack = onBack,
@@ -1018,6 +1034,7 @@ private fun ProofLoopScenario(
                 phase = 1
             },
         )
+        }
         return
     }
 
@@ -1071,7 +1088,7 @@ private fun ProofLoopScenario(
             onDone = onBack,
         )
 
-        if (!verified) {
+        if (!verified && !captureOnly) {
             NowSecondaryButton(
                 text = "Lab · resolve VERIFIED",
                 onClick = {
@@ -1091,7 +1108,7 @@ private fun ProofLoopScenario(
 }
 
 @Composable
-private fun OpportunityClaimScenario(
+internal fun OpportunityClaimScenario(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -1190,6 +1207,7 @@ private fun OpportunityClaimScenario(
         ContributorClaimScreen(
             uiState = uiState,
             rewardText = "0.50 USDC",
+            estimatedRewardText = "0.50 USDC",
             onBack = onBack,
             onPrepare = {
                 stage = ContributorClaimStage.READY_FOR_WALLET
@@ -1232,15 +1250,16 @@ private fun OpportunityClaimScenario(
 }
 
 @Composable
-private fun EarnScenario(
+internal fun EarnScenario(
     modifier: Modifier = Modifier,
+    empty: Boolean = false,
 ) {
     val nowMillis = 1_800_000_000_000L
     var lastAction by rememberSaveable { mutableStateOf<String?>(null) }
 
     val sampleState = remember {
         EarnUiState(
-            areaLabel = "Sector 7 · 3 km",
+            areaLabel = "San Francisco, CA",
             opportunities = listOf(
                 OpportunitySummary(
                     refreshId = "parking-refresh",
@@ -1261,6 +1280,9 @@ private fun EarnScenario(
                     remainingSlots = 1,
                     revision = 4L,
                     cachedOnly = false,
+                    center = com.sagarsystemslab.nownetwork.model.GeoCenter(37.778, -122.415),
+                    payoutRule = "EQUAL_SPLIT_REQUIRED_WITNESSES",
+                    requiredWitnesses = 1,
                 ),
                 OpportunitySummary(
                     refreshId = "queue-refresh",
@@ -1281,6 +1303,9 @@ private fun EarnScenario(
                     remainingSlots = 0,
                     revision = 7L,
                     cachedOnly = false,
+                    center = com.sagarsystemslab.nownetwork.model.GeoCenter(37.778, -122.415),
+                    payoutRule = "EQUAL_SPLIT_REQUIRED_WITNESSES",
+                    requiredWitnesses = 1,
                 ),
                 OpportunitySummary(
                     refreshId = "elevator-refresh",
@@ -1301,16 +1326,19 @@ private fun EarnScenario(
                     remainingSlots = 2,
                     revision = 2L,
                     cachedOnly = true,
+                    center = com.sagarsystemslab.nownetwork.model.GeoCenter(37.771, -122.421),
                 ),
             ),
             refreshing = false,
             notice = EarnNotice.NONE,
+            total = 1, categories = listOf("PARKING", "ACCESS"),
         )
     }
 
     Box(modifier = modifier) {
         EarnScreen(
-            uiState = sampleState,
+            uiState = if (empty) sampleState.copy(opportunities = emptyList(), total = 0, categories = emptyList()) else sampleState,
+            center = com.sagarsystemslab.nownetwork.model.GeoCenter(37.7749, -122.4194),
             rewardText = { opportunity ->
                 when (opportunity.refreshId) {
                     "parking-refresh" -> "0.50 USDC"
@@ -1354,12 +1382,13 @@ private fun EarnScenario(
 }
 
 @Composable
-private fun RequesterRefreshScenario(
+internal fun RequesterRefreshScenario(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    initialStage: RequesterFundingStage = RequesterFundingStage.SETUP,
 ) {
     var stage by rememberSaveable {
-        mutableStateOf(RequesterFundingStage.SETUP)
+        mutableStateOf(initialStage)
     }
     var amount by rememberSaveable {
         mutableStateOf("0.40")
@@ -1400,7 +1429,7 @@ private fun RequesterRefreshScenario(
 }
 
 @Composable
-private fun StateDetailScenario(
+internal fun StateDetailScenario(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -1489,7 +1518,7 @@ private fun StateDetailScenario(
 }
 
 @Composable
-private fun HomeScenario(
+internal fun HomeScenario(
     darkTheme: Boolean,
     onDarkThemeChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
@@ -1499,7 +1528,7 @@ private fun HomeScenario(
 
     val sampleState = remember {
         HomeUiState(
-            areaLabel = "Sector 7 · 3 km",
+            areaLabel = "San Francisco, CA",
             states = listOf(
                 StateSummary(
                     stateId = "parking-sector-7",
@@ -1517,6 +1546,7 @@ private fun HomeScenario(
                     conflictActive = false,
                     distanceMeters = 320.0,
                     revision = 11L,
+                    location = StateLocation("fixture-0", "San Francisco", "PARKING", "Market Street", com.sagarsystemslab.nownetwork.model.GeoCenter(37.778, -122.415)),
                 ),
                 StateSummary(
                     stateId = "gate-2-queue",
@@ -1534,6 +1564,7 @@ private fun HomeScenario(
                     conflictActive = false,
                     distanceMeters = 610.0,
                     revision = 8L,
+                    location = StateLocation("fixture-1", "San Francisco", "PARKING", "Market Street", com.sagarsystemslab.nownetwork.model.GeoCenter(37.775, -122.418)),
                 ),
                 StateSummary(
                     stateId = "metro-exit",
@@ -1551,16 +1582,19 @@ private fun HomeScenario(
                     conflictActive = false,
                     distanceMeters = 940.0,
                     revision = 5L,
+                    location = StateLocation("fixture-2", "San Francisco", "PARKING", "Market Street", com.sagarsystemslab.nownetwork.model.GeoCenter(37.772, -122.421)),
                 ),
             ),
             refreshing = false,
             notice = BrowseNotice.NONE,
+            counts = com.sagarsystemslab.nownetwork.model.NearbyStateCounts(3, 1, 1, 1),
         )
     }
 
     Box(modifier = modifier) {
         NowScreen(
             uiState = sampleState,
+            center = com.sagarsystemslab.nownetwork.model.GeoCenter(37.7749, -122.4194),
             darkTheme = darkTheme,
             onDarkThemeChange = onDarkThemeChange,
             serverNowMillis = { nowMillis },

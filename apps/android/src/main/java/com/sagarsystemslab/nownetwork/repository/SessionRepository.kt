@@ -80,6 +80,19 @@ class SessionRepository @Inject constructor(
         result
     }
 
+    suspend fun reloadIdentity(): SessionBootstrapState {
+        bootstrapMutex.withLock { mutableState.value = SessionBootstrapState.Idle }
+        return bootstrap()
+    }
+
+    suspend fun signOutLocal() {
+        bootstrapMutex.withLock {
+            auth.signOutLocal()
+            metadataDao.delete(PROFILE_KEY)
+            mutableState.value = SessionBootstrapState.Idle
+        }
+    }
+
     private suspend fun loadMeWithSingleAuthRefresh(accessToken: String): MeDto =
         try {
             api.me(accessToken)

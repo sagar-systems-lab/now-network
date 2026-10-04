@@ -1,5 +1,6 @@
 import postgres from "npm:postgres@3.4.7";
 import type {
+  NearbyStateInput,
   NearbyStateRecord,
   StateActiveRefreshSummary,
   StateDetailRecord,
@@ -11,6 +12,7 @@ import type {
 type DateLike = Date | string;
 
 type NearbyRow = {
+  map_location: NearbyStateRecord["location"];
   state_id: string;
   title: string;
   question: string;
@@ -49,6 +51,8 @@ type DetailRow = {
   location_name: string;
   location_type: string;
   display_address: string | null;
+  latitude: number;
+  longitude: number;
   center_ewkb: Uint8Array;
   boundary_ewkb: Uint8Array | null;
   verification_status: StateVerificationSummary["status"] | null;
@@ -84,6 +88,7 @@ function dateOrNull(value: DateLike | null): Date | null {
 function nearbyFromRow(row: NearbyRow): NearbyStateRecord {
   return {
     stateId: row.state_id,
+    location: row.map_location,
     title: row.title,
     question: row.question,
     stateType: row.state_type,
@@ -140,6 +145,7 @@ function detailFromRow(row: DetailRow): StateDetailRecord {
     conflictActive: row.conflict_active ?? false,
     revision: Number(row.revision),
     location: {
+      center: { latitude: Number(row.latitude), longitude: Number(row.longitude) },
       locationId: row.location_id,
       name: row.location_name,
       locationType: row.location_type,
@@ -178,35 +184,84 @@ export class PostgresStateRepository implements StateRepository {
     });
   }
 
-  async listNearby(
-    input: Parameters<StateRepository["listNearby"]>[0],
-  ): Promise<NearbyStateRecord[]> {
+  private candidates(input: NearbyStateInput) {
+    return this.sql`
+      select sd.state_id, sd.title, sd.question, sd.state_type, sd.unit_code,
+        ls.current_value, ls.observed_at, ls.aging_at, ls.fresh_until, ls.verification_class,
+        ar.status as refresh_status, coalesce(ls.conflict_active, false) as conflict_active,
+        extensions.st_distance(l.center, extensions.st_setsrid(
+          extensions.st_makepoint(${input.lng}, ${input.lat}), 4326
+        )::extensions.geography) as distance_m,
+        coalesce(ls.revision, sd.revision) as revision,
+        jsonb_build_object(
+          'locationId', l.location_id, 'name', l.name, 'locationType', l.location_type,
+          'displayAddress', l.display_address,
+          'center', jsonb_build_object('latitude', extensions.st_y(l.center::extensions.geometry),
+                                     'longitude', extensions.st_x(l.center::extensions.geometry))
+        ) as map_location,
+        case when coalesce(ls.conflict_active, false) then 'conflict'
+          when ls.observed_at is null or ls.aging_at is null or ls.fresh_until is null then 'unobserved'
+          when ${input.asOf ?? new Date()} < ls.aging_at then 'live'
+          when ${input.asOf ?? new Date()} < ls.fresh_until then 'aging'
+          else 'stale' end as freshness
+      from app.state_definitions sd
+      join app.locations l on l.location_id = sd.location_id
+      left join app.live_states ls on ls.state_id = sd.state_id
+      left join lateral (
+        select rr.status from app.refresh_requests rr
+        where rr.state_id = sd.state_id and rr.state_version = sd.version
+          and rr.status not in ('COMPLETED', 'CANCELLED', 'EXPIRED', 'FAILED')
+        order by rr.created_at desc, rr.refresh_id desc limit 1
+      ) ar on true
+      where sd.status = 'ACTIVE'
+        and extensions.st_dwithin(l.center, extensions.st_setsrid(
+          extensions.st_makepoint(${input.lng}, ${input.lat}), 4326
+        )::extensions.geography, ${input.radiusM})
+        and (${input.search ?? ""} = '' or
+          position(lower(${input.search ?? ""}) in lower(sd.title)) > 0 or
+          position(lower(${input.search ?? ""}) in lower(sd.question)) > 0)
+    `;
+  }
+
+  async listNearby(input: NearbyStateInput): Promise<NearbyStateRecord[]> {
     const rows = await this.sql`
-      select
-        state_id,
-        title,
-        question,
-        state_type,
-        unit_code,
-        current_value,
-        observed_at,
-        aging_at,
-        fresh_until,
-        verification_class,
-        refresh_status,
-        conflict_active,
-        distance_m,
-        revision
-      from app.query_nearby_states_v1(
-        ${input.lat},
-        ${input.lng},
-        ${input.radiusM},
-        ${input.limit},
-        ${input.cursor?.distanceM ?? null},
-        ${input.cursor?.stateId ?? null}::uuid
-      )
+      with candidates as (${this.candidates(input)})
+      select * from candidates
+      where (${input.freshness ?? "all"} = 'all' or freshness = ${input.freshness ?? "all"}
+        or (${input.freshness ?? "all"} = 'needs_proof'
+          and freshness in ('stale', 'unobserved')))
+        and (${input.cursor === null} or (distance_m, state_id) >
+          (${input.cursor?.distanceM ?? null}::double precision, ${
+      input.cursor?.stateId ?? null
+    }::uuid))
+      order by distance_m, state_id limit ${input.limit}
     `;
     return rows.map((row) => nearbyFromRow(row as NearbyRow));
+  }
+
+  async summarizeNearby(input: NearbyStateInput) {
+    const rows = await this.sql`
+      with candidates as (${this.candidates(input)})
+      select count(*) filter (where ${input.freshness ?? "all"} = 'all'
+        or freshness = ${input.freshness ?? "all"}
+        or (${input.freshness ?? "all"} = 'needs_proof'
+          and freshness in ('stale', 'unobserved')))::integer as total,
+        count(*) filter (where freshness = 'live')::integer as live,
+        count(*) filter (where freshness = 'aging')::integer as aging,
+        count(*) filter (where freshness in ('stale', 'unobserved'))::integer as stale
+      from candidates
+    `;
+    const row = rows[0];
+    return {
+      total: Number(row.total),
+      live: Number(row.live),
+      aging: Number(row.aging),
+      stale: Number(row.stale),
+    };
+  }
+
+  async close(): Promise<void> {
+    await this.sql.end({ timeout: 1 });
   }
 
   async getState(stateId: string): Promise<StateDetailRecord | null> {
@@ -233,10 +288,12 @@ export class PostgresStateRepository implements StateRepository {
         l.name as location_name,
         l.location_type,
         l.display_address,
-        extensions.st_asewkb(l.center::geometry) as center_ewkb,
+        extensions.st_y(l.center::extensions.geometry) as latitude,
+        extensions.st_x(l.center::extensions.geometry) as longitude,
+        extensions.st_asewkb(l.center::extensions.geometry) as center_ewkb,
         case
           when l.boundary is null then null
-          else extensions.st_asewkb(l.boundary::geometry)
+          else extensions.st_asewkb(l.boundary::extensions.geometry)
         end as boundary_ewkb,
         vr.status as verification_status,
         vr.reason_codes as verification_reason_codes,

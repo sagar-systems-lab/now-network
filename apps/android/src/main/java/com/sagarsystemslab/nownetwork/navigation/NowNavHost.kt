@@ -1,10 +1,22 @@
 package com.sagarsystemslab.nownetwork.navigation
 
+import com.sagarsystemslab.nownetwork.experience.*
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
+import com.sagarsystemslab.nownetwork.feature.common.HeaderIdentity
+import com.sagarsystemslab.nownetwork.feature.common.LocalHeaderIdentity
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
@@ -34,6 +46,7 @@ import com.sagarsystemslab.nownetwork.wallet.WalletInteractionHost
 
 @Composable
 fun NowNavHost(
+    inboxIntentRevision: Int = 0,
     appState: NowAppState,
     darkTheme: Boolean,
     onDarkThemeChange: (Boolean) -> Unit,
@@ -47,16 +60,56 @@ fun NowNavHost(
     activityViewModelProvider: () -> ActivityViewModel,
     requesterFundingViewModelProvider: () -> RequesterFundingViewModel,
     walletInteractionHost: WalletInteractionHost,
+    experienceViewModelProvider: (() -> com.sagarsystemslab.nownetwork.experience.ExperienceViewModel)? = null,
+    uiPreferencesStore: com.sagarsystemslab.nownetwork.experience.UiPreferencesStore? = null,
     modifier: Modifier = Modifier,
 ) {
+    val experience = experienceViewModelProvider?.invoke()
+    val experienceState = experience?.state?.collectAsStateWithLifecycle()?.value
+    val area = experience?.browseContext?.state?.collectAsStateWithLifecycle()?.value
+    val center = if (area?.configured == true) com.sagarsystemslab.nownetwork.model.GeoCenter(requireNotNull(area.latitude), requireNotNull(area.longitude)) else null
+    fun openExperience(destination: ExperienceDestination) {
+        if (experience == null) appState.navigateToSettings()
+        else appState.navigateToExperience(destination)
+    }
+    val motion = com.sagarsystemslab.nownetwork.designsystem.rememberNowMotionEnabled()
+    LaunchedEffect(experience) { experience?.refresh() }
+    LaunchedEffect(inboxIntentRevision) { if (inboxIntentRevision > 0) openExperience(ExperienceDestination.NOTIFICATIONS) }
+
+    fun openActivity(row: kotlinx.serialization.json.JsonObject) {
+        val id = row.text("refresh_id")
+        when (com.sagarsystemslab.nownetwork.feature.activity.activityDestination(row.text("receipt_id"), row.text("payment_status"), row.text("claim_status"), row.text("acceptance_id"), row.text("status"))) {
+            com.sagarsystemslab.nownetwork.feature.activity.ActivityDestination.RECEIPT -> appState.navigateToReceipt(id)
+            com.sagarsystemslab.nownetwork.feature.activity.ActivityDestination.PAYMENT -> appState.navigateToPayment(id)
+            com.sagarsystemslab.nownetwork.feature.activity.ActivityDestination.CAPTURE -> appState.navigateToEvidence(row.text("acceptance_id"), id)
+            com.sagarsystemslab.nownetwork.feature.activity.ActivityDestination.CLAIM -> appState.navigateToOpportunity(id)
+            com.sagarsystemslab.nownetwork.feature.activity.ActivityDestination.VERIFICATION -> appState.navigateToVerification(id)
+            com.sagarsystemslab.nownetwork.feature.activity.ActivityDestination.FUNDING -> appState.navigateToRequesterFunding(row.text("state_id"))
+            com.sagarsystemslab.nownetwork.feature.activity.ActivityDestination.STATE -> appState.navigateToState(row.text("state_id"))
+        }
+    }
+
+    experienceState?.privateProof?.let { proof ->
+        com.sagarsystemslab.nownetwork.experience.PrivateProofDialog(proof) { experience?.dismissProof() }
+    }
+    val slideDistance = with(LocalDensity.current) { 16.dp.roundToPx() }
+    val photoActor = experienceState?.me?.actorId
+    val photos = remember(experience, photoActor) {
+        if (experience == null || photoActor == null) null
+        else StatePhotoSource { stateId -> experience.photoUrl(stateId, photoActor) }
+    }
+    CompositionLocalProvider(LocalHeaderIdentity provides HeaderIdentity(
+        experienceState?.profile?.text("avatar_url").orEmpty(),
+        experienceState?.profile?.text("display_name").orEmpty(),
+    ), LocalStatePhotoSource provides photos) {
     NavHost(
         navController = appState.navController,
         startDestination = NowRoute,
         modifier = modifier,
-        enterTransition = { EnterTransition.None },
-        exitTransition = { ExitTransition.None },
-        popEnterTransition = { EnterTransition.None },
-        popExitTransition = { ExitTransition.None },
+        enterTransition = { if (motion) fadeIn(tween(220)) + slideInHorizontally(tween(220)) { slideDistance } else EnterTransition.None },
+        exitTransition = { if (motion) fadeOut(tween(180)) else ExitTransition.None },
+        popEnterTransition = { if (motion) fadeIn(tween(220)) + slideInHorizontally(tween(220)) { -slideDistance } else EnterTransition.None },
+        popExitTransition = { if (motion) fadeOut(tween(180)) + slideOutHorizontally(tween(180)) { slideDistance } else ExitTransition.None },
     ) {
         composable<NowRoute> {
             val browseViewModel = browseViewModelProvider()
@@ -68,11 +121,22 @@ fun NowNavHost(
                 onDarkThemeChange = onDarkThemeChange,
                 serverNowMillis = browseViewModel::serverNowMillis,
                 onRefresh = browseViewModel::refreshHome,
+                onLoadMore = browseViewModel::loadMore,
+                onSearch = browseViewModel::search,
+                onFreshness = browseViewModel::selectFreshness,
                 onStateClick = appState::navigateToState,
                 onEarnClick = {
                     appState.navigateTo(TopLevelDestination.EARN)
                 },
-                onSettingsClick = appState::navigateToSettings,
+                onSettingsClick = { openExperience(ExperienceDestination.SETTINGS) },
+                onBrowseAreas = { openExperience(ExperienceDestination.BROWSE_AREAS) },
+                onNotifications = { openExperience(ExperienceDestination.NOTIFICATIONS) },
+                onProfile = { openExperience(ExperienceDestination.PROFILE) },
+                onFundState = appState::navigateToRequesterFunding,
+                center = center,
+                onSearchArea = { next -> experience?.browseContext?.select("Selected map area", next.latitude, next.longitude) },
+                onLocateArea = { next -> experience?.browseContext?.select("Near my location", next.latitude, next.longitude) },
+                unread = experienceState?.inbox?.number("unread_count") ?: 0,
             )
         }
 
@@ -83,6 +147,7 @@ fun NowNavHost(
 
             LaunchedEffect(route.stateId) {
                 browseViewModel.openState(route.stateId)
+                experience?.history(route.stateId)
             }
 
             StateDetailScreen(
@@ -91,6 +156,9 @@ fun NowNavHost(
                 onBack = appState::navigateBack,
                 onRetry = browseViewModel::retryState,
                 onRefreshRequest = appState::navigateToRequesterFunding,
+                history = { detail -> com.sagarsystemslab.nownetwork.feature.common.StateHistoryPanel(detail, experienceState?.history?.get(route.stateId), experienceState?.historyErrors?.get(route.stateId), { experience?.history(route.stateId) }, { experience?.history(route.stateId, more = true) }) },
+                onViewProof = { experience?.proof(route.stateId) },
+                onActivity = { appState.navigateTo(TopLevelDestination.ACTIVITY) },
             )
         }
 
@@ -114,19 +182,36 @@ fun NowNavHost(
                     requesterFundingViewModel.submit(walletInteractionHost)
                 },
                 onCheck = requesterFundingViewModel::checkConfirmation,
+                onWallet = { openExperience(ExperienceDestination.WALLET) },
             )
         }
 
         composable<EarnRoute> {
             val earnViewModel = earnViewModelProvider()
             val uiState by earnViewModel.state.collectAsStateWithLifecycle()
+            val localActivity = activityViewModelProvider()
+            val localWork by localActivity.state.collectAsStateWithLifecycle()
+            LaunchedEffect(experience, experienceState?.me?.actorId) { experience?.activeWork() }
 
             EarnScreen(
                 uiState = uiState,
                 rewardText = earnViewModel::rewardText,
+                activeWork = { experienceState?.let { account -> com.sagarsystemslab.nownetwork.feature.earn.ActiveWorkCards(account, localWork, ::openActivity, appState::navigateToOpportunity, { appState.navigateTo(TopLevelDestination.ACTIVITY) }) } },
                 serverNowMillis = earnViewModel::serverNowMillis,
-                onRefresh = earnViewModel::refresh,
+                onRefresh = { earnViewModel.refresh(); experience?.activeWork() },
+                onLoadMore = earnViewModel::loadMore,
+                onSort = earnViewModel::selectSort,
+                onCategory = earnViewModel::selectCategory,
+                onEarningAlerts = { openExperience(ExperienceDestination.NOTIFICATION_PREFERENCES) },
                 onOpportunityClick = appState::navigateToOpportunity,
+                onBrowseAreas = { openExperience(ExperienceDestination.BROWSE_AREAS) },
+                onNotifications = { openExperience(ExperienceDestination.NOTIFICATIONS) },
+                onProfile = { openExperience(ExperienceDestination.PROFILE) },
+                onHelp = { openExperience(ExperienceDestination.HELP_ABOUT) },
+                center = center,
+                onSearchArea = { next -> experience?.browseContext?.select("Selected map area", next.latitude, next.longitude) },
+                onLocateArea = { next -> experience?.browseContext?.select("Near my location", next.latitude, next.longitude) },
+                unread = experienceState?.inbox?.number("unread_count") ?: 0,
             )
         }
 
@@ -142,6 +227,7 @@ fun NowNavHost(
             ContributorClaimScreen(
                 uiState = uiState,
                 rewardText = contributorClaimViewModel.rewardText(),
+                estimatedRewardText = contributorClaimViewModel.estimatedRewardText(),
                 onBack = appState::navigateBack,
                 onPrepare = {
                     contributorClaimViewModel.prepare(walletInteractionHost)
@@ -150,6 +236,7 @@ fun NowNavHost(
                     contributorClaimViewModel.submit(walletInteractionHost)
                 },
                 onCheck = contributorClaimViewModel::checkConfirmation,
+                onViewVerification = { appState.navigateToVerification(route.refreshId) },
                 onCaptureEvidence = {
                     val claim = uiState.claim ?: return@ContributorClaimScreen
                     appState.navigateToEvidence(
@@ -219,10 +306,15 @@ fun NowNavHost(
 
             LaunchedEffect(route.refreshId) {
                 paymentViewModel.open(route.refreshId)
+                experience?.refreshContext(route.refreshId)
             }
 
+            val paymentContext = experienceState?.refreshDetails?.get(route.refreshId)
+            LaunchedEffect(uiState.finalizedAt) { if (uiState.finalizedAt != null) experience?.refreshContext(route.refreshId) }
             PaymentScreen(
                 uiState = uiState,
+                context = paymentContext,
+                personalAmount = paymentContext?.text("payout_atomic")?.takeIf { it.isNotBlank() }?.let { experience?.amount(it, paymentContext.text("reward_mint")) },
                 onBack = appState::navigateBack,
                 onRetry = paymentViewModel::retry,
                 onViewReceipt = {
@@ -241,10 +333,16 @@ fun NowNavHost(
 
             LaunchedEffect(route.refreshId) {
                 receiptViewModel.open(route.refreshId)
+                experience?.refreshContext(route.refreshId)
             }
 
+            val receiptContext = experienceState?.refreshDetails?.get(route.refreshId)
+            LaunchedEffect(uiState.receipt?.receiptId) { if (uiState.receipt != null) experience?.refreshContext(route.refreshId) }
             ReceiptScreen(
                 uiState = uiState,
+                context = receiptContext,
+                personalAmount = receiptContext?.text("payout_atomic")?.takeIf { it.isNotBlank() }?.let { experience?.amount(it, receiptContext.text("reward_mint")) },
+                poolAmount = uiState.receipt?.let { experience?.amount(it.rewardAmountAtomic, it.rewardMint) },
                 onBack = appState::navigateBack,
                 onRetry = receiptViewModel::retry,
                 onDone = {
@@ -257,12 +355,52 @@ fun NowNavHost(
             val activityViewModel = activityViewModelProvider()
             val uiState by activityViewModel.state.collectAsStateWithLifecycle()
 
-            ActivityScreen(
+            if (experience != null && experienceState != null) {
+                LaunchedEffect(Unit) { experience.activity() }
+                com.sagarsystemslab.nownetwork.feature.activity.AccountActivityScreen(
+                    experienceState, uiState, experience, area?.label.orEmpty(),
+                    onArea = { openExperience(ExperienceDestination.BROWSE_AREAS) },
+                    onNotifications = { openExperience(ExperienceDestination.NOTIFICATIONS) },
+                    onProfile = { openExperience(ExperienceDestination.PROFILE) },
+                    onHelp = { openExperience(ExperienceDestination.HELP_ABOUT) },
+                    onOpen = ::openActivity,
+                    onLocalPayment = appState::navigateToPayment,
+                    onLocalClaim = appState::navigateToOpportunity,
+                    onLocalFunding = { id -> experience.resumeFunding(id, appState::navigateToRequesterFunding) },
+                )
+            } else ActivityScreen(
                 uiState = uiState,
                 serverNowMillis = activityViewModel::serverNowMillis,
                 onPaymentClick = appState::navigateToPayment,
                 onReceiptClick = appState::navigateToReceipt,
+                onBrowseAreas = { openExperience(ExperienceDestination.BROWSE_AREAS) },
+                onNotifications = { openExperience(ExperienceDestination.NOTIFICATIONS) },
+                onProfile = { openExperience(ExperienceDestination.PROFILE) },
+                onHelp = { openExperience(ExperienceDestination.HELP_ABOUT) },
+                areaLabel = area?.label.orEmpty(),
+                unread = experienceState?.inbox?.number("unread_count") ?: 0,
             )
+        }
+
+        composable<ExperienceRoute> { entry ->
+            val route = entry.toRoute<ExperienceRoute>()
+            if (experience != null && uiPreferencesStore != null) {
+                ExperienceScreen(route.destination, experience, uiPreferencesStore, walletInteractionHost,
+                    onBack = appState::navigateBack, navigate = ::openExperience,
+                    onActivity = { appState.navigateTo(TopLevelDestination.ACTIVITY) },
+                    onNotification = { notification ->
+                        val id = notification.text("entity_id")
+                        when (notification.text("destination")) {
+                            "receipt" -> if (id.isNotBlank()) appState.navigateToReceipt(id)
+                            "payment" -> if (id.isNotBlank()) appState.navigateToPayment(id)
+                            "verification" -> if (id.isNotBlank()) appState.navigateToVerification(id)
+                            "opportunity" -> if (id.isNotBlank()) appState.navigateToOpportunity(id)
+                            "wallet" -> openExperience(if (notification.text("category") == "security") ExperienceDestination.CONNECTED_SESSIONS else ExperienceDestination.WALLET)
+                            else -> appState.navigateTo(TopLevelDestination.ACTIVITY)
+                        }
+                    },
+                )
+            }
         }
 
         composable<SettingsRoute> {
@@ -272,5 +410,6 @@ fun NowNavHost(
                 onBack = appState::navigateBack,
             )
         }
+    }
     }
 }

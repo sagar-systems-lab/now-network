@@ -33,47 +33,21 @@ class AccessibilityBaselineInstrumentedTest {
             .assertHeightIsAtLeast(48.dp)
 
         composeRule
-            .onNodeWithContentDescription("Refresh nearby states")
+            .onNodeWithContentDescription("Refresh nearby")
             .assertIsDisplayed()
             .assertHasClickAction()
 
         composeRule
-            .onNodeWithContentDescription("Open settings")
+            .onNodeWithContentDescription("Open profile")
             .assertIsDisplayed()
             .assertHasClickAction()
 
         composeRule.onNodeWithTag("nav-earn").performClick()
 
+        composeRule.onNodeWithTag("screen-earn").assertIsDisplayed()
         composeRule
-            .onNodeWithContentDescription("Refresh earning opportunities")
+            .onNodeWithContentDescription("Refresh nearby")
             .assertIsDisplayed()
             .assertHasClickAction()
-    }
-
-    @Test
-    fun settingsAndThemeRemainAccessibleFromNow() {
-        composeRule
-            .onNodeWithContentDescription("Theme")
-            .assertIsDisplayed()
-            .assertHasClickAction()
-            .performClick()
-
-        composeRule.onNodeWithTag("screen-now").assertIsDisplayed()
-
-        composeRule
-            .onNodeWithContentDescription("Open settings")
-            .performClick()
-
-        composeRule.onNodeWithTag("screen-settings").assertIsDisplayed()
-        composeRule
-            .onNodeWithContentDescription("Theme")
-            .assertIsDisplayed()
-            .assertHasClickAction()
-
-        composeRule
-            .onNodeWithContentDescription("Back")
-            .performClick()
-
-        composeRule.onNodeWithTag("screen-now").assertIsDisplayed()
     }
 }
