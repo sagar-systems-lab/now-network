@@ -281,7 +281,7 @@ private fun StateHero(
 
             HorizontalDivider(color = NowColors.BorderSubtle)
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                com.sagarsystemslab.nownetwork.feature.common.CategoryArtwork(detail.title, Modifier.size(76.dp))
+                com.sagarsystemslab.nownetwork.feature.common.CategoryArtwork(detail.title, Modifier.size(76.dp), detail.stateId)
                 Text(displayValue, style = NowType.DataHero, color = NowColors.Ink950, modifier = Modifier.weight(1f).nowPulseOnChange(
                     key = displayValue, durationMillis = com.sagarsystemslab.nownetwork.designsystem.NowMotion.StateMillis))
             }

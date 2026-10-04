@@ -24,7 +24,7 @@ fun PaymentScreen(uiState: PaymentUiState, onBack: () -> Unit, onRetry: () -> Un
         else NowPrimaryButton("Check payment status", onRetry, Modifier.fillMaxWidth())
         NowSecondaryButton("Back to activity", onDone, Modifier.fillMaxWidth())
     }) {
-        RefreshContextCard(context?.text("title")?.ifBlank { null } ?: "Refresh payment", context?.text("role")?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "Authoritative settlement status", personalAmount)
+        RefreshContextCard(context?.text("title")?.ifBlank { null } ?: "Refresh payment", context?.text("role")?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "Authoritative settlement status", personalAmount,stateId=context?.text("state_id"))
         NowGlassCard {
             TimelineStep("Claim accepted", if (verified) "Claim authority checked before settlement" else "Waiting for verified claim authority", verified)
             TimelineStep("Verification completed", if (verified) "Fresh proof accepted by the verifier" else "Not yet confirmed", verified)

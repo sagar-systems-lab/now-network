@@ -31,7 +31,7 @@ fun RequesterFundingScreen(uiState:RequesterFundingUiState,onBack:()->Unit,onAmo
         if(review) Text("Review the exact amount and network in your wallet.",style=NowType.BodyS,color=NowColors.Ink600)
     }) {
         val detail=uiState.stateDetail
-        RefreshContextCard(uiState.title,detail?.location?.name ?: "Selected state",detail?.let { formatStateValue(it.valueJson,it.unitCode) })
+        RefreshContextCard(uiState.title,detail?.location?.name ?: "Selected state",detail?.let { formatStateValue(it.valueJson,it.unitCode) },stateId=detail?.stateId)
         if(busy) LinearProgressIndicator(Modifier.fillMaxWidth(),color=NowColors.Blue600)
         uiState.notice?.let { NowNotice(it,tone=if(stage==RequesterFundingStage.COMPLETE) NowNoticeTone.SUCCESS else NowNoticeTone.INFO) }
         if(stage==RequesterFundingStage.SETUP) {

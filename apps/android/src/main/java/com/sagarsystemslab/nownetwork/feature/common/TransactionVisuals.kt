@@ -15,6 +15,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -140,9 +141,14 @@ fun ResultEmblem(
 }
 
 @Composable
-fun CategoryArtwork(label: String, modifier: Modifier = Modifier) {
-    val text = label.lowercase()
-    val icon = when { "park" in text -> Icons.Outlined.LocalParking; "charg" in text -> Icons.Outlined.EvStation; "queue" in text -> Icons.Outlined.Groups; "shop" in text || "store" in text -> Icons.Outlined.Storefront; else -> Icons.Outlined.LocationCity }
+fun CategoryArtwork(label: String, modifier: Modifier = Modifier, stateId: String? = null) {
+    com.sagarsystemslab.nownetwork.experience.StatePhoto(stateId, label, modifier.clip(NowShapes.medium)) {
+        PhotoPlaceholder(modifier)
+    }
+}
+
+@Composable
+private fun PhotoPlaceholder(modifier: Modifier) {
     val blue = NowColors.Blue600
     Box(modifier.background(Brush.linearGradient(listOf(NowColors.Blue100,NowColors.SurfaceRaised)), NowShapes.medium).border(1.dp,NowColors.InfoBorder,NowShapes.medium),contentAlignment=Alignment.Center) {
         Canvas(Modifier.matchParentSize()) {
@@ -150,15 +156,15 @@ fun CategoryArtwork(label: String, modifier: Modifier = Modifier) {
             drawOval(blue.copy(alpha=.12f),Offset(width*.1f,height*.68f),androidx.compose.ui.geometry.Size(width*.8f,height*.2f))
             repeat(4) { i -> val x=width*(.08f+i*.23f); val h=height*(.18f+(i%3)*.11f); drawRoundRect(blue.copy(alpha=.12f),Offset(x,height*.72f-h),androidx.compose.ui.geometry.Size(width*.16f,h),androidx.compose.ui.geometry.CornerRadius(3.dp.toPx())) }
         }
-        Icon(icon,null,Modifier.size(40.dp),tint=blue)
+        Icon(Icons.Outlined.PhotoCamera,"Photo unavailable",Modifier.size(28.dp),tint=blue)
     }
 }
 
 @Composable
-fun RefreshContextCard(title: String, subtitle: String, value: String? = null, onClick: (() -> Unit)? = null) {
+fun RefreshContextCard(title: String, subtitle: String, value: String? = null, onClick: (() -> Unit)? = null, stateId: String? = null) {
     NowGlassCard(emphasized = true) {
         Row(Modifier.fillMaxWidth().then(if(onClick != null) Modifier.clickable(onClick=onClick) else Modifier),horizontalArrangement=Arrangement.spacedBy(12.dp),verticalAlignment=Alignment.CenterVertically) {
-            CategoryArtwork(title, Modifier.size(68.dp))
+            CategoryArtwork(title, Modifier.size(68.dp), stateId)
             Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
                 Text(title, style=NowType.TitleS,color=NowColors.Ink950)
                 Text(subtitle,style=NowType.BodyS,color=NowColors.Ink600)

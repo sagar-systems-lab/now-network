@@ -72,7 +72,7 @@ fun StateCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
         Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            com.sagarsystemslab.nownetwork.feature.common.CategoryArtwork(state.title, Modifier.size(60.dp))
+            com.sagarsystemslab.nownetwork.feature.common.CategoryArtwork(state.title, Modifier.size(60.dp), state.stateId)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 Text(state.title, style = NowType.TitleS, color = NowColors.Ink950)
                 Text(displayValue, style = NowType.TitleM, color = NowColors.Ink950,
@@ -99,7 +99,7 @@ fun NearbyStateCard(state: StateSummary, nowMillis: Long, onClick: () -> Unit, m
         border = BorderStroke(1.dp, NowColors.BorderSubtle)) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                com.sagarsystemslab.nownetwork.feature.common.CategoryArtwork(state.title, Modifier.size(40.dp))
+                com.sagarsystemslab.nownetwork.feature.common.CategoryArtwork(state.title, Modifier.size(40.dp), state.stateId)
                 FreshnessChip(state.freshnessAt(nowMillis))
             }
             Text(state.title, style = NowType.LabelL, color = NowColors.Ink800)

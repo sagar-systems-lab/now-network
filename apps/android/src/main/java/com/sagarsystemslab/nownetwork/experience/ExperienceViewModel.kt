@@ -213,6 +213,13 @@ class ExperienceViewModel @Inject constructor(
         val result = repository.get("/v1/me/states/$stateId/proof")
         mutable.update { it.copy(privateProof = result) }
     }
+    suspend fun photoUrl(stateId: String, actorId: String): String? {
+        if (!allowMutations || mutable.value.me?.actorId != actorId) return null
+        val result = withContext(Dispatchers.IO) { repository.get("/v1/me/states/$stateId/proof") }
+        return result.text("url").takeIf {
+            result.flag("available") && mutable.value.me?.actorId == actorId && it.isNotBlank()
+        }
+    }
     fun dismissProof() { mutable.update { it.copy(privateProof = null) } }
     fun dismissMessage() { mutable.update { it.copy(error = null, notice = null) } }
 

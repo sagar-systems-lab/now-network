@@ -823,9 +823,11 @@ internal fun SettlementRecoveryScenario(
     val nowMillis = 1_800_000_000_000L
     var phase by rememberSaveable { mutableIntStateOf(initialPhase) }
 
+    Box(modifier) {
     when (phase) {
         0 -> {
-            Box(modifier = modifier) {
+            Column(Modifier.fillMaxSize()) {
+                Box(Modifier.weight(1f)) {
                 PaymentScreen(
                     uiState = PaymentUiState(
                         stage = PaymentStage.VERIFYING,
@@ -845,12 +847,12 @@ internal fun SettlementRecoveryScenario(
                     onViewReceipt = { phase = 2 },
                     onDone = { phase = 3 },
                 )
+                }
 
                 if (!captureOnly) NowSecondaryButton(
                     text = "Lab · resolve PAID",
                     onClick = { phase = 1 },
                     modifier = Modifier
-                        .align(Alignment.BottomCenter)
                         .padding(
                             start = NowSpacing.Space4,
                             end = NowSpacing.Space4,
@@ -947,6 +949,7 @@ internal fun SettlementRecoveryScenario(
                 onReceiptClick = { phase = 2 },
             )
         }
+    }
     }
 }
 

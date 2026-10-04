@@ -16,6 +16,7 @@ import com.sagarsystemslab.nownetwork.feature.common.HeaderIdentity
 import com.sagarsystemslab.nownetwork.feature.common.LocalHeaderIdentity
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
@@ -92,10 +93,15 @@ fun NowNavHost(
         com.sagarsystemslab.nownetwork.experience.PrivateProofDialog(proof) { experience?.dismissProof() }
     }
     val slideDistance = with(LocalDensity.current) { 16.dp.roundToPx() }
+    val photoActor = experienceState?.me?.actorId
+    val photos = remember(experience, photoActor) {
+        if (experience == null || photoActor == null) null
+        else StatePhotoSource { stateId -> experience.photoUrl(stateId, photoActor) }
+    }
     CompositionLocalProvider(LocalHeaderIdentity provides HeaderIdentity(
         experienceState?.profile?.text("avatar_url").orEmpty(),
         experienceState?.profile?.text("display_name").orEmpty(),
-    )) {
+    ), LocalStatePhotoSource provides photos) {
     NavHost(
         navController = appState.navController,
         startDestination = NowRoute,

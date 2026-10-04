@@ -297,7 +297,7 @@ private fun OpportunityCard(
     val timeText = formatOpportunityTime(opportunity.expiresAtMillis, nowMillis)
     com.sagarsystemslab.nownetwork.designsystem.NowGlassCard(modifier = modifier.testTag("opportunity-card-" + opportunity.refreshId), emphasized = opportunity.claimable) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            com.sagarsystemslab.nownetwork.feature.common.CategoryArtwork(opportunity.title, Modifier.size(60.dp))
+            com.sagarsystemslab.nownetwork.feature.common.CategoryArtwork(opportunity.title, Modifier.size(60.dp), opportunity.stateId)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 Text(opportunity.title, style = NowType.TitleS, color = NowColors.Ink950)
                 Text(locationSummary(opportunity), style = NowType.BodyS, color = NowColors.Ink600)

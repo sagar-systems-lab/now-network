@@ -36,7 +36,7 @@ fun ContributorClaimScreen(uiState:ContributorClaimUiState,rewardText:String,onB
             }
         }
         if(opportunity!=null) {
-            RefreshContextCard(opportunity.title,opportunity.location.name,opportunity.question)
+            RefreshContextCard(opportunity.title,opportunity.location.name,opportunity.question,stateId=opportunity.stateId)
             NowGlassCard(emphasized=true,modifier=Modifier.testTag("opportunity-detail")) {
                 MetricStrip(listOf((estimatedRewardText ?: rewardText) to (if (estimatedRewardText == null) "Total reward pool" else "Estimated payout"),displayDistance(opportunity.distanceM) to "Away"), framed = false)
                 NowStatusChip(if(opportunity.availability.claimable) "Available" else "Check availability",NowStatusTone.INFO)

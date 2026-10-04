@@ -36,6 +36,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import com.sagarsystemslab.nownetwork.R
 import com.sagarsystemslab.nownetwork.designsystem.*
@@ -50,12 +51,19 @@ fun ExperienceHeader(
     onArea: () -> Unit, onNotifications: () -> Unit, onProfile: () -> Unit,
     unread: Int = 0,
 ) {
-    val largeText = LocalDensity.current.fontScale >= 1.5f
+    val density = LocalDensity.current
+    val measurer = rememberTextMeasurer()
+    val titleStyle = if (title.length > 5) NowType.TitleL else NowType.TitleXL
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+    val requiredWidth = measurer.measure(title, titleStyle).size.width +
+        measurer.measure(area.ifBlank { "Browse area" }, NowType.LabelM).size.width +
+        with(density) { 160.dp.toPx() }
+    val separateArea = density.fontScale >= 1.5f || requiredWidth > with(density) { maxWidth.toPx() }
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(title, style = if (title.length > 5) NowType.TitleL else NowType.TitleXL, color = NowColors.Ink950,
-                modifier = Modifier.then(if (largeText) Modifier.weight(1f) else Modifier).semantics { heading() })
-            if (!largeText) AreaPill(area, onArea, Modifier.weight(1f))
+            Text(title, style = titleStyle, color = NowColors.Ink950,
+                modifier = Modifier.then(if (separateArea) Modifier.weight(1f) else Modifier).semantics { heading() })
+            if (!separateArea) AreaPill(area, onArea, Modifier.weight(1f))
             HeaderIcon(Icons.Outlined.Notifications, "Notifications${if (unread > 0) ", $unread unread" else ""}", onNotifications, "SHARED-BELL", unread)
             val identity = LocalHeaderIdentity.current
             IconButton(onProfile, Modifier.testTag("SHARED-AVATAR").semantics { contentDescription = "Open profile" }) {
@@ -63,7 +71,8 @@ fun ExperienceHeader(
             }
         }
         Text(subtitle, style = NowType.BodyM, color = NowColors.Ink600)
-        if (largeText) AreaPill(area, onArea, Modifier.fillMaxWidth())
+        if (separateArea) AreaPill(area, onArea, Modifier.fillMaxWidth())
+    }
     }
 }
 
@@ -73,7 +82,7 @@ private fun AreaPill(area: String, onArea: () -> Unit, modifier: Modifier = Modi
       Surface(shape = CircleShape, color = NowColors.InfoSoft, border = BorderStroke(1.dp, NowColors.InfoBorder)) {
         Row(Modifier.heightIn(min = 32.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
             Icon(Icons.Outlined.LocationOn, null, tint = NowColors.Blue600, modifier = Modifier.size(15.dp))
-            Text(area.ifBlank { "Browse area" }, style = NowType.LabelM, color = NowColors.Ink800, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(area.ifBlank { "Browse area" }, style = NowType.LabelM, color = NowColors.Ink800, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
             Icon(Icons.Outlined.ExpandMore, null, tint = NowColors.Blue600, modifier = Modifier.size(15.dp))
         }
       }

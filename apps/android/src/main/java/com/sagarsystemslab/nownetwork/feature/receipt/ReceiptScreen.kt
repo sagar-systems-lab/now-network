@@ -39,7 +39,7 @@ fun ReceiptScreen(uiState: ReceiptUiState,onBack:()->Unit,onRetry:()->Unit,onDon
             Text(if(receipt!=null) "This contribution and settlement are finalized on Solana." else uiState.message,style=NowType.BodyS,color=NowColors.Ink600,textAlign=TextAlign.Center)
         }
         if(receipt!=null) {
-            RefreshContextCard(context?.text("title")?.ifBlank { null } ?: "Verified refresh", "${receipt.verificationClass.replace('_',' ')} · Final", formatStateValue(receipt.finalValue.toString(),null))
+            RefreshContextCard(context?.text("title")?.ifBlank { null } ?: "Verified refresh", "${receipt.verificationClass.replace('_',' ')} · Final", formatStateValue(receipt.finalValue.toString(),null),stateId=receipt.stateId)
             NowGlassCard {
                 ExperienceRow("Date & time",displayEventTime(receipt.finalizedAt),Icons.Outlined.Schedule)
                 ExperienceRow("Your finalized payout",personalAmount ?: "Allocation unavailable",Icons.Outlined.Payments)

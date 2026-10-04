@@ -8,11 +8,9 @@ import android.os.Bundle
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.layout.boundsInWindow
@@ -29,6 +27,8 @@ import androidx.compose.material.icons.outlined.CenterFocusStrong
 import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.MyLocation
 import androidx.compose.material.icons.outlined.OpenInFull
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Remove
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -70,7 +70,10 @@ fun LiveMapCard(
     var pendingCenter by remember { mutableStateOf<GeoCenter?>(null) }
     var selectedPin by remember { mutableStateOf<String?>(null) }
     var retry by remember { mutableIntStateOf(0) }
-    var cameraSnapshot by rememberSaveable(center) { mutableStateOf<DoubleArray?>(null) }
+    var cameraSnapshot by rememberSaveable { mutableStateOf<DoubleArray?>(null) }
+    var cameraReady by remember { mutableStateOf(false) }
+    var appliedCenter by remember { mutableStateOf<GeoCenter?>(null) }
+    var gestureMoved by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(false) }
     var tilted by remember { mutableStateOf(true) }
     var failed by remember { mutableStateOf(false) }
@@ -81,8 +84,6 @@ fun LiveMapCard(
     var visible by remember { mutableStateOf(false) }
     var centerPoint by remember { mutableStateOf<Offset?>(null) }
     val pulse = remember { Animatable(0f) }
-    val mapAlpha by animateFloatAsState(if (loaded) 1f else 0f,
-        tween(nowMotionDuration(motion, 180)), label = "map-style-ready")
     val compactHeight = if (LocalConfiguration.current.screenHeightDp < 740) 190.dp else 210.dp
     LaunchedEffect(motion, moving, loaded, center, visible) {
         pulse.snapTo(0f)
@@ -93,7 +94,10 @@ fun LiveMapCard(
     }
     val mapView = remember(context) {
         MapLibre.getInstance(context)
-        MapView(context, MapLibreMapOptions.createFromAttributes(context).textureMode(true)).apply { onCreate(Bundle()) }
+        val initial = browseCamera(center, cameraSnapshot)
+        MapView(context, MapLibreMapOptions.createFromAttributes(context).textureMode(true)
+            .camera(CameraPosition.Builder().target(LatLng(initial[0], initial[1])).zoom(initial[2]).build()))
+            .apply { onCreate(Bundle()) }
     }
     DisposableEffect(mapView, lifecycle) {
         // A newly composed map may enter while its lifecycle is already resumed.
@@ -112,28 +116,36 @@ fun LiveMapCard(
         onDispose { lifecycle.removeObserver(observer); mapView.onPause(); mapView.onStop(); mapView.onDestroy() }
     }
     LaunchedEffect(mapView) {
-        mapView.addOnDidFailLoadingMapListener { failed = true; loaded = false }
+        // A tile/network failure must not hide the map that already rendered.
+        mapView.addOnDidFailLoadingMapListener { failed = true }
         mapView.getMapAsync { ready ->
             ready.uiSettings.isCompassEnabled = false
             ready.uiSettings.isLogoEnabled = false
             ready.uiSettings.isAttributionEnabled = true
+            ready.setMinZoomPreference(1.0)
+            ready.setMaxZoomPreference(19.0)
+            ready.uiSettings.isScrollGesturesEnabled = true
+            ready.uiSettings.isZoomGesturesEnabled = true
             ready.setOnMarkerClickListener { marker -> selectedPin = marker.snippet; true }
             fun updateCenterPoint() {
                 centerPoint = latestCenter?.takeIf { it.valid }?.let { c ->
                     ready.projection.toScreenLocation(LatLng(c.latitude, c.longitude)).let { Offset(it.x, it.y) }
                 }
             }
-            ready.addOnCameraMoveStartedListener { moving = true }
+            ready.addOnCameraMoveStartedListener { reason ->
+                moving = true
+                if (reason == MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE) gestureMoved = true
+            }
             ready.addOnCameraMoveListener { updateCenterPoint() }
             ready.addOnCameraIdleListener {
                 moving = false
                 updateCenterPoint()
-                ready.cameraPosition.target?.let { target ->
-                    cameraSnapshot = doubleArrayOf(target.latitude,target.longitude,ready.cameraPosition.zoom,ready.cameraPosition.tilt)
+                ready.cameraPosition.target?.takeIf { cameraReady && appliedCenter == latestCenter }?.let { target ->
+                    cameraSnapshot = saveBrowseCamera(latestCenter, target.latitude, target.longitude, ready.cameraPosition.zoom)
                     val origin = latestCenter
                     val distance = FloatArray(1)
                     if (origin != null) android.location.Location.distanceBetween(origin.latitude,origin.longitude,target.latitude,target.longitude,distance)
-                    pendingCenter = if (origin != null && distance[0] > 100) GeoCenter(target.latitude,target.longitude) else null
+                    pendingCenter = if (gestureMoved && (origin == null || distance[0] > 100)) GeoCenter(target.latitude,target.longitude) else null
                 }
             }
             map = ready
@@ -141,17 +153,31 @@ fun LiveMapCard(
     }
     LaunchedEffect(map, dark, retry) {
         val ready = map ?: return@LaunchedEffect
-        loaded = false; failed = false
+        loaded = false; failed = false; cameraReady = false
         val json = context.assets.open("maps/${if (dark) "night" else "day"}.json").bufferedReader().use { it.readText() }
         ready.setStyle(Style.Builder().fromJson(json)) { loaded = true; failed = false }
         delay(15_000)
         if (!loaded) failed = true
     }
-    LaunchedEffect(map, center, tilted) {
-        val c = center?.takeIf { it.valid } ?: pins.firstOrNull()?.center ?: return@LaunchedEffect
-        val saved = cameraSnapshot
-        map?.moveCamera(CameraUpdateFactory.newCameraPosition(CameraPosition.Builder()
-            .target(if(saved != null) LatLng(saved[0], saved[1]) else LatLng(c.latitude, c.longitude)).zoom(saved?.get(2) ?: 13.4).tilt(if (tilted) 38.0 else 0.0).build()))
+    LaunchedEffect(map, center, loaded) {
+        val ready = map ?: return@LaunchedEffect
+        if (!loaded) return@LaunchedEffect
+        cameraReady = false
+        gestureMoved = false
+        pendingCenter = null
+        val position = browseCamera(center?.takeIf { it.valid }, cameraSnapshot)
+        ready.moveCamera(CameraUpdateFactory.newCameraPosition(CameraPosition.Builder()
+            .target(LatLng(position[0], position[1])).zoom(position[2]).tilt(if (tilted) 38.0 else 0.0).build()))
+        appliedCenter = center
+        cameraReady = true
+        centerPoint = center?.takeIf { it.valid }?.let { c ->
+            ready.projection.toScreenLocation(LatLng(c.latitude, c.longitude)).let { Offset(it.x, it.y) }
+        }
+    }
+    LaunchedEffect(map, tilted) {
+        val ready = map ?: return@LaunchedEffect
+        if (cameraReady) ready.moveCamera(CameraUpdateFactory.newCameraPosition(
+            CameraPosition.Builder(ready.cameraPosition).tilt(if (tilted) 38.0 else 0.0).build()))
     }
     LaunchedEffect(map, pins, loaded, selectedPin) {
         val ready = map ?: return@LaunchedEffect
@@ -174,7 +200,8 @@ fun LiveMapCard(
         }.testTag("LIVE-MAP"),
         shape = NowShapes.extraLarge, color = NowColors.SurfaceRaised, border = BorderStroke(1.dp, NowColors.InfoBorder)) {
         Box {
-            AndroidView(factory = { mapView }, modifier = Modifier.fillMaxSize().graphicsLayer { alpha = mapAlpha })
+            AndroidView(factory = { MapGestureFrame(it).apply { addView(mapView, android.widget.FrameLayout.LayoutParams(-1, -1)) } },
+                modifier = Modifier.fillMaxSize())
             if (loaded && center?.valid == true) androidx.compose.foundation.Canvas(
                 Modifier.fillMaxSize().semantics { contentDescription = "Selected browse area center" },
             ) {
@@ -200,7 +227,7 @@ fun LiveMapCard(
             }
             if (failed) Surface(Modifier.align(Alignment.BottomCenter).padding(bottom = 30.dp, start = 12.dp, end = 12.dp), color = NowColors.SurfacePrimary, shape = NowShapes.medium) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Map unavailable", Modifier.padding(10.dp), style = NowType.BodyS, color = NowColors.Ink800)
+                    Text(if (loaded) "Some map tiles couldn't load" else "Map unavailable", Modifier.weight(1f).padding(10.dp), style = NowType.BodyS, color = NowColors.Ink800)
                     TextButton({ retry++ }) { Text("Retry") }
                 }
             }
@@ -218,6 +245,8 @@ fun LiveMapCard(
                 FilledTonalIconButton(onClick = {
                     val c = center?.takeIf { it.valid } ?: pins.firstOrNull()?.center
                     if (c != null) {
+                        gestureMoved = false
+                        pendingCenter = null
                         val update = CameraUpdateFactory.newLatLngZoom(LatLng(c.latitude, c.longitude), 13.4)
                         if (motion) map?.animateCamera(update, 320) else map?.moveCamera(update)
                     }
@@ -229,8 +258,16 @@ fun LiveMapCard(
                     else positions.firstOrNull()?.let { map?.moveCamera(CameraUpdateFactory.newLatLngZoom(it,15.0)) }
                 },enabled=pins.isNotEmpty()) {Icon(Icons.Outlined.CenterFocusStrong,"Fit results")}
             }
-            FilledTonalIconButton(onClick = { expanded = !expanded }, modifier = Modifier.align(Alignment.TopStart).padding(8.dp)) {
-                Icon(Icons.Outlined.OpenInFull, if (expanded) "Collapse map" else "Expand map")
+            Column(Modifier.align(Alignment.TopStart).padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                FilledTonalIconButton(onClick = { expanded = !expanded }) {
+                    Icon(Icons.Outlined.OpenInFull, if (expanded) "Collapse map" else "Expand map")
+                }
+                FilledTonalIconButton(onClick = {
+                    if (motion) map?.animateCamera(CameraUpdateFactory.zoomIn(), 220) else map?.moveCamera(CameraUpdateFactory.zoomIn())
+                }, enabled = loaded) { Icon(Icons.Outlined.Add, "Zoom in") }
+                FilledTonalIconButton(onClick = {
+                    if (motion) map?.animateCamera(CameraUpdateFactory.zoomOut(), 220) else map?.moveCamera(CameraUpdateFactory.zoomOut())
+                }, enabled = loaded) { Icon(Icons.Outlined.Remove, "Zoom out") }
             }
         }
     }
