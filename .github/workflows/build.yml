@@ -79,8 +79,7 @@ jobs:
           set -Eeuo pipefail
 
           export ANDROID_SERIAL=emulator-5554
-          # ATD images disable rendering and produce blank screenshot evidence.
-          AVD_NAME=now-rendered-api35
+          AVD_NAME=now-ci
           EMULATOR_LOG="$RUNNER_TEMP/now-emulator.log"
 
           cleanup() {
@@ -98,14 +97,14 @@ jobs:
           SDK_ROOT="${ANDROID_SDK_ROOT:-$HOME/.android/sdk}"
           EMULATOR_BIN="$SDK_ROOT/emulator/emulator"
           ADB_BIN="$SDK_ROOT/platform-tools/adb"
-          SYSTEM_IMAGE_DIR="$SDK_ROOT/system-images/android-35/google_apis/x86_64"
+          SYSTEM_IMAGE_DIR="$SDK_ROOT/system-images/android-35/aosp_atd/x86_64"
 
           if [ ! -x "$EMULATOR_BIN" ] || [ ! -x "$ADB_BIN" ] || [ ! -d "$SYSTEM_IMAGE_DIR" ]; then
             yes | sdkmanager --licenses >/dev/null || true
             sdkmanager \
               "platform-tools" \
               "emulator" \
-              "system-images;android-35;google_apis;x86_64"
+              "system-images;android-35;aosp_atd;x86_64"
           fi
 
           test -x "$EMULATOR_BIN"
@@ -114,7 +113,7 @@ jobs:
 
           AVD_CONFIG="$HOME/.android/avd/$AVD_NAME.avd/config.ini"
           if [ ! -f "$AVD_CONFIG" ]; then
-            echo "no" | avdmanager create avd --force --name "$AVD_NAME" --package "system-images;android-35;google_apis;x86_64"
+            echo "no" | avdmanager create avd --force --name "$AVD_NAME" --package "system-images;android-35;aosp_atd;x86_64"
           fi
           test -f "$AVD_CONFIG"
           sed -i '/^disk.dataPartition.size=/d' "$AVD_CONFIG"
@@ -142,31 +141,6 @@ jobs:
             find apps/android/build/outputs/androidTest-results -type f -name '*.xml' -print -exec cat {} \; 2>/dev/null || true
             exit 1
           fi
-          bash scripts/android/capture-visuals.sh "$RUNNER_TEMP/now-visuals"
-
-      - name: Android visual captures
-        id: visual-upload
-        if: always()
-        continue-on-error: true
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: android-visuals
-          path: ${{ runner.temp }}/now-visuals
-          if-no-files-found: error
-          retention-days: 14
-
-      - name: Preserve visual captures when artifact transport is unavailable
-        if: always() && steps.visual-upload.outcome == 'failure'
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -s "$RUNNER_TEMP/now-visuals/capture-context.txt"
-          java scripts/android/VisualPreview.java "$RUNNER_TEMP/now-visuals" "$RUNNER_TEMP/now-visual-previews"
-          tar -czf "$RUNNER_TEMP/now-visual-previews.tgz" -C "$RUNNER_TEMP/now-visual-previews" .
-          sha256sum "$RUNNER_TEMP/now-visual-previews.tgz"
-          echo NOW_VISUAL_ARCHIVE_START
-          base64 "$RUNNER_TEMP/now-visual-previews.tgz"
-          echo NOW_VISUAL_ARCHIVE_END
 
 
   api:
