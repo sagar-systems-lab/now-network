@@ -28,7 +28,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -106,13 +105,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         if (intent?.action == NowPush.OPEN_INBOX) inboxIntentRevision++
 
-        val showIntroOnLaunch = savedInstanceState == null
-
-
         setContent {
-            var showBrandIntro by rememberSaveable {
-                mutableStateOf(showIntroOnLaunch)
-            }
             val preferences by uiPreferencesStore.state.collectAsStateWithLifecycle(uiPreferencesStore.initial)
             val scope = rememberCoroutineScope()
             val darkTheme = when (preferences.theme) { ThemeMode.SYSTEM -> isSystemInDarkTheme(); ThemeMode.DARK -> true; ThemeMode.LIGHT -> false }
@@ -169,13 +162,6 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    if (showBrandIntro && !appLocked) {
-                        BrandIntroScreen(
-                            onFinished = {
-                                showBrandIntro = false
-                            },
-                        )
-                    }
                 }
             }
             }
