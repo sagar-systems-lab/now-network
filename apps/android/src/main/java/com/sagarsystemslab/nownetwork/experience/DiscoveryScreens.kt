@@ -86,7 +86,6 @@ fun NotificationsScreen(state: ExperienceUiState, viewModel: ExperienceViewModel
     val rows = state.inbox.rows()
     LazyColumn(Modifier.fillMaxSize().testTag("screen-notifications"), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { ExperienceTopBar("Notifications", onBack, "${state.inbox.number("unread_count")} unread updates", trailing = { IconButton(onPreferences) { Icon(Icons.Outlined.Tune, "Notification preferences", tint = NowColors.Blue600) } }) }
-        item { ExperienceFeedback(state, viewModel) }
         item {
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("all", "unread", "proof", "payments", "security", "opportunities").forEach { category ->
@@ -107,9 +106,17 @@ fun NotificationsScreen(state: ExperienceUiState, viewModel: ExperienceViewModel
                 if (unread) TextButton({ viewModel.markRead(notification.text("notification_id")) }, enabled = !state.saving) { Text("Mark read") }
             }
         }
-        if (rows.isEmpty() && !state.loading && !state.saving && state.error == null && state.inbox.isNotEmpty()) item {
-            NowGlassCard { Icon(Icons.Outlined.NotificationsNone, null, Modifier.size(48.dp), tint = NowColors.Blue600); Text("You're all caught up", style = NowType.TitleM, color = NowColors.Ink950); Text("Real proof, payment and account events will appear here.", style = NowType.BodyM, color = NowColors.Ink600) }
+        if (rows.isEmpty() && !state.loading && !state.saving) item {
+            NowGlassCard(emphasized = true) {
+                ProofArtwork(false, Modifier.fillMaxWidth().height(150.dp))
+                Text(if (state.error == null && state.inbox.isNotEmpty()) "You're all caught up" else "Your updates belong here", style = NowType.TitleM, color = NowColors.Ink950)
+                Text(if (state.error == null) "Proof progress, payments and account updates, together in one place." else "Updates couldn't load. Reconnect to see your account events.", style = NowType.BodyM, color = NowColors.Ink600)
+                ExperienceRow("Proof & refresh progress", "Know when an observation is verified", Icons.Outlined.Verified)
+                ExperienceRow("Payments & receipts", "Follow settlement through to your receipt", Icons.Outlined.ReceiptLong)
+                NowSecondaryButton("Notification preferences", onPreferences, Modifier.fillMaxWidth())
+            }
         }
+        item { ExperienceFeedback(state, viewModel) }
         if (state.inbox.text("next_offset").isNotBlank()) item { NowSecondaryButton("Load earlier updates", { viewModel.inbox(filter, more = true) }, Modifier.fillMaxWidth(), enabled = !state.saving) }
         item { NowSecondaryButton("Refresh notifications", { viewModel.inbox(filter) }, Modifier.fillMaxWidth(), enabled = !state.saving) }
     }

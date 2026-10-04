@@ -992,6 +992,7 @@ internal fun ProofLoopScenario(
             },
         )
 
+        Box(modifier) {
         EvidenceCaptureScreen(
             uiState = captureState,
             onBack = onBack,
@@ -1030,6 +1031,7 @@ internal fun ProofLoopScenario(
                 phase = 1
             },
         )
+        }
         return
     }
 

@@ -58,7 +58,7 @@ fun NowScreen(
         item {
             NowGlassCard(Modifier.testTag("home-ask-refresh"), emphasized = true, contentPadding = 12.dp, spacing = 8.dp) {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Outlined.Search, null, Modifier.background(NowColors.InfoSoft, CircleShape).padding(10.dp).size(32.dp), tint = NowColors.Blue600)
+                    LuminousIcon(Icons.Outlined.Search, Modifier.size(48.dp))
                     Column(Modifier.weight(1f)) {
                         Text("What do you need to know?", style = NowType.TitleS, color = NowColors.Ink950)
                         Text("Refresh a stale nearby state with fresh proof.", style = NowType.BodyM, color = NowColors.Ink600)
@@ -67,7 +67,7 @@ fun NowScreen(
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf(Triple(Icons.Outlined.LocationOn, "Live states nearby", NowColors.LiveText), Triple(Icons.Outlined.Schedule, "Refresh when stale", NowColors.Blue600), Triple(Icons.Outlined.Payments, "Earn when verified", NowColors.AgingText)).forEach { (icon, label, color) ->
                         Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(icon, null, Modifier.size(22.dp), tint = color)
+                            LuminousIcon(icon, Modifier.size(26.dp), color)
                             Text(label, style = NowType.LabelM, color = NowColors.Ink700)
                         }
                     }
@@ -94,10 +94,15 @@ fun NowScreen(
             if (uiState.search.isNotBlank() || uiState.freshness != "all") Text("Filtered area · ${uiState.search.ifBlank { uiState.freshness.replace('_', ' ') }}", style = NowType.BodyS, color = NowColors.Ink600)
         }
         if (uiState.refreshing && states.isEmpty()) item { LinearProgressIndicator(Modifier.fillMaxWidth(), color = NowColors.Blue600) }
-        else if (states.isEmpty() && (uiState.states.isNotEmpty() || uiState.notice == BrowseNotice.NONE)) item {
+        else if (states.isEmpty()) item {
             NowGlassCard {
-                Text(if (uiState.search.isBlank() && uiState.freshness == "all") "No nearby states yet" else "No states match these filters", style = NowType.TitleM, color = NowColors.Ink950)
-                Text("Choose an area with coverage or check again for new observations.", style = NowType.BodyM, color = NowColors.Ink600)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    ProofArtwork(false, Modifier.size(86.dp))
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(if (uiState.notice != BrowseNotice.NONE) "Explore a live area" else if (uiState.search.isBlank() && uiState.freshness == "all") "No nearby states yet" else "No matching states", style = NowType.TitleM, color = NowColors.Ink950)
+                        Text("Choose an area with coverage to discover fresh observations.", style = NowType.BodyS, color = NowColors.Ink600)
+                    }
+                }
                 NowSecondaryButton("Browse areas", onBrowseAreas, Modifier.fillMaxWidth())
             }
         }

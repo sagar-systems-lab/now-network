@@ -16,6 +16,9 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.toRoute
+import com.sagarsystemslab.nownetwork.experience.ExperienceDestination
+import com.sagarsystemslab.nownetwork.experience.ExperienceRoute
 
 enum class TopLevelDestination(
     val label: String,
@@ -87,6 +90,14 @@ class NowAppState(
 
     fun navigateToSettings() {
         navController.navigate(SettingsRoute)
+    }
+
+    fun navigateToExperience(destination: ExperienceDestination) {
+        val current = navController.currentBackStackEntry
+        if (current?.destination?.hasRoute<ExperienceRoute>() == true &&
+            current.toRoute<ExperienceRoute>().destination == destination) return
+        // Shared route types still need separate entries for distinct settings pages.
+        navController.navigate(ExperienceRoute(destination))
     }
 
     fun navigateBack() {

@@ -64,7 +64,7 @@ fun NowNavHost(
     val center = if (area?.configured == true) com.sagarsystemslab.nownetwork.model.GeoCenter(requireNotNull(area.latitude), requireNotNull(area.longitude)) else null
     fun openExperience(destination: ExperienceDestination) {
         if (experience == null) appState.navigateToSettings()
-        else appState.navController.navigate(ExperienceRoute(destination)) { launchSingleTop = true }
+        else appState.navigateToExperience(destination)
     }
     val motion = com.sagarsystemslab.nownetwork.designsystem.rememberNowMotionEnabled()
     LaunchedEffect(experience) { experience?.refresh() }

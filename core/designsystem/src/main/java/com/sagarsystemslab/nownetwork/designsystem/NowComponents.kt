@@ -30,6 +30,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.VisualTransformation
@@ -68,15 +72,20 @@ fun NowPrimaryButton(
     )
     Button(
         onClick = onClick,
-        modifier = modifier.heightIn(min = 52.dp)
+        modifier = modifier.heightIn(min = 48.dp)
             .graphicsLayer { scaleX = scale; scaleY = scale }
+            .shadow(if (enabled) 9.dp else 0.dp, NowShapes.extraLarge, ambientColor = Color(0xFF168BFF), spotColor = Color(0xFF168BFF))
             .background(
                 brush = if (enabled) nowActionBrush() else androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(NowColors.Ink200, NowColors.Ink200)),
-                shape = NowShapes.large,
-            ).border(1.dp, if (enabled) Color(0xFF69BDFF).copy(alpha = .7f) else NowColors.BorderSubtle, NowShapes.large),
+                shape = NowShapes.extraLarge,
+            ).border(1.dp, if (enabled) Color(0xFF78D8FF).copy(alpha = .8f) else NowColors.BorderSubtle, NowShapes.extraLarge)
+            .drawWithCache {
+                val highlight = Brush.verticalGradient(listOf(Color.White.copy(alpha = if (enabled) .22f else 0f), Color.Transparent), endY = size.height * .55f)
+                onDrawBehind { drawRoundRect(highlight, cornerRadius = androidx.compose.ui.geometry.CornerRadius(22.dp.toPx())) }
+            },
         enabled = enabled,
         interactionSource = interaction,
-        shape = NowShapes.large,
+        shape = NowShapes.extraLarge,
         colors = ButtonDefaults.buttonColors(
             containerColor = Color.Transparent,
             contentColor = Color(0xFFF5F8FF),

@@ -133,7 +133,7 @@ fun EarnScreen(
             if (uiState.sort == EarnSort.PAYOUT) Text("Estimated share, highest first within each token. Tokens are grouped separately.", style = NowType.BodyS, color = NowColors.Ink600)
         }
 
-        if (uiState.notice != EarnNotice.NONE) {
+        if (uiState.notice != EarnNotice.NONE && visibleOpportunities.isNotEmpty()) {
             item {
                 EarnNoticeCard(
                     notice = uiState.notice,
@@ -186,7 +186,7 @@ fun EarnScreen(
             items(3) {
                 OpportunityLoadingCard()
             }
-        } else if (visibleOpportunities.isEmpty() && uiState.notice == EarnNotice.NONE) {
+        } else if (visibleOpportunities.isEmpty()) {
             item {
                 if (uiState.category != null) {
                     com.sagarsystemslab.nownetwork.designsystem.NowGlassCard {
@@ -196,8 +196,8 @@ fun EarnScreen(
                     }
                 } else {
                     EmptyProofCard(
-                        "Nothing nearby needs fresh proof",
-                        "New earning opportunities appear when nearby states become stale or need another verified observation.",
+                        if (uiState.notice == EarnNotice.NONE) "Nothing nearby needs fresh proof" else "Find your next opportunity",
+                        if (uiState.notice == EarnNotice.NONE) "New opportunities appear when nearby states need a fresh observation." else "Choose an area to explore. Nearby work will appear here when it is available and connected.",
                         onBrowseAreas, onHelp,
                     )
                 }

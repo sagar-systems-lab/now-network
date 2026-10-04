@@ -62,11 +62,12 @@ fun ResultEmblem(
     var firstResult by remember(eventKey) { mutableStateOf(eventKey != null && !seen.getBoolean(eventKey, false)) }
     val reveal = remember(eventKey, success) { Animatable(if (success && firstResult && enabled) 0f else 1f) }
     val orbit = remember { Animatable(0f) }
+    val receiptReveal = eventKey?.startsWith("receipt:") == true
     LaunchedEffect(success, enabled, eventKey, visible, resumed) {
         if (success && firstResult && visible && resumed) {
             firstResult = false
             eventKey?.let { seen.edit().putBoolean(it, true).apply() }
-            if (enabled) { reveal.snapTo(0f); reveal.animateTo(1f, tween(650)) } else reveal.snapTo(1f)
+            if (enabled) { reveal.snapTo(0f); reveal.animateTo(1f, tween(if (receiptReveal) 650 else 480)) } else reveal.snapTo(1f)
         } else if (!firstResult || !enabled) reveal.snapTo(1f)
     }
     LaunchedEffect(active, enabled, visible) {
@@ -120,7 +121,7 @@ fun ResultEmblem(
                 }
             }
             drawPath(check, Color.White, style = Stroke(5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
-            if (progress < 1f) repeat(16) { i ->
+            if (receiptReveal && progress < 1f) repeat(16) { i ->
                 val angle = i * Math.PI / 8 + .24
                 val radius = r * (1.15f + progress * .75f + (i % 3) * .12f)
                 val pos = Offset(c.x + (cos(angle) * radius).toFloat(), c.y + (sin(angle) * radius).toFloat())

@@ -76,6 +76,7 @@ fun ExperienceScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val preferences by uiPreferencesStore.state.collectAsStateWithLifecycle(uiPreferencesStore.initial)
     LaunchedEffect(destination) {
+        viewModel.dismissMessage()
         when (destination) {
             ExperienceDestination.BROWSE_AREAS -> viewModel.areas()
             ExperienceDestination.CONNECTED_SESSIONS -> viewModel.devices()
@@ -125,9 +126,9 @@ internal fun ExperienceScreenContent(
         ExperienceDestination.PAYOUT_PREFERENCES -> "Payout preferences"
         else -> "Help & About"
     }
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp).testTag("screen-${destination.name.lowercase()}"), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        ExperienceTopBar(title, onBack)
-        ExperienceFeedback(state, viewModel)
+    Column(Modifier.fillMaxSize().testTag("screen-${destination.name.lowercase()}")) {
+        Box(Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) { ExperienceTopBar(title, onBack) }
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         when (destination) {
             ExperienceDestination.PROFILE -> {
                 ProfileContent(state, viewModel, preferences, navigate, onActivity)
@@ -136,7 +137,11 @@ internal fun ExperienceScreenContent(
             ExperienceDestination.WALLET, ExperienceDestination.PAYOUT_PREFERENCES -> WalletContent(state, viewModel, walletHost, destination == ExperienceDestination.PAYOUT_PREFERENCES)
             ExperienceDestination.SETTINGS -> {
                 ProfileHero(state, compact = true)
-                NowGlassCard {
+                NowGlassCard(spacing = 4.dp) {
+                    Text("Appearance", style = NowType.TitleS, color = NowColors.Ink950)
+                    ThemePreviews(preferences.theme) { mode -> scope.launch { uiPreferencesStore.theme(mode) } }
+                }
+                NowGlassCard(spacing = 0.dp) {
                     listOf(
                         Triple("Appearance", Icons.Outlined.Palette, ExperienceDestination.APPEARANCE),
                         Triple("Notification preferences", Icons.Outlined.Notifications, ExperienceDestination.NOTIFICATION_PREFERENCES),
@@ -145,7 +150,7 @@ internal fun ExperienceScreenContent(
                         Triple("Language & region", Icons.Outlined.Language, ExperienceDestination.LANGUAGE_REGION),
                     ).forEach { (label, icon, route) -> ExperienceRow(label, icon = icon, onClick = { navigate(route) }) }
                 }
-                NowGlassCard {
+                NowGlassCard(spacing = 0.dp) {
                     ExperienceRow("Security", "Device lock and account access", Icons.Outlined.Lock, { navigate(ExperienceDestination.SECURITY) })
                     ExperienceRow("Connected devices", icon = Icons.Outlined.Devices, onClick = { navigate(ExperienceDestination.CONNECTED_SESSIONS) })
                     ExperienceRow("Account recovery", icon = Icons.Outlined.Restore, onClick = { navigate(ExperienceDestination.ACCOUNT_RECOVERY) })
@@ -156,11 +161,7 @@ internal fun ExperienceScreenContent(
             }
             ExperienceDestination.APPEARANCE -> {
                 NowSectionTitle("Your preferred look", "Follow your device or choose a theme for NOW.")
-                NowGlassCard {
-                    ThemeMode.entries.forEach { mode ->
-                        ExperienceRow(mode.name.lowercase().replaceFirstChar { it.uppercase() }, icon = when (mode) { ThemeMode.SYSTEM -> Icons.Outlined.SettingsBrightness; ThemeMode.DARK -> Icons.Outlined.DarkMode; ThemeMode.LIGHT -> Icons.Outlined.LightMode }, onClick = { scope.launch { uiPreferencesStore.theme(mode) } }, trailing = { RadioButton(preferences.theme == mode, { scope.launch { uiPreferencesStore.theme(mode) } }) })
-                    }
-                }
+                ThemePreviews(preferences.theme) { mode -> scope.launch { uiPreferencesStore.theme(mode) } }
                 NowGlassCard { ExperienceRow("Reduce motion", "Keep essential progress and soften decorative animation.", Icons.Outlined.Animation, trailing = { Switch(preferences.reduceMotion, { scope.launch { uiPreferencesStore.motion(it) } }) }) }
                 NowGlassCard(emphasized = true) { Text("A little clarity, everywhere.", style = NowType.TitleM, color = NowColors.Ink950); NowStatusChip("LIVE", NowStatusTone.LIVE); Text("This preview follows your selected appearance.", style = NowType.BodyM, color = NowColors.Ink600) }
             }
@@ -180,24 +181,36 @@ internal fun ExperienceScreenContent(
             ExperienceDestination.HELP_ABOUT -> HelpContent()
             else -> Unit
         }
+        ExperienceFeedback(state, viewModel)
         Spacer(Modifier.height(16.dp))
+        }
     }
 }
 
 @Composable
 fun ExperienceFeedback(state: ExperienceUiState, viewModel: ExperienceViewModel) {
     if (state.loading || state.saving) LinearProgressIndicator(Modifier.fillMaxWidth(), color = NowColors.Blue600)
-    state.error?.let { NowNotice(it, title = "Couldn't complete that action", tone = NowNoticeTone.ERROR); NowSecondaryButton("Try again", viewModel::refresh, Modifier.fillMaxWidth(), enabled = !state.loading && !state.saving) }
+    state.error?.let { message ->
+        NowGlassCard(contentPadding = 10.dp, spacing = 4.dp) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Outlined.CloudOff, null, Modifier.size(20.dp), tint = NowColors.AgingText)
+                Text(if (message.contains("configuration", true) || message.contains("not configured", true)) "This build isn't connected" else "Couldn't refresh your account", Modifier.weight(1f), style = NowType.LabelL, color = NowColors.Ink950)
+                TextButton(viewModel::refresh, enabled = !state.loading && !state.saving) { Text("Retry") }
+            }
+            Text(if (message.contains("configuration", true) || message.contains("not configured", true)) "Account and live data need a build configured for the NOW service." else message,
+                style = NowType.BodyS, color = NowColors.Ink600)
+        }
+    }
     state.notice?.let { NowNotice(it, tone = NowNoticeTone.SUCCESS) }
 }
 
 @Composable
 private fun ProfileHero(state: ExperienceUiState, compact: Boolean = false, onClick: (() -> Unit)? = null) {
-    NowGlassCard(emphasized = true) {
+    NowGlassCard(emphasized = true, contentPadding = 12.dp, spacing = 8.dp) {
         Row(Modifier.fillMaxWidth().then(if (onClick == null) Modifier else Modifier.clickable(onClick = onClick)), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             RemoteAvatar(state.profile.text("avatar_url"), state.profile.text("display_name", "N"), if (compact) 52 else 72)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text(state.profile.text("display_name").ifBlank { "Your NOW account" }, style = if (compact) NowType.TitleM else NowType.TitleXL, color = NowColors.Ink950)
+                Text(state.profile.text("display_name").ifBlank { "Your NOW account" }, style = if (compact) NowType.TitleM else NowType.TitleL, color = NowColors.Ink950)
                 Text(if (state.me == null) "Connect to load your account" else "${state.profile.number("verified_contributions")} verified contributions", style = NowType.BodyM, color = NowColors.Ink600)
                 if (!compact) Text("Member since ${displayDate(state.profile.text("created_at"))}", style = NowType.BodyS, color = NowColors.Ink500)
             }
@@ -260,7 +273,7 @@ private fun ProfileContent(
 }
 
 @Composable
-private fun RemoteAvatar(url: String, name: String, size: Int = 64) {
+internal fun RemoteAvatar(url: String, name: String, size: Int = 64) {
     val image by produceState<Bitmap?>(null, url) {
         value = null
         if (url.startsWith("https://")) value = withContext(Dispatchers.IO) {
@@ -349,7 +362,19 @@ private fun WalletContent(state: ExperienceUiState, viewModel: ExperienceViewMod
             }
         }
     }
-    if (wallets.isEmpty()) NowGlassCard { Text("Connect your wallet", style = NowType.TitleM, color = NowColors.Ink950); Text("Use a compatible Solana mobile wallet to claim, fund refreshes and recover your account.", style = NowType.BodyM, color = NowColors.Ink600) }
+    if (wallets.isEmpty()) NowGlassCard(emphasized = true) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            LuminousIcon(Icons.Outlined.AccountBalanceWallet, Modifier.size(64.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Your wallet. Your rewards.", style = NowType.TitleM, color = NowColors.Ink950)
+                Text("Connect a Solana mobile wallet to start.", style = NowType.BodyS, color = NowColors.Ink600)
+            }
+        }
+        HorizontalDivider(color = NowColors.BorderSubtle)
+        ExperienceRow("Keep control of your funds", "NOW never asks for your seed phrase.", Icons.Outlined.Shield)
+        ExperienceRow("Get paid for fresh proof", "Finalized rewards go to your chosen wallet.", Icons.Outlined.Payments)
+        ExperienceRow("Recover your NOW account", "A linked wallet is your recovery key.", Icons.Outlined.Restore)
+    }
     NowPrimaryButton("Connect wallet", { viewModel.connectWallet(host) }, Modifier.fillMaxWidth(), enabled = !state.saving)
     if (!payout) NowSecondaryButton("Disconnect local wallet session", { viewModel.disconnectWallet(host) }, Modifier.fillMaxWidth(), enabled = !state.saving)
 }

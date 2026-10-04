@@ -1,5 +1,7 @@
 package com.sagarsystemslab.nownetwork
 
+import com.sagarsystemslab.nownetwork.designsystem.nowPageBackground
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -106,6 +108,7 @@ fun NowApp(
             uiPreferencesStore = uiPreferencesStore,
             modifier = Modifier
                 .fillMaxSize()
+                .nowPageBackground()
                 .padding(innerPadding),
         )
     }

@@ -72,10 +72,18 @@ NOW_TEST_DB_URL=postgres://postgres:postgres@127.0.0.1:5432/now_test \
 
 Use a disposable test database. The test inserts and removes its own actor-owned fixtures. The
 debug-only Experience Lab exposes deterministic transaction states for layout inspection;
-fixtures and its launcher are excluded from release builds. The CI artifact `android-visuals`
-contains rendered debug APK screenshots and accessibility hierarchies in both themes at 390 dp,
-with additional 360/412 dp and 200% font probes. Captures use production composables with read-only
-fixtures and do not certify live services, physical camera quality or device frame timings.
+fixtures and its launcher are excluded from release builds. Required Android CI runs the existing
+unit, persistence and accessibility checks, including nested settings back-stack regression coverage.
+Screenshot generation and artifact transport are not part of that job. The optional
+`scripts/android/capture-visuals.sh` helper is for a separately provisioned, rendered Android device;
+ATD images do not render screenshot evidence.
+
+For a connected phone build, set `NOW_API_BASE_URL`, `NOW_SUPABASE_URL` and
+`NOW_SUPABASE_PUBLISHABLE_KEY`, retain the existing Solana/reward configuration, and run
+`bash scripts/android/build-connected.sh`. The script rejects missing runtime values before
+starting Gradle. An unconfigured CI APK is a source/test build; it cannot load live account data.
+The matching migrations and API/worker must be deployed before the new account and inbox routes
+are available. Local appearance and permission settings do not require an account request.
 
 Before shipping, exercise physical camera capture, wallet handoff, device-credential lock,
 permission changes, background push delivery and requester/contributor operation on separate

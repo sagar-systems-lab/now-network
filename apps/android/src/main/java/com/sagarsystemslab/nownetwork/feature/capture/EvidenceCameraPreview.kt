@@ -10,6 +10,8 @@ import androidx.camera.view.PreviewView
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -82,9 +84,13 @@ fun EvidenceCameraPreview(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val latestReady by rememberUpdatedState(onControllerReady)
+    val latestError by rememberUpdatedState(onCameraError)
     val executor = remember(context) { ContextCompat.getMainExecutor(context) }
     val previewView = remember {
         PreviewView(context).apply {
+            // TextureView follows Compose clipping, scrolling and route transitions.
+            implementationMode = PreviewView.ImplementationMode.COMPATIBLE
             scaleType = PreviewView.ScaleType.FILL_CENTER
         }
     }
@@ -118,9 +124,9 @@ fun EvidenceCameraPreview(
                         preview,
                         imageCapture,
                     )
-                    onControllerReady(controller)
+                    latestReady(controller)
                 } catch (error: Throwable) {
-                    onCameraError(error)
+                    latestError(error)
                 }
             },
             executor,

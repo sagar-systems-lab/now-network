@@ -2,6 +2,7 @@ package com.sagarsystemslab.nownetwork.feature.earn
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -17,9 +18,9 @@ internal fun ActiveWorkCards(state: ExperienceUiState, local: ActivityUiState, o
     val saved = (local.active + local.completed).filter { it.type == "CONTRIBUTOR_CLAIM" && it.entityId !in remoteIds &&
         (it.active || it.remoteState in setOf("CLAIMED", "CAPTURE_ACTIVE", "EVIDENCE_COMMITTED")) }.distinctBy { it.entityId }
     if (rows.isEmpty() && saved.isEmpty()) {
-        if (state.error != null) NowGlassCard {
-            NowNotice("Account activity could not refresh. Open Activity to retry your saved work.")
-            NowSecondaryButton("Open activity", onActivity, Modifier.fillMaxWidth())
+        if (state.error != null) Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Text("Activity couldn't refresh", Modifier.weight(1f), style = NowType.BodyS, color = NowColors.Ink600)
+            TextButton(onActivity) { Text("Check activity") }
         }
         return
     }

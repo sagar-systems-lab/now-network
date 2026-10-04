@@ -35,7 +35,6 @@ fun AccountActivityScreen(
     LazyColumn(Modifier.testTag("screen-activity"), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { ExperienceHeader("ACTIVITY", "Your refreshes, proofs & earnings", area, onArea, onNotifications, onProfile, state.inbox.number("unread_count")) }
         item { MetricStrip(listOf((if (state.activity.isEmpty()) "—" else rows.count { it.text("status") !in finished }.toString()) to "In progress shown", (if (state.activity.isEmpty()) "—" else rows.count { it.text("status") in finished }.toString()) to "Completed shown")) }
-        item { ExperienceFeedback(state, viewModel) }
         if (rows.isNotEmpty()) {
             item { NowTextField(query, { query = it }, "Search your activity") }
             item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf("All", "In progress", "Completed").forEach { label -> FilterChip(filter == label, { filter = label }, label = { Text(label) }) } } }
@@ -70,9 +69,12 @@ fun AccountActivityScreen(
                 ExperienceRow(if (item.type == "CONTRIBUTOR_CLAIM") "Saved proof operation" else if (item.type == "REFRESH_FUNDING") "Funding awaiting sync" else "Payment awaiting sync", "Open to reconcile your saved operation", Icons.Outlined.Sync, action)
             }
         }
-        if (rows.isEmpty() && pending.isEmpty() && state.activity.isNotEmpty() && !state.loading && !state.saving && state.error == null) item {
-            EmptyProofCard("Your activity starts here", "Fund a refresh or capture fresh proof. Track every step and finalized receipt here.", onArea, onHelp, activity = true)
+        if (rows.isEmpty() && pending.isEmpty() && !state.loading && !state.saving) item {
+            EmptyProofCard(if (state.error == null) "Your activity starts here" else "Your activity, in one place",
+                if (state.error == null) "Fund a refresh or capture fresh proof. Track every step and finalized receipt here." else "Your history couldn't load. Reconnect to see your proof, payments and finalized receipts.",
+                onArea, onHelp, activity = true)
         }
+        item { ExperienceFeedback(state, viewModel) }
         if (rows.isNotEmpty() && visible.isEmpty()) item { NowNotice("No activity matches this filter.") }
         if (state.activity.text("next_offset").isNotBlank()) item { NowSecondaryButton("Load more activity", { viewModel.activity(more = true) }, Modifier.fillMaxWidth(), enabled = !state.saving) }
         item { NowSecondaryButton("Refresh activity", { viewModel.activity() }, Modifier.fillMaxWidth(), enabled = !state.saving) }
