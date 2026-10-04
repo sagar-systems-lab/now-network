@@ -3,6 +3,8 @@ package com.sagarsystemslab.nownetwork.feature.common
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.Canvas
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -14,6 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -37,6 +40,12 @@ fun StateHistoryPanel(detail: StateDetail, page: JsonObject?, error: String?, on
     val rows = source.filter { row -> val at = runCatching { Instant.parse(row.text("observed_at")).toEpochMilli() }.getOrDefault(0)
         range == "All" || now - at <= if (range == "24h") 86_400_000 else 604_800_000 }
     val blue = NowColors.Blue600; val border = NowColors.BorderSubtle
+    val motion = rememberNowMotionEnabled()
+    val reveal = remember(detail.stateId, range) { Animatable(0f) }
+    LaunchedEffect(detail.stateId, range, rows.isNotEmpty(), motion) {
+        if (rows.isEmpty()) return@LaunchedEffect
+        if (motion) reveal.animateTo(1f, tween(300)) else reveal.snapTo(1f)
+    }
     NowGlassCard {
         ExperienceRow("State history", "Verified observations · ${source.size} loaded", Icons.Outlined.Timeline)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf("24h", "7d", "All").forEach { label -> FilterChip(range == label, { range = label }, label = { Text(label) }) } }
@@ -57,10 +66,12 @@ fun StateHistoryPanel(detail: StateDetail, page: JsonObject?, error: String?, on
                         repeat(3) { i -> val y = size.height * (i + 1) / 4; drawLine(border, Offset(0f, y), Offset(size.width,y)) }
                         val first = points.first().first; val span = (points.last().first - first).coerceAtLeast(1)
                         var previous: Offset? = null
+                        clipRect(right = size.width * reveal.value) {
                         points.forEach { (time, value, _) ->
                             val point = value?.let { Offset(if (points.size == 1) size.width / 2 else ((time-first).toDouble()/span*size.width).toFloat(), (size.height - 8.dp.toPx()) - ((it-minimum)/(maximum-minimum).coerceAtLeast(1.0)*(size.height-16.dp.toPx())).toFloat()) }
                             if (point != null) { previous?.let { drawLine(blue, it, point, 2.dp.toPx()) }; drawCircle(blue, 4.dp.toPx(), point) }
                             previous = point // Missing observations break the line; they are never zero-filled.
+                        }
                         }
                     }
                 }

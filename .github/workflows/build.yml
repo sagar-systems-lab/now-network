@@ -53,6 +53,28 @@ jobs:
           bash scripts/security/scan-release-apk.sh
           git diff --exit-code -- gradle/verification-metadata.xml apps/android/schemas
 
+      - name: Build connected phone APK
+        shell: bash
+        run: |
+          bash -n scripts/android/build-connected.sh
+          bash scripts/android/build-connected.sh
+          mkdir -p "$RUNNER_TEMP/now-phone"
+          cp apps/android/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/now-phone/NOW-connected-debug.apk"
+          printf '%s\n' "$GITHUB_SHA" > "$RUNNER_TEMP/now-phone/source-commit.txt"
+          cd "$RUNNER_TEMP/now-phone"
+          sha256sum NOW-connected-debug.apk > SHA256SUMS.txt
+
+      - name: Publish connected phone APK
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        timeout-minutes: 3
+        continue-on-error: true
+        with:
+          name: NOW-connected-debug
+          path: ${{ runner.temp }}/now-phone/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
 
   android-instrumented:
     needs: [android]

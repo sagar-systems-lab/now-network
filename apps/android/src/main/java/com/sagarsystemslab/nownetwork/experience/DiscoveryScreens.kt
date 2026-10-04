@@ -6,6 +6,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -75,7 +77,14 @@ fun BrowseAreasScreen(state: ExperienceUiState, viewModel: ExperienceViewModel, 
                 NowPrimaryButton("Explore this area", { viewModel.selectArea(area); onBack() }, Modifier.fillMaxWidth().testTag("AREA-SELECT-${area.text("area_id")}"))
             }
         }
-        if (visible.isEmpty() && !state.areasLoading && state.areaError == null) item { NowNotice("No matching areas in these results. Try another search or load more areas.", title = "No areas found") }
+        if (visible.isEmpty() && !state.areasLoading && state.areaError == null) item {
+            NowGlassCard(emphasized = true) {
+                ProofArtwork(false, Modifier.fillMaxWidth().height(140.dp))
+                Text(if (query.isBlank() && filter == "All") "Explore from where you are" else "No matching areas", style = NowType.TitleM, color = NowColors.Ink950)
+                Text(if (query.isBlank() && filter == "All") "No supported places are listed yet. Use your current location to center the map; nearby states appear when places are added." else "Try another area name or clear your filters.", style = NowType.BodyM, color = NowColors.Ink600)
+                if (query.isNotBlank() || filter != "All") NowSecondaryButton("Clear search & filters", { query = ""; filter = "All" }, Modifier.fillMaxWidth())
+            }
+        }
         if (state.nextAreaOffset != null) item { NowSecondaryButton("Load more areas", { viewModel.areas(query, more = true) }, Modifier.fillMaxWidth(), enabled = !state.areasLoading) }
     }
 }
@@ -84,6 +93,7 @@ fun BrowseAreasScreen(state: ExperienceUiState, viewModel: ExperienceViewModel, 
 fun NotificationsScreen(state: ExperienceUiState, viewModel: ExperienceViewModel, onBack: () -> Unit, onPreferences: () -> Unit, onOpen: (JsonObject) -> Unit) {
     var filter by rememberSaveable { mutableStateOf("all") }
     val rows = state.inbox.rows()
+    val motionDuration = nowMotionDuration(rememberNowMotionEnabled(), 180)
     LazyColumn(Modifier.fillMaxSize().testTag("screen-notifications"), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { ExperienceTopBar("Notifications", onBack, "${state.inbox.number("unread_count")} unread updates", trailing = { IconButton(onPreferences) { Icon(Icons.Outlined.Tune, "Notification preferences", tint = NowColors.Blue600) } }) }
         item {
@@ -96,7 +106,12 @@ fun NotificationsScreen(state: ExperienceUiState, viewModel: ExperienceViewModel
         }
         items(rows, key = { it.text("notification_id") }) { notification ->
             val unread = notification.text("read_at").isBlank()
-            NowGlassCard(emphasized = unread) {
+            NowGlassCard(Modifier.animateItem(fadeInSpec = tween(motionDuration), fadeOutSpec = tween(motionDuration), placementSpec = tween(motionDuration)), emphasized = unread, spacing = 4.dp) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (unread) Box(Modifier.size(7.dp).background(NowColors.Blue600, CircleShape))
+                    Text(notification.text("category").replaceFirstChar { it.uppercase() }, Modifier.weight(1f), style = NowType.LabelM, color = NowColors.Ink600)
+                    Text(displayEventTime(notification.text("created_at")), style = NowType.BodyS, color = NowColors.Ink500)
+                }
                 ExperienceRow(notification.text("title"), notification.text("body"), when (notification.text("category")) {
                     "payments" -> Icons.Outlined.Payments
                     "security" -> Icons.Outlined.Shield

@@ -78,12 +78,23 @@ Screenshot generation and artifact transport are not part of that job. The optio
 `scripts/android/capture-visuals.sh` helper is for a separately provisioned, rendered Android device;
 ATD images do not render screenshot evidence.
 
-For a connected phone build, set `NOW_API_BASE_URL`, `NOW_SUPABASE_URL` and
-`NOW_SUPABASE_PUBLISHABLE_KEY`, retain the existing Solana/reward configuration, and run
-`bash scripts/android/build-connected.sh`. The script rejects missing runtime values before
-starting Gradle. An unconfigured CI APK is a source/test build; it cannot load live account data.
-The matching migrations and API/worker must be deployed before the new account and inbox routes
-are available. Local appearance and permission settings do not require an account request.
+For a connected phone build, run `bash scripts/android/build-connected.sh`. It selects
+`NOW_RUNTIME=hosted` and loads `apps/android/hosted-runtime.properties`, which contains only
+the hosted endpoint and public client configuration. Gradle properties and environment variables
+override those defaults; retain any reward-mint configuration for the selected deployment.
+Missing URLs, non-HTTPS endpoints and non-publishable client keys fail Gradle configuration.
+The normal test builds retain their isolated configuration.
+
+The Android job also builds `NOW-connected-debug`, a downloadable APK artifact with its source
+commit and SHA-256. APK upload has a three-minute timeout and is optional; a transport failure
+does not change test results. On the runner, the connected APK remains at
+`$RUNNER_TEMP/now-phone/NOW-connected-debug.apk`. This is a debug phone build, not a signed
+release candidate. The required instrumented tests run separately with their normal configuration.
+
+Deploy the matching migrations and API/worker before testing the new account and inbox routes.
+A connected build does not populate the location catalog: real locations and state definitions
+must be added before nearby results exist. Device location centers the map independently.
+Local appearance and permission settings do not require an account request.
 
 Before shipping, exercise physical camera capture, wallet handoff, device-credential lock,
 permission changes, background push delivery and requester/contributor operation on separate

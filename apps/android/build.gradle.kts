@@ -7,11 +7,29 @@ plugins {
     alias(libs.plugins.androidx.baselineprofile)
 }
 
+val hostedRuntime = providers.gradleProperty("NOW_RUNTIME")
+    .orElse(providers.environmentVariable("NOW_RUNTIME"))
+    .getOrElse("offline") == "hosted"
+val hostedPublicConfig = java.util.Properties().apply {
+    if (hostedRuntime) file("hosted-runtime.properties").inputStream().use { load(it) }
+}
+
 fun publicConfig(name: String, fallback: String = ""): String =
     providers.gradleProperty(name)
         .orElse(providers.environmentVariable(name))
-        .orElse(fallback)
+        .orElse(hostedPublicConfig.getProperty(name, fallback))
         .get()
+
+if (hostedRuntime) {
+    listOf("NOW_API_BASE_URL", "NOW_SUPABASE_URL", "NOW_SUPABASE_PUBLISHABLE_KEY").forEach { name ->
+        require(publicConfig(name).isNotBlank()) { "Missing public Android runtime value: $name" }
+    }
+    require(publicConfig("NOW_API_BASE_URL").startsWith("https://")) { "Hosted API requires HTTPS" }
+    require(publicConfig("NOW_SUPABASE_URL").startsWith("https://")) { "Hosted auth requires HTTPS" }
+    require(publicConfig("NOW_SUPABASE_PUBLISHABLE_KEY").startsWith("sb_publishable_")) {
+        "Hosted Android requires a public client key"
+    }
+}
 
 fun buildConfigString(value: String): String =
     "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""

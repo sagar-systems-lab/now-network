@@ -32,12 +32,17 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.sagarsystemslab.nownetwork.R
 import com.sagarsystemslab.nownetwork.designsystem.*
+import com.sagarsystemslab.nownetwork.experience.RemoteAvatar
+
+data class HeaderIdentity(val avatarUrl: String = "", val displayName: String = "N")
+val LocalHeaderIdentity = staticCompositionLocalOf { HeaderIdentity() }
 
 @Composable
 fun ExperienceHeader(
@@ -52,7 +57,10 @@ fun ExperienceHeader(
                 modifier = Modifier.then(if (largeText) Modifier.weight(1f) else Modifier).semantics { heading() })
             if (!largeText) AreaPill(area, onArea, Modifier.weight(1f))
             HeaderIcon(Icons.Outlined.Notifications, "Notifications${if (unread > 0) ", $unread unread" else ""}", onNotifications, "SHARED-BELL", unread)
-            HeaderIcon(Icons.Outlined.PersonOutline, "Open profile", onProfile, "SHARED-AVATAR")
+            val identity = LocalHeaderIdentity.current
+            IconButton(onProfile, Modifier.testTag("SHARED-AVATAR").semantics { contentDescription = "Open profile" }) {
+                RemoteAvatar(identity.avatarUrl, identity.displayName, 34)
+            }
         }
         Text(subtitle, style = NowType.BodyM, color = NowColors.Ink600)
         if (largeText) AreaPill(area, onArea, Modifier.fillMaxWidth())
@@ -61,13 +69,14 @@ fun ExperienceHeader(
 
 @Composable
 private fun AreaPill(area: String, onArea: () -> Unit, modifier: Modifier = Modifier) {
-    Surface(onClick = onArea, shape = CircleShape, color = NowColors.InfoSoft,
-        border = BorderStroke(1.dp, NowColors.InfoBorder), modifier = modifier.testTag("SHARED-AREA")) {
-        Row(Modifier.heightIn(min = 48.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+    Box(modifier.heightIn(min = 48.dp).testTag("SHARED-AREA").clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onArea).padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
+      Surface(shape = CircleShape, color = NowColors.InfoSoft, border = BorderStroke(1.dp, NowColors.InfoBorder)) {
+        Row(Modifier.heightIn(min = 32.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
             Icon(Icons.Outlined.LocationOn, null, tint = NowColors.Blue600, modifier = Modifier.size(15.dp))
             Text(area.ifBlank { "Browse area" }, style = NowType.LabelM, color = NowColors.Ink800, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
             Icon(Icons.Outlined.ExpandMore, null, tint = NowColors.Blue600, modifier = Modifier.size(15.dp))
         }
+      }
     }
 }
 
@@ -86,7 +95,11 @@ private fun HeaderIcon(icon: ImageVector, label: String, onClick: () -> Unit, ta
 @Composable
 fun ExperienceTopBar(title: String, onBack: () -> Unit, subtitle: String? = null, trailing: @Composable (() -> Unit)? = null) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back", tint = NowColors.Ink950) }
+        IconButton(onBack) {
+            Surface(shape = CircleShape, color = NowColors.SurfacePrimary, border = BorderStroke(1.dp, NowColors.InfoBorder), shadowElevation = 2.dp) {
+                Icon(Icons.AutoMirrored.Outlined.ArrowBack, "Back", Modifier.padding(8.dp).size(20.dp), tint = NowColors.Ink950)
+            }
+        }
         Column(Modifier.weight(1f)) {
             Text(title, style = NowType.TitleM, color = NowColors.Ink950, modifier = Modifier.semantics { heading() })
             subtitle?.let { Text(it, style = NowType.BodyS, color = NowColors.Ink600) }

@@ -127,7 +127,15 @@ internal fun ExperienceScreenContent(
         else -> "Help & About"
     }
     Column(Modifier.fillMaxSize().testTag("screen-${destination.name.lowercase()}")) {
-        Box(Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) { ExperienceTopBar(title, onBack) }
+        Box(Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
+            ExperienceTopBar(title, onBack, when (destination) {
+                ExperienceDestination.PROFILE -> "Account, wallet and preferences"
+                ExperienceDestination.SETTINGS -> "Control your NOW experience"
+                ExperienceDestination.ACCOUNT -> "Profile, identity and account access"
+                ExperienceDestination.WALLET -> "Your wallet, rewards and connections"
+                else -> null
+            })
+        }
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         when (destination) {
             ExperienceDestination.PROFILE -> {
@@ -136,7 +144,6 @@ internal fun ExperienceScreenContent(
             ExperienceDestination.ACCOUNT -> AccountContent(state, viewModel, navigate)
             ExperienceDestination.WALLET, ExperienceDestination.PAYOUT_PREFERENCES -> WalletContent(state, viewModel, walletHost, destination == ExperienceDestination.PAYOUT_PREFERENCES)
             ExperienceDestination.SETTINGS -> {
-                ProfileHero(state, compact = true)
                 NowGlassCard(spacing = 4.dp) {
                     Text("Appearance", style = NowType.TitleS, color = NowColors.Ink950)
                     ThemePreviews(preferences.theme) { mode -> scope.launch { uiPreferencesStore.theme(mode) } }
@@ -295,7 +302,7 @@ internal fun RemoteAvatar(url: String, name: String, size: Int = 64) {
     }
     Surface(Modifier.size(size.dp), shape = CircleShape, color = NowColors.InfoSoft, border = BorderStroke(1.dp, NowColors.Blue600)) {
         if (image != null) Image(image!!.asImageBitmap(), "Profile photo", contentScale = ContentScale.Crop)
-        else Box(contentAlignment = Alignment.Center) { Text(name.trim().take(1).uppercase().ifBlank { "N" }, style = NowType.TitleXL, color = NowColors.Blue600) }
+        else Box(contentAlignment = Alignment.Center) { Text(name.trim().take(1).uppercase().ifBlank { "N" }, style = if (size <= 40) NowType.TitleS else NowType.TitleXL, color = NowColors.Blue600) }
     }
 }
 

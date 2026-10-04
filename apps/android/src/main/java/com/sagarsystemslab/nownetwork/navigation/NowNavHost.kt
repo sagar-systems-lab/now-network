@@ -9,6 +9,11 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
+import com.sagarsystemslab.nownetwork.feature.common.HeaderIdentity
+import com.sagarsystemslab.nownetwork.feature.common.LocalHeaderIdentity
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -86,14 +91,19 @@ fun NowNavHost(
     experienceState?.privateProof?.let { proof ->
         com.sagarsystemslab.nownetwork.experience.PrivateProofDialog(proof) { experience?.dismissProof() }
     }
+    val slideDistance = with(LocalDensity.current) { 16.dp.roundToPx() }
+    CompositionLocalProvider(LocalHeaderIdentity provides HeaderIdentity(
+        experienceState?.profile?.text("avatar_url").orEmpty(),
+        experienceState?.profile?.text("display_name").orEmpty(),
+    )) {
     NavHost(
         navController = appState.navController,
         startDestination = NowRoute,
         modifier = modifier,
-        enterTransition = { if (motion) fadeIn(tween(220)) + slideInHorizontally(tween(220)) { it / 12 } else EnterTransition.None },
+        enterTransition = { if (motion) fadeIn(tween(220)) + slideInHorizontally(tween(220)) { slideDistance } else EnterTransition.None },
         exitTransition = { if (motion) fadeOut(tween(180)) else ExitTransition.None },
-        popEnterTransition = { if (motion) fadeIn(tween(220)) else EnterTransition.None },
-        popExitTransition = { if (motion) fadeOut(tween(180)) + slideOutHorizontally(tween(180)) { it / 12 } else ExitTransition.None },
+        popEnterTransition = { if (motion) fadeIn(tween(220)) + slideInHorizontally(tween(220)) { -slideDistance } else EnterTransition.None },
+        popExitTransition = { if (motion) fadeOut(tween(180)) + slideOutHorizontally(tween(180)) { slideDistance } else ExitTransition.None },
     ) {
         composable<NowRoute> {
             val browseViewModel = browseViewModelProvider()
@@ -392,5 +402,6 @@ fun NowNavHost(
                 onBack = appState::navigateBack,
             )
         }
+    }
     }
 }
