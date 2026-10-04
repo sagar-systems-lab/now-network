@@ -135,6 +135,7 @@ fun NowNavHost(
                 onFundState = appState::navigateToRequesterFunding,
                 center = center,
                 onSearchArea = { next -> experience?.browseContext?.select("Selected map area", next.latitude, next.longitude) },
+                onLocateArea = { next -> experience?.browseContext?.select("Near my location", next.latitude, next.longitude) },
                 unread = experienceState?.inbox?.number("unread_count") ?: 0,
             )
         }
@@ -209,6 +210,7 @@ fun NowNavHost(
                 onHelp = { openExperience(ExperienceDestination.HELP_ABOUT) },
                 center = center,
                 onSearchArea = { next -> experience?.browseContext?.select("Selected map area", next.latitude, next.longitude) },
+                onLocateArea = { next -> experience?.browseContext?.select("Near my location", next.latitude, next.longitude) },
                 unread = experienceState?.inbox?.number("unread_count") ?: 0,
             )
         }

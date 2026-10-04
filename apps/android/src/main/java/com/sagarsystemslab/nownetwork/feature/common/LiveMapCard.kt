@@ -25,7 +25,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.material.icons.outlined.CenterFocusStrong
 import androidx.compose.material.icons.outlined.Layers
-import androidx.compose.material.icons.outlined.MyLocation
 import androidx.compose.material.icons.outlined.OpenInFull
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Remove
@@ -52,6 +51,7 @@ import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.MapLibreMapOptions
 import org.maplibre.android.maps.Style
+import org.maplibre.android.tile.TileOperation
 
 data class LiveMapPin(val id: String, val title: String, val center: GeoCenter, val status: String)
 
@@ -61,6 +61,7 @@ fun LiveMapCard(
     center: GeoCenter?, pins: List<LiveMapPin>, onPin: (String) -> Unit,
     modifier: Modifier = Modifier,
     onSearchArea: ((GeoCenter) -> Unit)? = null,
+    onLocateArea: ((GeoCenter) -> Unit)? = onSearchArea,
 ) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -76,8 +77,14 @@ fun LiveMapCard(
     var gestureMoved by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(false) }
     var tilted by remember { mutableStateOf(true) }
-    var failed by remember { mutableStateOf(false) }
-    var loaded by remember { mutableStateOf(false) }
+    var loadState by remember { mutableStateOf(MapLoadState()) }
+    val failed = loadState.failed
+    val loaded = loadState.styleLoaded
+    val mapRendered = loadState.ready
+    var basicMap by rememberSaveable { mutableStateOf(false) }
+    val latestBasicMap by rememberUpdatedState(basicMap)
+    var mapMenu by remember { mutableStateOf(false) }
+    var locationMessage by remember { mutableStateOf<String?>(null) }
     var map by remember { mutableStateOf<MapLibreMap?>(null) }
     val motion = rememberNowMotionEnabled()
     var moving by remember { mutableStateOf(false) }
@@ -117,13 +124,28 @@ fun LiveMapCard(
     }
     LaunchedEffect(mapView) {
         // A tile/network failure must not hide the map that already rendered.
-        mapView.addOnDidFailLoadingMapListener { failed = true }
+        mapView.addOnDidFailLoadingMapListener { loadState = loadState.failure() }
+        mapView.addOnRenderErrorListener { loadState = loadState.failure() }
+        mapView.addOnTileActionListener { operation, _, _, _, _, _, source ->
+            if (source == if (latestBasicMap) "street-tiles" else "openmaptiles") {
+                when (operation) {
+                    TileOperation.LoadFromNetwork, TileOperation.LoadFromCache, TileOperation.EndParse -> loadState = loadState.tileReceived()
+                    TileOperation.Error -> loadState = loadState.failure()
+                    else -> Unit
+                }
+            }
+        }
+        mapView.addOnDidFinishRenderingFrameListener { fully: Boolean, _: Double, _: Double ->
+            if (cameraReady) loadState = loadState.rendered(fully)
+        }
         mapView.getMapAsync { ready ->
             ready.uiSettings.isCompassEnabled = false
             ready.uiSettings.isLogoEnabled = false
             ready.uiSettings.isAttributionEnabled = true
             ready.setMinZoomPreference(1.0)
             ready.setMaxZoomPreference(19.0)
+            // Fetch only the visible zoom level, including on the street-map fallback.
+            ready.setPrefetchZoomDelta(0)
             ready.uiSettings.isScrollGesturesEnabled = true
             ready.uiSettings.isZoomGesturesEnabled = true
             ready.setOnMarkerClickListener { marker -> selectedPin = marker.snippet; true }
@@ -134,6 +156,7 @@ fun LiveMapCard(
             }
             ready.addOnCameraMoveStartedListener { reason ->
                 moving = true
+                loadState = loadState.rendered(false)
                 if (reason == MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE) gestureMoved = true
             }
             ready.addOnCameraMoveListener { updateCenterPoint() }
@@ -151,13 +174,19 @@ fun LiveMapCard(
             map = ready
         }
     }
-    LaunchedEffect(map, dark, retry) {
+    LaunchedEffect(map, dark, retry, basicMap) {
         val ready = map ?: return@LaunchedEffect
-        loaded = false; failed = false; cameraReady = false
-        val json = context.assets.open("maps/${if (dark) "night" else "day"}.json").bufferedReader().use { it.readText() }
-        ready.setStyle(Style.Builder().fromJson(json)) { loaded = true; failed = false }
-        delay(15_000)
-        if (!loaded) failed = true
+        loadState = MapLoadState(); cameraReady = false
+        val name = if (basicMap) "streets" else if (dark) "night" else "day"
+        val json = context.assets.open("maps/$name.json").bufferedReader().use { it.readText() }
+        ready.setStyle(Style.Builder().fromJson(json)) { loadState = loadState.styleLoaded() }
+    }
+    LaunchedEffect(map, loaded, mapRendered, moving, basicMap, retry) {
+        if (map == null || moving || mapRendered) return@LaunchedEffect
+        delay(12_000)
+        if (!mapRendered) {
+            if (!basicMap) basicMap = true else loadState = loadState.failure()
+        }
     }
     LaunchedEffect(map, center, loaded) {
         val ready = map ?: return@LaunchedEffect
@@ -167,17 +196,17 @@ fun LiveMapCard(
         pendingCenter = null
         val position = browseCamera(center?.takeIf { it.valid }, cameraSnapshot)
         ready.moveCamera(CameraUpdateFactory.newCameraPosition(CameraPosition.Builder()
-            .target(LatLng(position[0], position[1])).zoom(position[2]).tilt(if (tilted) 38.0 else 0.0).build()))
+            .target(LatLng(position[0], position[1])).zoom(position[2]).tilt(if (tilted && !basicMap) 38.0 else 0.0).build()))
         appliedCenter = center
         cameraReady = true
         centerPoint = center?.takeIf { it.valid }?.let { c ->
             ready.projection.toScreenLocation(LatLng(c.latitude, c.longitude)).let { Offset(it.x, it.y) }
         }
     }
-    LaunchedEffect(map, tilted) {
+    LaunchedEffect(map, tilted, basicMap) {
         val ready = map ?: return@LaunchedEffect
         if (cameraReady) ready.moveCamera(CameraUpdateFactory.newCameraPosition(
-            CameraPosition.Builder(ready.cameraPosition).tilt(if (tilted) 38.0 else 0.0).build()))
+            CameraPosition.Builder(ready.cameraPosition).tilt(if (tilted && !basicMap) 38.0 else 0.0).build()))
     }
     LaunchedEffect(map, pins, loaded, selectedPin) {
         val ready = map ?: return@LaunchedEffect
@@ -217,41 +246,47 @@ fun LiveMapCard(
                     drawCircle(blue, 6.dp.toPx(), point)
                 }
             }
-            if (!loaded && !failed) Surface(Modifier.align(Alignment.BottomStart).padding(12.dp), color = NowColors.SurfacePrimary, shape = NowShapes.medium) {
-                Text("Loading map…", Modifier.padding(horizontal = 12.dp, vertical = 8.dp), style = NowType.BodyS, color = NowColors.Ink700)
+            if (!mapRendered && !failed && !moving) Surface(Modifier.align(Alignment.TopCenter).padding(top = 12.dp, start = 64.dp, end = 64.dp), color = NowColors.SurfacePrimary, shape = NowShapes.medium) {
+                Text(if (basicMap) "Loading street map…" else "Loading map details…", Modifier.padding(8.dp).testTag("MAP-LOADING"), style = NowType.BodyS, color = NowColors.Ink700)
             }
             if (center == null && pins.isEmpty()) {
                 Surface(Modifier.align(Alignment.Center).padding(20.dp), shape = NowShapes.medium, color = NowColors.SurfacePrimary) {
                     Text("Choose an area to explore the map", Modifier.padding(14.dp), color = NowColors.Ink700, style = NowType.BodyM)
                 }
             }
-            if (failed) Surface(Modifier.align(Alignment.BottomCenter).padding(bottom = 30.dp, start = 12.dp, end = 12.dp), color = NowColors.SurfacePrimary, shape = NowShapes.medium) {
+            if (failed) Surface(Modifier.align(Alignment.BottomCenter).padding(bottom = 28.dp, start = 12.dp, end = 12.dp), color = NowColors.SurfacePrimary, shape = NowShapes.medium) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(if (loaded) "Some map tiles couldn't load" else "Map unavailable", Modifier.weight(1f).padding(10.dp), style = NowType.BodyS, color = NowColors.Ink800)
-                    TextButton({ retry++ }) { Text("Retry") }
+                    Text("Map details couldn't load", Modifier.weight(1f).padding(10.dp), style = NowType.BodyS, color = NowColors.Ink800)
+                    TextButton({ if (!basicMap) basicMap = true else retry++ }) { Text(if (basicMap) "Retry" else "Street map") }
                 }
             }
             val selected = pins.firstOrNull { it.id == selectedPin }
-            if (selected != null) Surface(Modifier.align(Alignment.BottomCenter).padding(start=12.dp,end=12.dp,bottom=28.dp), shape=NowShapes.medium,color=NowColors.SurfacePrimary) {
+            if (selected != null && !failed) Surface(Modifier.align(Alignment.BottomCenter).padding(start=12.dp,end=12.dp,bottom=28.dp), shape=NowShapes.medium,color=NowColors.SurfacePrimary) {
                 Row(Modifier.padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
                     Text(selected.title,Modifier.weight(1f),style=NowType.LabelL,color=NowColors.Ink950,maxLines=2)
                     TextButton({latestOnPin(selected.id)}) {Text("Open")}
                     TextButton({selectedPin=null}) {Text("Close")}
                 }
-            } else if (pendingCenter != null && onSearchArea != null) {
+            } else if (pendingCenter != null && onSearchArea != null && !failed && mapRendered) {
                 Button({ pendingCenter?.let(onSearchArea); pendingCenter=null },Modifier.align(Alignment.BottomCenter).padding(bottom=28.dp)) {Text("Search this area")}
             }
             Column(Modifier.align(Alignment.TopEnd).padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                FilledTonalIconButton(onClick = {
-                    val c = center?.takeIf { it.valid } ?: pins.firstOrNull()?.center
-                    if (c != null) {
+                MapLocationButton(onLocation = { c ->
+                        cameraSnapshot = null
                         gestureMoved = false
                         pendingCenter = null
                         val update = CameraUpdateFactory.newLatLngZoom(LatLng(c.latitude, c.longitude), 13.4)
                         if (motion) map?.animateCamera(update, 320) else map?.moveCamera(update)
+                        onLocateArea?.invoke(c)
+                }, onMessage = { locationMessage = it })
+                Box {
+                    FilledTonalIconButton(onClick = { mapMenu = true }) { Icon(Icons.Outlined.Layers, "Map options") }
+                    DropdownMenu(mapMenu, { mapMenu = false }) {
+                        DropdownMenuItem(text = { Text("Detailed map") }, onClick = { basicMap = false; retry++; mapMenu = false })
+                        DropdownMenuItem(text = { Text("Basic street map") }, onClick = { basicMap = true; retry++; mapMenu = false })
+                        DropdownMenuItem(text = { Text(if (tilted) "Flat view" else "Tilted view") }, enabled = !basicMap, onClick = { tilted = !tilted; mapMenu = false })
                     }
-                }, enabled = center != null || pins.isNotEmpty()) { Icon(Icons.Outlined.MyLocation, "Recenter browse area") }
-                FilledTonalIconButton(onClick = { tilted = !tilted }) { Icon(Icons.Outlined.Layers, if (tilted) "Use flat map" else "Use tilted map") }
+                }
                 FilledTonalIconButton(onClick = {
                     val positions = pins.filter { it.center.valid }.map { LatLng(it.center.latitude,it.center.longitude) }
                     if (positions.size > 1) map?.moveCamera(CameraUpdateFactory.newLatLngBounds(org.maplibre.android.geometry.LatLngBounds.Builder().includes(positions).build(),60))
@@ -269,7 +304,14 @@ fun LiveMapCard(
                     if (motion) map?.animateCamera(CameraUpdateFactory.zoomOut(), 220) else map?.moveCamera(CameraUpdateFactory.zoomOut())
                 }, enabled = loaded) { Icon(Icons.Outlined.Remove, "Zoom out") }
             }
+            Surface(Modifier.align(Alignment.BottomEnd).padding(end = 8.dp, bottom = 4.dp), color = NowColors.SurfacePrimary.copy(alpha = .92f), shape = NowShapes.small) {
+                Text(if (basicMap) "© OpenStreetMap contributors" else "© OpenStreetMap · OpenFreeMap", Modifier.padding(horizontal = 5.dp, vertical = 2.dp), style = NowType.BodyS, color = NowColors.Ink700)
+            }
         }
+    }
+    locationMessage?.let { message ->
+        AlertDialog(onDismissRequest = { locationMessage = null }, title = { Text("Current location") },
+            text = { Text(message) }, confirmButton = { TextButton({ locationMessage = null }) { Text("OK") } })
     }
 }
 

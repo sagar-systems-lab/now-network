@@ -40,6 +40,7 @@ fun NowScreen(
     center: GeoCenter? = null,
     unread: Int = 0,
     onSearchArea: ((GeoCenter) -> Unit)? = null,
+    onLocateArea: ((GeoCenter) -> Unit)? = onSearchArea,
     onLoadMore: () -> Unit = {},
     onSearch: (String) -> Unit = {},
     onFreshness: (String) -> Unit = {},
@@ -53,7 +54,7 @@ fun NowScreen(
     val nearbyCardWidth = if (LocalDensity.current.fontScale >= 1.5f) 280.dp else 200.dp
     LazyColumn(Modifier.testTag("screen-now"), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { ExperienceHeader("NOW", "Live states near you", uiState.areaLabel, onBrowseAreas, onNotifications, onProfile, unread) }
-        item { LiveMapCard(center, states.mapNotNull { s -> s.location?.center?.let { LiveMapPin(s.stateId, s.title, it, s.freshnessAt(nowMillis).name) } }, onStateClick, onSearchArea = onSearchArea) }
+        item { LiveMapCard(center, states.mapNotNull { s -> s.location?.center?.let { LiveMapPin(s.stateId, s.title, it, s.freshnessAt(nowMillis).name) } }, onStateClick, onSearchArea = onSearchArea, onLocateArea = onLocateArea) }
         item { SyncStrip(uiState.refreshing, uiState.states.size, uiState.notice != BrowseNotice.NONE, onRefresh) }
         item {
             NowGlassCard(Modifier.testTag("home-ask-refresh"), emphasized = true, contentPadding = 12.dp, spacing = 8.dp) {
