@@ -190,13 +190,13 @@ export class PostgresAskService implements AskApi {
             ${
             input.location.name + " · " + template.title
           },${template.question},${policy.state_type},
-            ${JSON.stringify(template.answer)}::jsonb,${template.unit},
+            ${JSON.stringify(template.answer)}::text::jsonb,${template.unit},
             ${
             JSON.stringify({
               fresh_ttl_seconds: policy.fresh_ttl_seconds,
               aging_ratio: policy.aging_ratio,
             })
-          }::jsonb,
+          }::text::jsonb,
             ${locationId}::uuid,'ACTIVE',${actor.actorId}::uuid)`;
         }
         const active =
@@ -218,7 +218,7 @@ export class PostgresAskService implements AskApi {
         await tx`insert into app.idempotency_records(idempotency_key,actor_id,operation_type,request_hash,status,response_code,response_body,operation_id,expires_at)
           values (${storedKey},${actor.actorId}::uuid,'ASK_RESOLVE_V1',${hash},'COMPLETED',200,${
           JSON.stringify(result)
-        }::jsonb,
+        }::text::jsonb,
           ${stateId}::uuid,now()+interval '7 days')`;
         return result;
       });

@@ -194,7 +194,7 @@ export class PostgresEvidenceUploadRepository implements EvidenceUploadRepositor
           object_key: input.objectKey,
           media_mime: input.mediaMime,
         })
-      }::jsonb,
+      }::text::jsonb,
           ${input.observedAt}
         )
       `;

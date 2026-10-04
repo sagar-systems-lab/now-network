@@ -1,5 +1,7 @@
 import postgres from "npm:postgres@3.4.7";
 import { PostgresAskService } from "../src/ask-service.ts";
+import { ASK_TEMPLATES } from "../src/ask-contract.ts";
+import { policyTemplateForKey } from "../../packages/policy/src/registry.ts";
 import { canonicalJson } from "../../packages/policy/src/template.ts";
 import { ApiFault } from "../src/errors.ts";
 const permission = await Deno.permissions.query({ name: "env", variable: "NOW_TEST_DB_URL" });
@@ -142,7 +144,11 @@ Deno.test({
         pair[0].state_id === pair[1].state_id && locationIds.size === 1,
         "concurrent resolution duplicated state/location",
       );
-      const replay = await call(0, "asks/resolve", "POST", body, key);
+      const replay = await call(0, "asks/resolve", "POST", body, key, concurrent);
+      assert(
+        typeof replay === "object" && replay !== null,
+        "ASK replay returned encoded JSON text",
+      );
       assert(
         canonicalJson(replay) === canonicalJson(pair[0]),
         "timeout retry changed the result",
@@ -164,16 +170,58 @@ Deno.test({
       }, crypto.randomUUID());
       locationIds.add(String(sameCellOtherName.location_id));
       assert(sameCellOtherName.state_id !== pair[0].state_id, "adjacent named lots collapsed");
+      for (const templateKey of ["gate.open_closed.v1", "visual.current_condition.v1"] as const) {
+        const template = ASK_TEMPLATES[templateKey];
+        const draft = {
+          location: { ...body.location, location_type: template.type },
+          policy_template_key: templateKey,
+        };
+        const draftKey = crypto.randomUUID();
+        const resolved = await call(2, "asks/resolve", "POST", draft, draftKey);
+        locationIds.add(String(resolved.location_id));
+        const retried = await call(2, "asks/resolve", "POST", draft, draftKey, concurrent);
+        assert(canonicalJson(retried) === canonicalJson(resolved), `${templateKey} replay changed`);
+      }
       const definitions =
-        await sql`select canonical_key,policy_template_key,version from app.state_definitions where location_id=any(${
+        await sql`select canonical_key,policy_template_key,version,answer_schema,freshness_policy from app.state_definitions where location_id=any(${
           Array.from(locationIds)
         }::uuid[])`;
       assert(
-        definitions.every((row) =>
-          row.canonical_key !== row.policy_template_key &&
-          row.policy_template_key === body.policy_template_key && row.version === 1
-        ),
-        "place and policy identities coupled",
+        definitions.length === 5,
+        "registered ASK templates did not persist their states",
+      );
+      for (const row of definitions) {
+        const templateKey = row.policy_template_key as keyof typeof ASK_TEMPLATES;
+        const template = ASK_TEMPLATES[templateKey];
+        const policy = policyTemplateForKey(templateKey);
+        assert(template && policy, "unregistered ASK template persisted");
+        assert(
+          row.canonical_key !== templateKey && row.version === 1,
+          "place and policy identities coupled",
+        );
+        assert(
+          canonicalJson(row.answer_schema) === canonicalJson(template.answer),
+          `${templateKey} answer schema was not stored as JSON`,
+        );
+        assert(
+          canonicalJson(row.freshness_policy) === canonicalJson({
+            fresh_ttl_seconds: policy.fresh_ttl_seconds,
+            aging_ratio: policy.aging_ratio,
+          }),
+          `${templateKey} freshness policy was not stored as JSON`,
+        );
+      }
+      const responses = await sql`select response_body from app.idempotency_records
+        where actor_id=any(${
+        actors.map((a) => a.actorId)
+      }::uuid[]) and operation_type='ASK_RESOLVE_V1'`;
+      assert(
+        responses.length === 6 &&
+          responses.every((row) =>
+            typeof row.response_body === "object" && row.response_body?.state_id &&
+            typeof row.response_body.coverage === "object"
+          ),
+        "ASK responses were not stored as JSON objects",
       );
       const secure =
         await sql`select relrowsecurity from pg_class where oid in ('app.contributor_presence'::regclass,'app.ask_rate_limits'::regclass)`;

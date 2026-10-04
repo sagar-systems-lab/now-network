@@ -370,7 +370,7 @@ export class PostgresClaimRepository implements ClaimRepository {
               ${input.requestHash},
               'COMPLETED',
               200,
-              ${JSON.stringify({ acceptance_id: acceptanceId })}::jsonb,
+              ${JSON.stringify({ acceptance_id: acceptanceId })}::text::jsonb,
               ${acceptanceId}::uuid,
               ${input.idempotencyExpiresAt}
             )
@@ -476,7 +476,7 @@ export class PostgresClaimRepository implements ClaimRepository {
           ${input.requestHash},
           'COMPLETED',
           ${responseCode},
-          ${JSON.stringify({ acceptance_id: acceptanceId })}::jsonb,
+          ${JSON.stringify({ acceptance_id: acceptanceId })}::text::jsonb,
           ${acceptanceId}::uuid,
           ${input.idempotencyExpiresAt}
         )
@@ -507,7 +507,7 @@ export class PostgresClaimRepository implements ClaimRepository {
           status: "WALLET_PENDING",
           claim_duration_seconds: input.claimDurationSeconds,
         })
-      }::jsonb,
+      }::text::jsonb,
           ${input.observedAt}
         )
       `;
@@ -605,7 +605,7 @@ export class PostgresClaimRepository implements ClaimRepository {
           ${input.chainStatus === "UNKNOWN" ? "CLAIM_OUTCOME_UNKNOWN" : "CLAIM_CONFIRMING"},
           ${input.actorId}::uuid,
           ${input.acceptanceId}::uuid,
-          ${JSON.stringify({ chain_signature: input.chainSignature })}::jsonb,
+          ${JSON.stringify({ chain_signature: input.chainSignature })}::text::jsonb,
           ${input.observedAt}
         )
       `;
@@ -681,7 +681,7 @@ export class PostgresClaimRepository implements ClaimRepository {
           'CLAIM_RECONCILED_ABSENT',
           ${input.actorId}::uuid,
           ${input.acceptanceId}::uuid,
-          ${JSON.stringify({ chain_signature: input.chainSignature })}::jsonb,
+          ${JSON.stringify({ chain_signature: input.chainSignature })}::text::jsonb,
           ${input.observedAt}
         )
       `;
@@ -878,7 +878,7 @@ export class PostgresClaimRepository implements ClaimRepository {
           chain_signature: input.chainSignature,
           claim_deadline: input.claimDeadline.toISOString(),
         })
-      }::jsonb,
+      }::text::jsonb,
           ${input.observedAt}
         ), (
           ${crypto.randomUUID()}::uuid,
@@ -898,7 +898,7 @@ export class PostgresClaimRepository implements ClaimRepository {
             .map((byte) => byte.toString(16).padStart(2, "0"))
             .join(""),
         })
-      }::jsonb,
+      }::text::jsonb,
           ${input.observedAt}
         )
       `;

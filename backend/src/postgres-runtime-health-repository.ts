@@ -68,7 +68,7 @@ export class PostgresRuntimeHealthRepository implements RuntimeHealthRepository 
         ${input.lastJobAt},
         ${input.buildVersion},
         ${input.result},
-        ${JSON.stringify(input.summary ?? {})}::jsonb,
+        ${JSON.stringify(input.summary ?? {})}::text::jsonb,
         ${input.observedAt}
       )
       on conflict (worker_id) do update

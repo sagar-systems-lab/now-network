@@ -288,7 +288,7 @@ export class PostgresStateProjectionRepository implements StateProjectionReposit
           ${input.stateVersion},
           ${input.refreshId}::uuid,
           ${input.verificationResultId}::uuid,
-          ${JSON.stringify(input.currentValue)}::jsonb,
+          ${JSON.stringify(input.currentValue)}::text::jsonb,
           ${input.currentValueDigest},
           ${input.observedAt},
           ${input.agingAt},
@@ -326,7 +326,7 @@ export class PostgresStateProjectionRepository implements StateProjectionReposit
             verification_result_id: input.verificationResultId,
             superseded: true,
           })
-        }::jsonb,
+        }::text::jsonb,
             ${input.observedAt}
           )
         `;
@@ -366,7 +366,7 @@ export class PostgresStateProjectionRepository implements StateProjectionReposit
           ) values (
             ${input.stateId}::uuid,
             ${input.stateVersion},
-            ${JSON.stringify(input.currentValue)}::jsonb,
+            ${JSON.stringify(input.currentValue)}::text::jsonb,
             ${input.currentValueDigest},
             ${input.observedAt},
             ${input.observationEarliest},
@@ -387,7 +387,7 @@ export class PostgresStateProjectionRepository implements StateProjectionReposit
           update app.live_states
           set
             state_version = ${input.stateVersion},
-            current_value = ${JSON.stringify(input.currentValue)}::jsonb,
+            current_value = ${JSON.stringify(input.currentValue)}::text::jsonb,
             current_value_digest = ${input.currentValueDigest},
             observed_at = ${input.observedAt},
             observation_earliest = ${input.observationEarliest},
@@ -436,7 +436,7 @@ export class PostgresStateProjectionRepository implements StateProjectionReposit
           fresh_until: input.freshUntil.toISOString(),
           conflict_active: false,
         })
-      }::jsonb,
+      }::text::jsonb,
           ${input.observedAt}
         )
       `;

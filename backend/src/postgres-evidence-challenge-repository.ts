@@ -291,7 +291,7 @@ export class PostgresEvidenceChallengeRepository implements EvidenceChallengeRep
           ${input.actorId}::uuid,
           ${input.challengeId}::uuid,
           ${claimRevision},
-          ${eventPayload}::jsonb,
+          ${eventPayload}::text::jsonb,
           ${input.issuedAt}
         ), (
           ${crypto.randomUUID()}::uuid,
@@ -301,7 +301,7 @@ export class PostgresEvidenceChallengeRepository implements EvidenceChallengeRep
           ${input.actorId}::uuid,
           ${input.challengeId}::uuid,
           ${refreshRevision},
-          ${JSON.stringify({ status: "CAPTURE_IN_PROGRESS" })}::jsonb,
+          ${JSON.stringify({ status: "CAPTURE_IN_PROGRESS" })}::text::jsonb,
           ${input.issuedAt}
         )
       `;
