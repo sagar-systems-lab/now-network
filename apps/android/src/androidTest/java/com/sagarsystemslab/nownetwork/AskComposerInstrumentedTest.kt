@@ -24,11 +24,12 @@ class AskComposerInstrumentedTest {
             AskComposerScreen(state,{}, {},{ state=state.copy(draft=state.draft.copy(need=it)) },
                 { state=state.copy(stage=it) },{ gpsCalls++ },{}, {},{})
         } }
-        compose.onNodeWithText("Choose gate access").performScrollTo().performClick()
-        compose.onNodeWithText("Preview request").performScrollTo().performClick()
+        scrollToText("Choose gate access").performClick()
+        scrollToText("Preview request").performClick()
         compose.onNodeWithText("Is this gate open or closed?").assertExists()
         compose.runOnIdle { assertEquals(target,state.draft.target); assertEquals(0,gpsCalls) }
-        compose.onNodeWithContentDescription("Back").performScrollTo().performClick()
+        compose.onNodeWithTag("ask-composer").performScrollToNode(hasContentDescription("Back"))
+        compose.onNodeWithContentDescription("Back").performClick()
         compose.runOnIdle { assertEquals(AskStage.NEED,state.stage); assertEquals(AskNeed.GATE,state.draft.need) }
     }
 
@@ -40,7 +41,12 @@ class AskComposerInstrumentedTest {
             AskComposerScreen(state,{}, {},{}, {},{ gpsCalls++ },{}, { continued++ },{})
         } }
         compose.runOnIdle { assertEquals(0,continued); assertEquals(0,gpsCalls) }
-        compose.onNodeWithText("Continue to reward").performScrollTo().performClick()
+        scrollToText("Continue to reward").performClick()
         compose.runOnIdle { assertEquals(1,continued); assertEquals(0,gpsCalls) }
+    }
+
+    private fun scrollToText(text: String): SemanticsNodeInteraction {
+        compose.onNodeWithTag("ask-composer").performScrollToNode(hasText(text))
+        return compose.onNodeWithText(text)
     }
 }

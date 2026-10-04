@@ -66,9 +66,9 @@ Deno.test({
         await sql`insert into app.contributor_presence(actor_id,center,accuracy_m,coverage_radius_m,available,heartbeat_at,expires_at)
         values(${
           actors[i].actorId
-        }::uuid,extensions.st_project(extensions.st_setsrid(extensions.st_makepoint(77,28),4326)::extensions.geography,${distance},${
+        }::uuid,extensions.st_project(extensions.st_setsrid(extensions.st_makepoint(77,28),4326)::extensions.geography,${distance}::double precision,${
           i * Math.PI / 2
-        }),0,2000,true,now(),now()+interval '180 seconds')`;
+        }::double precision),0,2000,true,now(),now()+interval '180 seconds')`;
       }
       await sql`update app.contributor_presence set heartbeat_at=now()-interval '181 seconds',expires_at=now()-interval '1 second' where actor_id=${
         actors[6].actorId
@@ -192,8 +192,10 @@ Deno.test({
           actors[6].actorId
         }::uuid`;
       assert(expired[0].count === 0, "expired coordinate retained");
+      // Cover a minute rollover between seeding the counter and sending the request.
       await sql`insert into app.ask_rate_limits(actor_id,operation,bucket_start,requests)
-      values(${actors[0].actorId}::uuid,'resolve',date_trunc('minute',now()),10)
+      select ${actors[0].actorId}::uuid,'resolve',bucket,10
+      from generate_series(date_trunc('minute',now()),date_trunc('minute',now())+interval '1 minute',interval '1 minute') as bucket
       on conflict(actor_id,operation,bucket_start) do update set requests=10`;
       await rejects(
         () => call(0, "asks/resolve", "POST", body, crypto.randomUUID()),

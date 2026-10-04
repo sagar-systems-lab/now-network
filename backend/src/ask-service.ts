@@ -243,7 +243,7 @@ export class PostgresAskService implements AskApi {
       and extensions.st_dwithin(p.center,extensions.st_setsrid(extensions.st_makepoint(${target.lng},${target.lat}),4326)::extensions.geography,${ASK_CONFIG.maxRadiusM})
       and extensions.st_dwithin(p.center,extensions.st_setsrid(extensions.st_makepoint(${target.lng},${target.lat}),4326)::extensions.geography,p.coverage_radius_m)
       and not extensions.st_dwithin(p.center,extensions.st_setsrid(extensions.st_makepoint(${origin.lng},${origin.lat}),4326)::extensions.geography,
-        ${ASK_CONFIG.exclusionRadiusM}+${origin.accuracy_m}+p.accuracy_m)`;
+        ${ASK_CONFIG.exclusionRadiusM}::double precision+${origin.accuracy_m}::double precision+p.accuracy_m)`;
     return coveragePayload(Number(rows[0].count), new Date(), true);
   }
 
