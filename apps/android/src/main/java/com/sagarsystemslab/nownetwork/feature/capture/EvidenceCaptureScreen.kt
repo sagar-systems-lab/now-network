@@ -40,7 +40,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import com.sagarsystemslab.nownetwork.feature.common.TransactionPage
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -688,17 +687,6 @@ private fun EvidenceReview(
                 tone = NowNoticeTone.NEUTRAL,
             )
         }
-
-        var note by rememberSaveable(uiState.evidenceId) { mutableStateOf("") }
-        var noteOpen by rememberSaveable(uiState.evidenceId) { mutableStateOf(false) }
-        androidx.compose.material3.TextButton({ noteOpen = !noteOpen }) {
-            Text(if (noteOpen) "Hide personal note" else "Add a personal note (optional)")
-        }
-        if (noteOpen) NowTextField(
-            value = note, onValueChange = { note = it.take(240) }, label = "Personal note",
-            supportingText = "For this capture session only; not included in your submitted proof.",
-            modifier = Modifier.fillMaxWidth(),
-        )
 
     }
 }
