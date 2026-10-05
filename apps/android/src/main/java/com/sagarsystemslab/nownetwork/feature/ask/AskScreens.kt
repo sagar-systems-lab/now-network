@@ -81,7 +81,7 @@ fun AskComposerScreen(
                     NowGlassCard(emphasized=true) {
                         NowSectionTitle("Where do you need an update?", "Search a place, street or full address.")
                         NowTextField(state.query,onName,"Place or address",Modifier.testTag("ask-place-search"),
-                            supportingText="Try Nehru Place, Delhi",enabled=!state.busy,
+                            supportingText="Search location or address",enabled=!state.busy,
                             keyboardOptions=KeyboardOptions(imeAction=ImeAction.Search),
                             keyboardActions=KeyboardActions(onSearch={ onSearch() }))
                         if(state.searching) {
