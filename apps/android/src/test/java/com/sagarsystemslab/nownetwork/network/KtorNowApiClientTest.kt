@@ -26,6 +26,20 @@ class KtorNowApiClientTest {
     }
 
     @Test
+    fun storageNotReadyKeepsItsCodeThroughHttp503() = runBlocking {
+        val api = client(MockEngine {
+            respond("""{"server_time":"2035-01-01T00:00:00Z","error":{"code":"EVIDENCE_UPLOAD_UNAVAILABLE","message":"Upload not visible yet","safe_to_retry":true}}""",
+                HttpStatusCode.ServiceUnavailable,headersOf(HttpHeaders.ContentType,"application/json"))
+        })
+        try {
+            api.experienceMutate("/v1/evidence/test/commit",kotlinx.serialization.json.buildJsonObject {},"test-token","POST")
+            throw AssertionError("HTTP 503 was accepted")
+        } catch (error: ApiFailure.ServerFailure) {
+            assertEquals("EVIDENCE_UPLOAD_UNAVAILABLE",error.code)
+        }
+    }
+
+    @Test
     fun askAndAvailabilityUseAuthenticatedMutationMethods() = runBlocking {
         val calls = mutableListOf<io.ktor.client.request.HttpRequestData>()
         val api = client(MockEngine { request ->

@@ -449,7 +449,7 @@ class KtorNowApiClient @Inject constructor(
         throw when (statusCode) {
             401 -> ApiFailure.AuthExpired(message)
             429 -> ApiFailure.RateLimited(retryAfterMs, message)
-            in 500..599 -> ApiFailure.ServerFailure(statusCode, message)
+            in 500..599 -> ApiFailure.ServerFailure(statusCode, message, code)
             else -> ApiFailure.BusinessError(
                 statusCode = statusCode,
                 code = code,

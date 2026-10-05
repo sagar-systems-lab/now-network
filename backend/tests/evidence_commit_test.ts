@@ -95,6 +95,7 @@ async function context(
 
 class MemoryCommitRepository implements EvidenceCommitRepository {
   calls = 0;
+  lastInput: Parameters<EvidenceCommitRepository["commitEvidence"]>[0] | null = null;
   resultOverride: CommitEvidenceResult | null = null;
 
   constructor(public value: EvidenceCommitContext | null) {}
@@ -107,6 +108,7 @@ class MemoryCommitRepository implements EvidenceCommitRepository {
     input: Parameters<EvidenceCommitRepository["commitEvidence"]>[0],
   ): Promise<CommitEvidenceResult> {
     this.calls += 1;
+    this.lastInput = input;
     if (this.resultOverride !== null) {
       return Promise.resolve(this.resultOverride);
     }
@@ -362,5 +364,68 @@ Deno.test("idempotent evidence replay preserves the committed identity", async (
     storage.inspectCalls !== 0
   ) {
     throw new Error("idempotent commit replay changed evidence identity");
+  }
+});
+
+Deno.test("video-required commit binds both hashes and rejects missing or mismatched clips", async () => {
+  const mediaHash = await digest(MEDIA);
+  const videoHash = new Uint8Array(32).fill(42);
+  const value = await context();
+  value.proofPolicySnapshot.capture.video_required = true;
+  const repository = new MemoryCommitRepository(value);
+  let storedDuration = 3000;
+  const storage: EvidenceObjectStorage = {
+    createSignedUpload: () => Promise.resolve({ signedUrl: "https://storage.invalid" }),
+    inspectUploadedObject: (key) =>
+      Promise.resolve(
+        key.endsWith(".mp4")
+          ? {
+            sha256: videoHash,
+            sizeBytes: 4096,
+            mediaMime: "video/mp4",
+            videoDurationMs: storedDuration,
+          }
+          : { sha256: mediaHash, sizeBytes: MEDIA.length, mediaMime: "image/jpeg" },
+      ),
+  };
+  const service = new EvidenceCommitService(repository, storage, 10_485_760, () => NOW);
+  const request = {
+    actor: actor(),
+    evidenceId: EVIDENCE_ID,
+    idempotencyKey: "video-proof-123",
+    body: body(hex(mediaHash)),
+  };
+  async function rejected(input: typeof request) {
+    try {
+      await service.commit(input);
+    } catch (error) {
+      if (faultCode(error) === "EVIDENCE_MEDIA_INVALID") return;
+      throw error;
+    }
+    throw new Error("Invalid clip reached commit");
+  }
+  await rejected(request);
+  const clip = {
+    sha256: hex(videoHash),
+    size_bytes: 4096,
+    duration_ms: 3000,
+    capture_started_monotonic_ms: 2000,
+    capture_completed_monotonic_ms: 5100,
+  };
+  const complete = { ...request, body: { ...request.body, video: clip } };
+  storedDuration = 4000;
+  await rejected(complete);
+  storedDuration = 3000;
+  await rejected({
+    ...complete,
+    body: { ...complete.body, video: { ...clip, sha256: "00".repeat(32) } },
+  });
+  if (repository.calls !== 0) throw new Error("Invalid video mutated evidence");
+  await service.commit(complete);
+  if (
+    repository.lastInput?.video?.sha256 !== clip.sha256 ||
+    repository.lastInput?.video?.object_key !== value.reservedObjectKey + ".mp4"
+  ) {
+    throw new Error("Clip metadata was not committed with the photo");
   }
 });

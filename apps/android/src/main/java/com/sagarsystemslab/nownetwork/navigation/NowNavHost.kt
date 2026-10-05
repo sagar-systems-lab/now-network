@@ -307,6 +307,8 @@ fun NowNavHost(
                 onBeginCapture = evidenceCaptureViewModel::beginCapture,
                 onPermissionDenied = evidenceCaptureViewModel::permissionDenied,
                 onPhotoCaptured = evidenceCaptureViewModel::photoCaptured,
+                onVideoCaptured = evidenceCaptureViewModel::videoCaptured,
+                onRetakeVideo = evidenceCaptureViewModel::retakeVideo,
                 onCameraError = evidenceCaptureViewModel::cameraFailure,
                 onAnswerChange = evidenceCaptureViewModel::updateAnswer,
                 onRefreshLocation = evidenceCaptureViewModel::refreshLocation,

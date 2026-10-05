@@ -2,6 +2,8 @@ package com.sagarsystemslab.nownetwork.experience
 
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -36,10 +38,13 @@ fun PrivateProofDialog(proof: JsonObject, onClose: () -> Unit) {
             }
         } catch(cancel:CancellationException) {throw cancel} catch(_:Exception) {error="Preview expired or unavailable. Close and reopen to request fresh access."}
     }
-    AlertDialog(onDismissRequest=onClose,title={Text("Authorized evidence")},text={Column(verticalArrangement=Arrangement.spacedBy(12.dp)) {
+    AlertDialog(onDismissRequest=onClose,title={Text("Authorized evidence")},text={Column(Modifier.heightIn(max=500.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         if(!proof.flag("available")) Text("No verified photo is available to this account for this state.")
         else if(error!=null) Text(error!!)
         else if(bitmap!=null) { Image(bitmap!!.asImageBitmap(),"Verified evidence photo",Modifier.fillMaxWidth().heightIn(max=420.dp),contentScale=ContentScale.Fit); Text("Verified evidence · ${proof.text("committed_at")}",style=NowType.BodyS) }
         else CircularProgressIndicator(color=NowColors.Blue600)
+        if(proof.flag("available") && proof.text("video_url").isNotBlank()) {
+            com.sagarsystemslab.nownetwork.feature.common.EvidenceVideoPlayer(proof.text("video_url"))
+        }
     }},confirmButton={TextButton(onClose) {Text("Done")}})
 }

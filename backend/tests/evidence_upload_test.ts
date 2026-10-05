@@ -346,3 +346,26 @@ Deno.test("signed upload storage failure is retryable without changing object id
     throw new Error("retry did not reuse the reserved object identity");
   }
 });
+
+Deno.test("video upload uses the same immutable challenge identity on retry", async () => {
+  const repository = new MemoryUploadRepository(await context({ videoRequired: true }));
+  const storage = new MemoryStorage();
+  const service = new EvidenceUploadService(repository, storage, () => NOW);
+  const input = {
+    actor: actor(),
+    challengeId: CHALLENGE_ID,
+    nonce: base64Url(NONCE_BYTES),
+    mediaMime: "image/jpeg",
+  };
+  const first = await service.authorize(input);
+  const second = await service.authorize(input);
+  const clip = first.video_upload as Record<string, unknown>;
+  if (
+    clip.content_type !== "video/mp4" ||
+    JSON.stringify(first.video_upload) !== JSON.stringify(second.video_upload) ||
+    storage.calls[1] !== String(first.object_key) + ".mp4" ||
+    first.evidence_id !== second.evidence_id
+  ) {
+    throw new Error("Video reservation drifted from the photo challenge");
+  }
+});

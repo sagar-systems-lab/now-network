@@ -20,6 +20,7 @@ type UploadRow = {
   reserved_evidence_id: string | null;
   upload_object_key: string | null;
   upload_mime: string | null;
+  video_required: boolean;
 };
 
 const SELECT_CONTEXT = String.raw`
@@ -35,7 +36,8 @@ const SELECT_CONTEXT = String.raw`
     rr.status as refresh_status,
     ec.reserved_evidence_id,
     ec.upload_object_key,
-    ec.upload_mime
+    ec.upload_mime,
+    coalesce((rr.proof_policy_snapshot->'capture'->>'video_required')::boolean,false) as video_required
   from app.evidence_challenges ec
   join app.refresh_acceptances ra
     on ra.acceptance_id = ec.acceptance_id
@@ -62,6 +64,7 @@ function fromRow(row: UploadRow): EvidenceUploadContext {
     evidenceId: row.reserved_evidence_id,
     objectKey: row.upload_object_key,
     mediaMime: row.upload_mime,
+    videoRequired: row.video_required,
   };
 }
 

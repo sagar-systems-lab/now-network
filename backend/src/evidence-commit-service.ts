@@ -1,3 +1,4 @@
+import { parseEvidenceVideo, VIDEO_MAX_BYTES } from "./evidence-video.ts";
 import { ApiFault } from "./errors.ts";
 import type { ActorRecord } from "./identity-repository.ts";
 import type {
@@ -195,13 +196,11 @@ function validateAnswer(context: EvidenceCommitContext, value: unknown): unknown
       return value.trim();
     case "VISUAL":
       if (
-        value === null ||
-        value === undefined ||
-        (typeof value === "string" && value.trim().length === 0)
+        typeof value !== "string" || value.trim().length === 0 || value.length > 500
       ) {
         throw new ApiFault(400, "INVALID_REQUEST", "Invalid answer_value.");
       }
-      return value;
+      return value.trim();
   }
 }
 
@@ -383,6 +382,18 @@ export class EvidenceCommitService {
       throw new ApiFault(400, "INVALID_REQUEST", "Invalid capture timing.");
     }
 
+    const video = parseEvidenceVideo(
+      input.body.video,
+      context.reservedObjectKey,
+      captureCompletedMonotonicMs,
+    );
+    if (context.proofPolicySnapshot.capture.video_required && !video) {
+      throw new ApiFault(
+        400,
+        "EVIDENCE_MEDIA_INVALID",
+        "A fresh 3–15 second video is required after the photo.",
+      );
+    }
     const answerValue = validateAnswer(context, input.body.answer_value);
     const samples = locationSamples(input.body.location_samples);
     if (
@@ -407,6 +418,7 @@ export class EvidenceCommitService {
           capture_started_monotonic_ms: captureStartedMonotonicMs,
           capture_completed_monotonic_ms: captureCompletedMonotonicMs,
           location_samples: samples,
+          ...(video ? { video } : {}),
         }),
       ),
     );
@@ -459,6 +471,33 @@ export class EvidenceCommitService {
         );
       }
 
+      if (video) {
+        let clip;
+        try {
+          clip = await this.storage.inspectUploadedObject(video.object_key, VIDEO_MAX_BYTES);
+        } catch (error) {
+          if (error instanceof ApiFault) throw error;
+          throw new ApiFault(
+            503,
+            "EVIDENCE_UPLOAD_UNAVAILABLE",
+            "Video upload is not ready yet.",
+            true,
+            1000,
+          );
+        }
+        if (
+          clip.mediaMime !== "video/mp4" || clip.sizeBytes !== video.size_bytes ||
+          clip.videoDurationMs === undefined ||
+          Math.abs(clip.videoDurationMs - video.duration_ms) > 100 ||
+          !bytesEqual(clip.sha256, fromHex32(video.sha256, "video.sha256"))
+        ) {
+          throw new ApiFault(
+            409,
+            "EVIDENCE_MEDIA_INVALID",
+            "Video bytes or duration do not match this proof.",
+          );
+        }
+      }
       transitionEvidence("UPLOADED", "COMMIT");
       transitionClaim("CAPTURE_ACTIVE", "EVIDENCE_COMMITTED", {
         evidenceCommittedBeforeDeadline: true,
@@ -482,6 +521,7 @@ export class EvidenceCommitService {
       mediaSizeBytes,
       mediaMime: context.reservedMediaMime,
       locationSamples: samples,
+      video,
       observedAt,
     });
     if (result.kind !== "committed" && result.kind !== "replayed") {

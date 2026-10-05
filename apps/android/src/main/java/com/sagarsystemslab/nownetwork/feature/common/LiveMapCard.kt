@@ -53,7 +53,7 @@ import org.maplibre.android.maps.MapLibreMapOptions
 import org.maplibre.android.maps.Style
 import org.maplibre.android.tile.TileOperation
 
-data class LiveMapPin(val id: String, val title: String, val center: GeoCenter, val status: String)
+data class LiveMapPin(val id: String, val title: String, val center: GeoCenter, val status: String, val photoStateId: String? = null)
 
 /** Native vector map; only server coordinates become markers. No synthetic location or map image. */
 @Composable
@@ -82,6 +82,7 @@ fun LiveMapCard(
     var appliedCenter by remember { mutableStateOf<GeoCenter?>(null) }
     var gestureMoved by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(false) }
+    androidx.activity.compose.BackHandler(enabled = expanded || selectedPin != null) { if(selectedPin != null) selectedPin=null else expanded = false }
     var tilted by remember { mutableStateOf(true) }
     var loadState by remember { mutableStateOf(MapLoadState()) }
     val failed = loadState.failed
@@ -274,7 +275,17 @@ fun LiveMapCard(
             val selected = pins.firstOrNull { it.id == selectedPin }
             if (selected != null && !failed) Surface(Modifier.align(Alignment.BottomCenter).padding(start=12.dp,end=12.dp,bottom=28.dp), shape=NowShapes.medium,color=NowColors.SurfacePrimary) {
                 Row(Modifier.padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
-                    Text(selected.title,Modifier.weight(1f),style=NowType.LabelL,color=NowColors.Ink950,maxLines=2)
+                    selected.photoStateId?.let { stateId ->
+                        com.sagarsystemslab.nownetwork.experience.StatePhoto(stateId,selected.title,
+                            Modifier.padding(end=8.dp).size(48.dp),fallback={})
+                    }
+                    Column(Modifier.weight(1f)) {
+                        Text(selected.title,style=NowType.LabelL,color=NowColors.Ink950,maxLines=2)
+                        Text(when(selected.status.uppercase()) {
+                            "LIVE" -> "Fresh verified update"; "AGING" -> "Update aging"; "STALE" -> "Needs a fresh update"
+                            "CLAIMABLE" -> "Available to contribute"; "CONFLICT" -> "Conflicting proof"; else -> "No fresh proof yet"
+                        },style=NowType.BodyS,color=NowColors.Ink600)
+                    }
                     TextButton({latestOnPin(selected.id)}) {Text("Open")}
                     TextButton({selectedPin=null}) {Text("Close")}
                 }
@@ -296,6 +307,19 @@ fun LiveMapCard(
                         DropdownMenuItem(text = { Text("Detailed map") }, onClick = { basicMap = false; retry++; mapMenu = false })
                         DropdownMenuItem(text = { Text("Basic street map") }, onClick = { basicMap = true; retry++; mapMenu = false })
                         DropdownMenuItem(text = { Text(if (tilted) "Flat view" else "Tilted view") }, enabled = !basicMap, onClick = { tilted = !tilted; mapMenu = false })
+                        DropdownMenuItem(text = { Text("Open area in Maps") }, onClick = {
+                            map?.cameraPosition?.target?.let { point ->
+                                val uri=android.net.Uri.parse("geo:${point.latitude},${point.longitude}?q=${point.latitude},${point.longitude}")
+                                try { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW,uri)) }
+                                catch (_: android.content.ActivityNotFoundException) { locationMessage="No maps app is installed on this device." }
+                            }
+                            mapMenu=false
+                        })
+                        DropdownMenuItem(text = { Text("Reset north") }, onClick = {
+                            map?.let { ready -> ready.moveCamera(CameraUpdateFactory.newCameraPosition(
+                                CameraPosition.Builder(ready.cameraPosition).bearing(0.0).build())) }
+                            mapMenu = false
+                        })
                     }
                 }
                 FilledTonalIconButton(onClick = {
@@ -321,7 +345,7 @@ fun LiveMapCard(
         }
     }
     locationMessage?.let { message ->
-        AlertDialog(onDismissRequest = { locationMessage = null }, title = { Text("Current location") },
+        AlertDialog(onDismissRequest = { locationMessage = null }, title = { Text("Map") },
             text = { Text(message) }, confirmButton = { TextButton({ locationMessage = null }) { Text("OK") } })
     }
 }

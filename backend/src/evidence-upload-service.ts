@@ -148,9 +148,13 @@ export class EvidenceUploadService {
     if (reserved.kind !== "ready") throw reserveFault(reserved);
 
     let signedUrl: string;
+    let videoUrl: string | undefined;
     try {
       signedUrl = (await this.storage.createSignedUpload(reserved.objectKey))
         .signedUrl;
+      if (context.videoRequired) {
+        videoUrl = (await this.storage.createSignedUpload(`${reserved.objectKey}.mp4`)).signedUrl;
+      }
     } catch {
       throw new ApiFault(
         503,
@@ -171,6 +175,9 @@ export class EvidenceUploadService {
         signed_url: signedUrl,
         content_type: reserved.mediaMime,
       },
+      ...(videoUrl
+        ? { video_upload: { method: "PUT", signed_url: videoUrl, content_type: "video/mp4" } }
+        : {}),
       application_deadline: reserved.challengeExpiresAt.toISOString(),
       replayed: reserved.replayed,
     };

@@ -94,9 +94,17 @@ class KtorEvidenceObjectUploader @Inject constructor(
             throw EvidenceObjectUploadFailure.Network(error)
         }
 
+        if (response.status.value == 409) return
         if (!response.status.isSuccess()) {
             // Consume a bounded response body without surfacing the signed URL or token.
-            runCatching { response.bodyAsText().take(256) }
+            val responseBody = runCatching { response.bodyAsText().take(512) }.getOrDefault("")
+            val duplicate = runCatching {
+                val body = kotlinx.serialization.json.Json.parseToJsonElement(responseBody) as? kotlinx.serialization.json.JsonObject
+                val code = (body?.get("error") as? kotlinx.serialization.json.JsonPrimitive)?.content
+                val message = (body?.get("message") as? kotlinx.serialization.json.JsonPrimitive)?.content
+                code == "Duplicate" || message == "The resource already exists"
+            }.getOrDefault(false)
+            if (response.status.value == 400 && duplicate) return
             throw EvidenceObjectUploadFailure.Rejected(response.status.value)
         }
     }

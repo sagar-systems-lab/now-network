@@ -45,7 +45,7 @@ fun ContributorClaimScreen(uiState:ContributorClaimUiState,rewardText:String,onB
             }
             NowGlassCard {
                 ExperienceRow("Proof requirements","Complete the locked requirements to receive your reward",Icons.Outlined.Assignment,{requirements=true})
-                ProofSteps(opportunity.evidenceSummary.mediaRequired,opportunity.evidenceSummary.locationRequired,when(opportunity.stateType.uppercase()) { "NUMERIC" -> "Count what you see"; "BINARY" -> "Answer yes or no"; else -> "Show the condition" })
+                ProofSteps(opportunity.evidenceSummary.mediaRequired,opportunity.evidenceSummary.locationRequired,when(opportunity.stateType.uppercase()) { "NUMERIC" -> "Count what you see"; "BINARY" -> "Answer yes or no"; else -> "Show the condition" },video=opportunity.evidenceSummary.videoRequired)
             }
             NowGlassCard {
                 Text("How it works", style = NowType.TitleS, color = NowColors.Ink950)
@@ -72,5 +72,5 @@ fun ContributorClaimScreen(uiState:ContributorClaimUiState,rewardText:String,onB
         if(stage in setOf(ContributorClaimStage.LOADING,ContributorClaimStage.PREPARING,ContributorClaimStage.SUBMITTING)) LinearProgressIndicator(Modifier.fillMaxWidth(),color=NowColors.Blue600)
         if(stage==ContributorClaimStage.CONFIRMING) NowNotice("Your submitted claim is being reconciled. A second transaction will not be sent.")
     }
-    if(requirements && opportunity!=null) AlertDialog(onDismissRequest={requirements=false},title={Text("Locked proof requirements")},text={Text("${opportunity.question}\n\n${opportunity.evidenceSummary.requiredWitnesses} required witnesses · up to ${opportunity.evidenceSummary.maxWitnesses}\n${opportunity.verificationClass.replace('_',' ')}\nPhoto: ${if(opportunity.evidenceSummary.mediaRequired) "required" else "not required"}\nPrecise location: ${if(opportunity.evidenceSummary.locationRequired) "required" else "not required"}\nEvidence deadline: ${displayEventTime(opportunity.evidenceDeadline)}")},confirmButton={TextButton({requirements=false}) {Text("Understood")}})
+    if(requirements && opportunity!=null) AlertDialog(onDismissRequest={requirements=false},title={Text("Locked proof requirements")},text={Text("${opportunity.question}\n\n${opportunity.evidenceSummary.requiredWitnesses} required witnesses · up to ${opportunity.evidenceSummary.maxWitnesses}\n${opportunity.verificationClass.replace('_',' ')}\nPhoto: ${if(opportunity.evidenceSummary.mediaRequired) "required" else "not required"}\nVideo: ${if(opportunity.evidenceSummary.videoRequired) "3–15 seconds required" else "not required"}\nPrecise location: ${if(opportunity.evidenceSummary.locationRequired) "required" else "not required"}\nEvidence deadline: ${displayEventTime(opportunity.evidenceDeadline)}")},confirmButton={TextButton({requirements=false}) {Text("Understood")}})
 }

@@ -128,6 +128,22 @@ class EvidenceCaptureRepositoryTest {
         )
     }
 
+    @Test
+    fun missingRequiredVideoNeverStartsAnUpload() = runBlocking {
+        val fixture = Fixture()
+        fixture.api.videoRequired = true
+        val evidenceId = fixture.prepareCapturedEvidence()
+        try {
+            fixture.repository.submit(evidenceId)
+            throw AssertionError("Photo-only evidence passed a video requirement")
+        } catch (_: EvidenceCaptureFailure.Unavailable) { }
+        assertEquals(0, fixture.uploader.calls)
+        assertEquals(0, fixture.api.commitCalls)
+        val restored = fixture.recreatedRepository().load(ACCEPTANCE_ID, REFRESH_ID) as EvidenceCaptureRecovery.Draft
+        assertTrue(restored.draft.videoRequired)
+        assertTrue(restored.draft.localFile.isFile)
+    }
+
     private class Fixture {
         val dao = MemoryPendingEvidenceDao()
         val secrets = MemorySecretStore()
@@ -270,6 +286,7 @@ class EvidenceCaptureRepositoryTest {
     private class FakeEvidenceApi(
         private val remote: RemoteEvidenceState,
     ) : EvidenceApiClient {
+        var videoRequired = false
         var authorizeCalls = 0
         var commitCalls = 0
         var ambiguousCommitOnce = false
@@ -289,6 +306,7 @@ class EvidenceCaptureRepositoryTest {
                 policyVersion = 1,
                 capture = EvidenceCapturePolicyDto(
                     mediaRequired = true,
+                    videoRequired = videoRequired,
                     locationRequired = true,
                 ),
                 claimStatus = "CAPTURE_ACTIVE",
@@ -327,11 +345,9 @@ class EvidenceCaptureRepositoryTest {
         ): EvidenceCommitDto {
             commitCalls += 1
             if (!remote.uploaded) {
-                throw ApiFailure.BusinessError(
+                throw ApiFailure.ServerFailure(
                     statusCode = 503,
                     code = "EVIDENCE_UPLOAD_UNAVAILABLE",
-                    safeToRetry = true,
-                    retryAfterMs = 1_000,
                     message = "Uploaded evidence could not be inspected yet.",
                 )
             }

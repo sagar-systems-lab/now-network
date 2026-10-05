@@ -1,3 +1,4 @@
+import type { EvidenceVideo } from "./evidence-video.ts";
 import type { RefreshStatus, StateType } from "../../packages/contracts/src/lifecycle.ts";
 import type { ClaimStatus } from "../../packages/domain/src/claim-machine.ts";
 import type { PolicyTemplateV1 } from "../../packages/policy/src/types.ts";
@@ -94,6 +95,7 @@ export interface EvidenceCommitRepository {
     mediaSha256: Uint8Array;
     mediaSizeBytes: number;
     mediaMime: string;
+    video?: EvidenceVideo | null;
     locationSamples: readonly EvidenceLocationSample[];
     observedAt: Date;
   }): Promise<CommitEvidenceResult>;

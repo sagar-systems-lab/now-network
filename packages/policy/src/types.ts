@@ -3,6 +3,7 @@ import type { StateType } from "../../contracts/src/lifecycle.ts";
 
 export interface CapturePolicy {
   media_required: boolean;
+  video_required?: boolean;
   location_required: boolean;
 }
 

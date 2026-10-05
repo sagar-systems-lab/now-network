@@ -227,3 +227,23 @@ Deno.test("authoritative policy evaluation is identical across 1000 runs", async
     assertEquals(evaluate(), expected);
   }
 });
+
+Deno.test("legacy capture snapshots keep their original fields and new templates require video", () => {
+  const current = parsePolicyTemplate({
+    template_key: "visual.current_condition.v1",
+    state_type: "VISUAL",
+    fresh_ttl_seconds: 3600,
+    aging_ratio: 0.7,
+    verification_class: "FAST",
+    required_witnesses: 1,
+    capture: { media_required: true, location_required: true },
+  });
+  if (Object.hasOwn(current.capture, "video_required")) {
+    throw new Error("Legacy snapshot was changed");
+  }
+  const next = parsePolicyTemplate({
+    ...current,
+    capture: { ...current.capture, video_required: true },
+  });
+  if (!next.capture.video_required) throw new Error("Video requirement was lost");
+});

@@ -17,6 +17,7 @@ export type EvidenceUploadContext = {
   evidenceId: string | null;
   objectKey: string | null;
   mediaMime: string | null;
+  videoRequired?: boolean;
 };
 
 export type ReserveEvidenceUploadResult =

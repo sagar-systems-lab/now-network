@@ -1,3 +1,4 @@
+import type { EvidenceVideo } from "./evidence-video.ts";
 import type { VerificationResult } from "../../packages/contracts/src/core.ts";
 import type {
   EvidenceStatus,
@@ -18,6 +19,7 @@ export type VerificationEvidence = {
   mediaSha256: Uint8Array | null;
   mediaSizeBytes: number | null;
   mediaMime: string | null;
+  video?: EvidenceVideo | null;
   locationSampleCount: number;
   serverObservationEarliest: Date;
   serverObservationLatest: Date;
