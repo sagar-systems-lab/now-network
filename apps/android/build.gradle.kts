@@ -23,6 +23,12 @@ fun publicConfig(name: String, fallback: String = ""): String =
         hostedPublicConfig.getProperty(name), fallback)
         .filterNotNull().map { it.trim() }.firstOrNull { it.isNotEmpty() }.orEmpty()
 
+val solanaCluster = publicConfig("NOW_SOLANA_CLUSTER", "devnet")
+val rewardMint = publicConfig(
+    "NOW_REWARD_MINT",
+    if (solanaCluster == "devnet") "2FxQUpesqczzdBzsumfUSnpkj6Q9QYo9dJCpGNq9mi6F" else "",
+)
+
 if (hostedRuntime) {
     listOf("NOW_API_BASE_URL", "NOW_SUPABASE_URL", "NOW_SUPABASE_PUBLISHABLE_KEY").forEach { name ->
         require(publicConfig(name).isNotBlank()) { "Missing public Android runtime value: $name" }
@@ -32,6 +38,7 @@ if (hostedRuntime) {
     require(publicConfig("NOW_SUPABASE_PUBLISHABLE_KEY").startsWith("sb_publishable_")) {
         "Hosted Android requires a public client key"
     }
+    require(rewardMint.isNotBlank()) { "Hosted Android requires NOW_REWARD_MINT" }
 }
 
 fun buildConfigString(value: String): String =
@@ -71,7 +78,7 @@ android {
         buildConfigField(
             "String",
             "SOLANA_CLUSTER",
-            buildConfigString(publicConfig("NOW_SOLANA_CLUSTER", "devnet")),
+            buildConfigString(solanaCluster),
         )
         buildConfigField(
             "String",
@@ -128,12 +135,12 @@ android {
         buildConfigField(
             "String",
             "REWARD_MINT",
-            buildConfigString(publicConfig("NOW_REWARD_MINT")),
+            buildConfigString(rewardMint),
         )
         buildConfigField(
             "String",
             "REWARD_SYMBOL",
-            buildConfigString(publicConfig("NOW_REWARD_SYMBOL", "USDC")),
+            buildConfigString(publicConfig("NOW_REWARD_SYMBOL", if (solanaCluster == "devnet") "DEV" else "TOKEN")),
         )
         buildConfigField(
             "String",
