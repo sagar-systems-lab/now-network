@@ -21,6 +21,7 @@ type RefreshRow = {
   state_id: string;
   state_version: number | string;
   state_type: VerificationContext["stateType"];
+  answer_schema: unknown;
   intent_core_hash: Uint8Array;
   execution_hash: Uint8Array | null;
   proof_policy_snapshot: VerificationContext["proofPolicySnapshot"];
@@ -38,6 +39,7 @@ type EvidenceRow = {
   media_mime: string | null;
   video_metadata: VerificationEvidence["video"];
   location_sample_count: number | string;
+  has_mock_location: boolean;
   server_observation_earliest: DateLike;
   server_observation_latest: DateLike;
   committed_at: DateLike;
@@ -121,6 +123,7 @@ function evidenceFromRow(row: EvidenceRow): VerificationEvidence {
     mediaMime: row.media_mime,
     video: row.video_metadata,
     locationSampleCount: Number(row.location_sample_count),
+    hasMockLocation: row.has_mock_location,
     serverObservationEarliest: date(row.server_observation_earliest),
     serverObservationLatest: date(row.server_observation_latest),
     committedAt: date(row.committed_at),
@@ -159,6 +162,10 @@ const EVIDENCE_SQL = String.raw`
       from app.evidence_location_samples els
       where els.evidence_id = ep.evidence_id
     ) as location_sample_count,
+    exists (
+      select 1 from app.evidence_location_samples els
+      where els.evidence_id = ep.evidence_id and els.mock_signal is true
+    ) as has_mock_location,
     ep.server_observation_earliest,
     ep.server_observation_latest,
     ep.committed_at,
@@ -193,6 +200,7 @@ export class PostgresVerificationRepository implements VerificationRepository {
         rr.state_id,
         rr.state_version,
         sd.state_type,
+        sd.answer_schema,
         rr.intent_core_hash,
         rr.execution_hash,
         rr.proof_policy_snapshot
@@ -236,6 +244,7 @@ export class PostgresVerificationRepository implements VerificationRepository {
       stateId: row.state_id,
       stateVersion: Number(row.state_version),
       stateType: row.state_type,
+      answerSchema: row.answer_schema,
       intentCoreHash: new Uint8Array(row.intent_core_hash),
       executionHash: row.execution_hash === null ? null : new Uint8Array(row.execution_hash),
       proofPolicySnapshot: row.proof_policy_snapshot,
@@ -267,6 +276,7 @@ export class PostgresVerificationRepository implements VerificationRepository {
           rr.state_id,
           rr.state_version,
           sd.state_type,
+          sd.answer_schema,
           rr.intent_core_hash,
           rr.execution_hash,
           rr.proof_policy_snapshot

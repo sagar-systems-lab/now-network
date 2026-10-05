@@ -1,5 +1,6 @@
 import { parseEvidenceVideo, VIDEO_MAX_BYTES } from "./evidence-video.ts";
 import { ApiFault } from "./errors.ts";
+import { binaryAnswerAllowed } from "./evidence-answer.ts";
 import type { ActorRecord } from "./identity-repository.ts";
 import type {
   CommitEvidenceResult,
@@ -188,8 +189,7 @@ function validateAnswer(context: EvidenceCommitContext, value: unknown): unknown
     case "BINARY":
       if (
         typeof value !== "string" ||
-        value.trim().length === 0 ||
-        value.length > 64
+        !binaryAnswerAllowed(context.answerSchema, value.trim())
       ) {
         throw new ApiFault(400, "INVALID_REQUEST", "Invalid answer_value.");
       }
@@ -396,6 +396,13 @@ export class EvidenceCommitService {
     }
     const answerValue = validateAnswer(context, input.body.answer_value);
     const samples = locationSamples(input.body.location_samples);
+    if (!committedReplay && samples.some((sample) => sample.mockSignal === true)) {
+      throw new ApiFault(
+        409,
+        "VERIFICATION_NOT_ELIGIBLE",
+        "Mock location cannot be used for evidence. Turn it off and capture again.",
+      );
+    }
     if (
       context.proofPolicySnapshot.capture.location_required &&
       samples.length === 0
@@ -449,7 +456,8 @@ export class EvidenceCommitService {
           context.reservedObjectKey,
           this.maxMediaBytes,
         );
-      } catch {
+      } catch (error) {
+        if (error instanceof ApiFault) throw error;
         throw new ApiFault(
           503,
           "EVIDENCE_UPLOAD_UNAVAILABLE",

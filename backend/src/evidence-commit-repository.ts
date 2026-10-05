@@ -37,6 +37,7 @@ export type EvidenceCommitContext = {
   stateId: string;
   stateVersion: number;
   stateType: StateType;
+  answerSchema: unknown;
   intentCoreHash: Uint8Array;
   executionHash: Uint8Array | null;
   chainLockedRewardAtomic: bigint | null;

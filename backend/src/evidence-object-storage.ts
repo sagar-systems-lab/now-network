@@ -1,4 +1,6 @@
 import { inspectMp4 } from "./evidence-video.ts";
+import { inspectJpeg } from "./evidence-photo.ts";
+import { ApiFault } from "./errors.ts";
 
 export type SignedUploadAuthorization = {
   signedUrl: string;
@@ -141,7 +143,8 @@ export class SupabaseEvidenceObjectStorage implements EvidenceObjectStorage {
     if (declaredLength !== null) {
       const length = Number(declaredLength);
       if (!Number.isSafeInteger(length) || length < 0 || length > maxBytes) {
-        throw new Error("evidence object exceeds configured size limit");
+        await response.body?.cancel();
+        throw new ApiFault(400, "EVIDENCE_MEDIA_INVALID", "Evidence exceeds the size limit.");
       }
     }
 
@@ -154,7 +157,9 @@ export class SupabaseEvidenceObjectStorage implements EvidenceObjectStorage {
         const part = await reader.read();
         if (part.done) break;
         length += part.value.length;
-        if (length > maxBytes) throw new Error("Evidence object exceeds size limit");
+        if (length > maxBytes) {
+          throw new ApiFault(400, "EVIDENCE_MEDIA_INVALID", "Evidence exceeds the size limit.");
+        }
         chunks.push(part.value);
       }
     } finally {
@@ -168,16 +173,25 @@ export class SupabaseEvidenceObjectStorage implements EvidenceObjectStorage {
       offset += chunk.length;
     }
     if (bytes.length === 0 || bytes.length > maxBytes) {
-      throw new Error("evidence object is empty or exceeds configured size limit");
+      throw new ApiFault(
+        400,
+        "EVIDENCE_MEDIA_INVALID",
+        "Evidence is empty or exceeds the size limit.",
+      );
     }
 
     const mediaMime = (response.headers.get("content-type") ?? "")
       .split(";", 1)[0]
       .trim()
       .toLowerCase();
-    if (!mediaMime) {
-      throw new Error("evidence object is missing content type");
+    if (mediaMime !== "image/jpeg" && mediaMime !== "video/mp4") {
+      throw new ApiFault(
+        400,
+        "EVIDENCE_MEDIA_INVALID",
+        "Evidence must be a JPEG photo or MP4 video.",
+      );
     }
+    if (mediaMime === "image/jpeg") inspectJpeg(bytes);
 
     const copy = new Uint8Array(bytes.length);
     copy.set(bytes);

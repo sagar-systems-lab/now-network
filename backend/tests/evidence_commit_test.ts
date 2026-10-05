@@ -68,6 +68,7 @@ async function context(
     stateId: "c5000000-0000-4000-8000-000000000001",
     stateVersion: 1,
     stateType: "NUMERIC",
+    answerSchema: { type: "integer", minimum: 0 },
     intentCoreHash: new Uint8Array(32).fill(1),
     executionHash: new Uint8Array(32).fill(2),
     chainLockedRewardAtomic: 500_000n,
@@ -137,6 +138,7 @@ class MemoryCommitRepository implements EvidenceCommitRepository {
 
 class MemoryStorage implements EvidenceObjectStorage {
   integrity: EvidenceObjectIntegrity | null = null;
+  inspectionError: Error | null = null;
   inspectCalls = 0;
 
   createSignedUpload(): Promise<SignedUploadAuthorization> {
@@ -147,12 +149,41 @@ class MemoryStorage implements EvidenceObjectStorage {
 
   inspectUploadedObject(): Promise<EvidenceObjectIntegrity> {
     this.inspectCalls += 1;
+    if (this.inspectionError) return Promise.reject(this.inspectionError);
     if (this.integrity === null) {
       return Promise.reject(new Error("missing object"));
     }
     return Promise.resolve(this.integrity);
   }
 }
+
+Deno.test("photo inspection faults preserve permanent failures and retry transient storage errors", async () => {
+  const mediaHash = await digest(MEDIA);
+  for (const permanent of [true, false]) {
+    const repository = new MemoryCommitRepository(await context());
+    const storage = new MemoryStorage();
+    storage.inspectionError = permanent
+      ? new ApiFault(400, "EVIDENCE_MEDIA_INVALID", "Retake the photo.")
+      : new Error("Storage connection interrupted");
+    const service = new EvidenceCommitService(repository, storage, 1024, () => NOW);
+    try {
+      await service.commit({
+        actor: actor(),
+        evidenceId: EVIDENCE_ID,
+        body: body(hex(mediaHash)),
+        idempotencyKey: "photo-inspection-fault-01",
+      });
+      throw new Error("Invalid or unavailable media reached commit");
+    } catch (error) {
+      if (
+        !(error instanceof ApiFault) ||
+        error.code !== (permanent ? "EVIDENCE_MEDIA_INVALID" : "EVIDENCE_UPLOAD_UNAVAILABLE") ||
+        error.safeToRetry !== !permanent
+      ) throw error;
+    }
+    if (repository.calls !== 0) throw new Error("Failed inspection mutated evidence");
+  }
+});
 
 function body(mediaSha256: string): Record<string, unknown> {
   return {
@@ -206,6 +237,66 @@ Deno.test("evidence commit binds uploaded bytes and advances the authoritative s
   ) {
     throw new Error("evidence commit did not advance exactly once");
   }
+});
+
+Deno.test("binary commit enforces this state version's choices before storage or mutation", async () => {
+  const mediaHash = await digest(MEDIA);
+  for (
+    const [choices, answer, accepted] of [
+      [["OPEN", "CLOSED"], "OPEN", true],
+      [["OPEN", "CLOSED"], "CLOSED", true],
+      [["OPEN", "CLOSED"], "UNKNOWN", false],
+      [["YES", "NO"], "YES", true],
+      [["YES", "NO"], "OPEN", false],
+      [undefined, "OPEN", false],
+    ] as const
+  ) {
+    const repository = new MemoryCommitRepository(
+      await context({
+        stateType: "BINARY",
+        answerSchema: { type: "string", enum: choices },
+      }),
+    );
+    const storage = new MemoryStorage();
+    storage.integrity = { sha256: mediaHash, sizeBytes: MEDIA.length, mediaMime: "image/jpeg" };
+    const service = new EvidenceCommitService(repository, storage, 1024, () => NOW);
+    try {
+      await service.commit({
+        actor: actor(),
+        evidenceId: EVIDENCE_ID,
+        body: { ...body(hex(mediaHash)), answer_value: answer },
+        idempotencyKey: "binary-answer-check-01",
+      });
+      if (!accepted) throw new Error("Out-of-schema binary answer was accepted");
+    } catch (error) {
+      if (accepted || faultCode(error) !== "INVALID_REQUEST") throw error;
+    }
+    if (repository.calls !== (accepted ? 1 : 0) || storage.inspectCalls !== (accepted ? 1 : 0)) {
+      throw new Error("Invalid answer reached storage or mutation");
+    }
+  }
+});
+
+Deno.test("known mock locations cannot commit evidence", async () => {
+  const mediaHash = await digest(MEDIA);
+  const repository = new MemoryCommitRepository(await context());
+  const storage = new MemoryStorage();
+  const service = new EvidenceCommitService(repository, storage, 1024, () => NOW);
+  try {
+    await service.commit({
+      actor: actor(),
+      evidenceId: EVIDENCE_ID,
+      body: {
+        ...body(hex(mediaHash)),
+        location_samples: [{ lat: 30.129, lng: 77.267, mock_signal: true }],
+      },
+      idempotencyKey: "mock-location-check-01",
+    });
+    throw new Error("Mock location was accepted");
+  } catch (error) {
+    if (faultCode(error) !== "VERIFICATION_NOT_ELIGIBLE") throw error;
+  }
+  if (repository.calls || storage.inspectCalls) throw new Error("Mock evidence reached storage");
 });
 
 Deno.test("evidence commit rejects media hash mismatch before database mutation", async () => {

@@ -32,6 +32,7 @@ type ContextRow = {
   state_id: string;
   state_version: number | string;
   state_type: EvidenceCommitContext["stateType"];
+  answer_schema: unknown;
   intent_core_hash: Uint8Array;
   execution_hash: Uint8Array | null;
   chain_locked_reward: number | string | null;
@@ -90,6 +91,7 @@ const SELECT_CONTEXT = String.raw`
     rr.state_id,
     rr.state_version,
     sd.state_type,
+    sd.answer_schema,
     rr.intent_core_hash,
     rr.execution_hash,
     rr.chain_locked_reward,
@@ -168,6 +170,7 @@ function contextFromRow(row: ContextRow): EvidenceCommitContext {
     stateId: row.state_id,
     stateVersion: Number(row.state_version),
     stateType: row.state_type,
+    answerSchema: row.answer_schema,
     intentCoreHash: new Uint8Array(row.intent_core_hash),
     executionHash: row.execution_hash === null ? null : new Uint8Array(row.execution_hash),
     chainLockedRewardAtomic: row.chain_locked_reward === null
