@@ -21,6 +21,7 @@ export type VerificationEvidence = {
   mediaMime: string | null;
   video?: EvidenceVideo | null;
   locationSampleCount: number;
+  hasMockLocation: boolean;
   serverObservationEarliest: Date;
   serverObservationLatest: Date;
   committedAt: Date;
@@ -49,6 +50,7 @@ export type VerificationContext = {
   stateId: string;
   stateVersion: number;
   stateType: StateType;
+  answerSchema: unknown;
   intentCoreHash: Uint8Array;
   executionHash: Uint8Array | null;
   proofPolicySnapshot: PolicyTemplateV1;

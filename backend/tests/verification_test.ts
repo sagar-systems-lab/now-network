@@ -34,6 +34,7 @@ function evidence(
     mediaSizeBytes: 100,
     mediaMime: "image/jpeg",
     locationSampleCount: 1,
+    hasMockLocation: false,
     serverObservationEarliest: new Date("2026-09-25T11:59:00.000Z"),
     serverObservationLatest: new Date("2026-09-25T11:59:30.000Z"),
     committedAt: new Date(NOW.getTime() + committedOffsetMs),
@@ -54,6 +55,7 @@ function context(
     stateId: "d3000000-0000-4000-8000-000000000001",
     stateVersion: 1,
     stateType: "NUMERIC",
+    answerSchema: { type: "integer", minimum: 0 },
     intentCoreHash: new Uint8Array(32).fill(1),
     executionHash: new Uint8Array(32).fill(2),
     proofPolicySnapshot: {
@@ -125,6 +127,50 @@ class MemoryVerificationRepository implements VerificationRepository {
 function faultCode(error: unknown): string {
   return error instanceof ApiFault ? error.code : "";
 }
+
+Deno.test("matching binary witnesses must still use the declared answer choices", async () => {
+  for (const answer of ["OPEN", "CLOSED", "UNKNOWN"]) {
+    const value = context({ stateType: "BINARY", answerSchema: { enum: ["OPEN", "CLOSED"] } });
+    value.proofPolicySnapshot.state_type = "BINARY";
+    value.proofPolicySnapshot.template_key = "gate.open_closed.v1";
+    value.proofPolicySnapshot.required_witnesses = 2;
+    value.proofPolicySnapshot.verification_class = "CORROBORATED";
+    delete value.proofPolicySnapshot.numeric;
+    value.evidence = [EVIDENCE_ID, EVIDENCE_ID_2].map((id) => ({
+      ...evidence(id, 0),
+      answerType: "BINARY",
+      answerValue: answer,
+    }));
+    const repository = new MemoryVerificationRepository(value);
+    const service = new VerificationService(repository, "verification-test-v1", () => NOW);
+    try {
+      const result = await service.verify(actor(), REFRESH_ID);
+      if (
+        answer === "UNKNOWN" || result.data.result !== "VERIFIED" ||
+        result.data.final_answer !== answer
+      ) throw new Error("Binary answer schema was ignored");
+    } catch (error) {
+      if (answer !== "UNKNOWN" || faultCode(error) !== "VERIFICATION_NOT_ELIGIBLE") throw error;
+    }
+    if (repository.persistCalls !== (answer === "UNKNOWN" ? 0 : 1)) {
+      throw new Error("Invalid binary agreement reached persistence");
+    }
+  }
+});
+
+Deno.test("already committed mock evidence cannot become a new verified result", async () => {
+  const value = context();
+  value.evidence[0].hasMockLocation = true;
+  const repository = new MemoryVerificationRepository(value);
+  const service = new VerificationService(repository, "verification-test-v1", () => NOW);
+  try {
+    await service.verify(actor(), REFRESH_ID);
+    throw new Error("Mock evidence reached verification");
+  } catch (error) {
+    if (faultCode(error) !== "VERIFICATION_NOT_ELIGIBLE") throw error;
+  }
+  if (repository.persistCalls) throw new Error("Mock evidence result was persisted");
+});
 
 Deno.test("verification accepts a policy-valid numeric evidence set", async () => {
   const repository = new MemoryVerificationRepository(context());

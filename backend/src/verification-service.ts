@@ -1,4 +1,5 @@
 import { ApiFault } from "./errors.ts";
+import { binaryAnswerAllowed } from "./evidence-answer.ts";
 import type { ActorRecord } from "./identity-repository.ts";
 import type {
   PersistVerificationResult,
@@ -409,6 +410,16 @@ export class VerificationService {
     }
 
     for (const evidence of context.evidence) {
+      if (
+        evidence.hasMockLocation || (context.stateType === "BINARY" &&
+          !binaryAnswerAllowed(context.answerSchema, evidence.answerValue))
+      ) {
+        throw new ApiFault(
+          409,
+          "VERIFICATION_NOT_ELIGIBLE",
+          "Evidence contains a mock location or an answer outside the declared choices.",
+        );
+      }
       if (
         evidence.intentCoreHash.length !== 32 ||
         evidence.executionHash.length !== 32 ||
