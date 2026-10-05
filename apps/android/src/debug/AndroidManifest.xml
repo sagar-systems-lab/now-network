@@ -1,15 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application>
-        <activity android:name=".VisualSnapshotActivity" android:exported="true" android:theme="@style/Theme.NowNetwork" />
+        <activity android:name=".VisualSnapshotActivity" android:exported="false" android:theme="@style/Theme.NowNetwork" />
         <activity
             android:name=".ExperienceLabActivity"
-            android:exported="true"
+            android:exported="false"
             android:label="NOW Lab"
-            android:theme="@style/Theme.NowNetwork">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
+            android:theme="@style/Theme.NowNetwork" />
     </application>
 </manifest>
