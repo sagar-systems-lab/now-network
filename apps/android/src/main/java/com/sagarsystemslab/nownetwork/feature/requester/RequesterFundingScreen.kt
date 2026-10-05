@@ -28,7 +28,7 @@ fun RequesterFundingScreen(uiState:RequesterFundingUiState,onBack:()->Unit,onAmo
             RequesterFundingStage.COMPLETE -> NowPrimaryButton("Done",onBack,Modifier.fillMaxWidth())
             else -> NowPrimaryButton(if(stage==RequesterFundingStage.SUBMITTING) "Waiting for wallet…" else "Preparing…",{},Modifier.fillMaxWidth(),enabled=false)
         }
-        if(review) Text("Review the exact amount and network in your wallet.",style=NowType.BodyS,color=NowColors.Ink600)
+        if(review) Text("Check the reward pool and the wallet's final Solana cost before approving.",style=NowType.BodyS,color=NowColors.Ink600)
     }) {
         val detail=uiState.stateDetail
         RefreshContextCard(uiState.title,detail?.location?.name ?: "Selected state",detail?.let { formatStateValue(it.valueJson,it.unitCode) },stateId=detail?.stateId)
@@ -48,7 +48,12 @@ fun RequesterFundingScreen(uiState:RequesterFundingUiState,onBack:()->Unit,onAmo
                     }
                 }
             }
-            NowTextField(uiState.amountInput,onAmountChange,"Custom reward (${uiState.rewardSymbol})",modifier=Modifier.testTag("funding-amount"),supportingText=uiState.amountError ?: "This is the total pool, shared according to the witness policy.",enabled=uiState.rewardConfigured,isError=uiState.amountError!=null)
+            NowTextField(uiState.amountInput,onAmountChange,"Custom reward (${uiState.rewardSymbol})",modifier=Modifier.testTag("funding-amount"),supportingText=uiState.amountError ?: "This is the contributor reward pool; Solana costs are separate.",enabled=uiState.rewardConfigured,isError=uiState.amountError!=null)
+            if(uiState.amountError==null && uiState.amountInput.isNotBlank()) NowNotice(
+                title="Before you continue",
+                body="Reward pool: ${amount.ifBlank { "Choose an amount" }}. Solana network and account-creation costs are separate and are shown by your wallet before approval.",
+                tone=NowNoticeTone.NEUTRAL,
+            )
         }
         NowGlassCard(emphasized=true,modifier=Modifier.testTag(if(review) "funding-review" else if(stage==RequesterFundingStage.COMPLETE) "funding-confirmed" else "funding-policy")) {
             ExperienceRow(if(stage==RequesterFundingStage.COMPLETE) "Refresh funded" else "Reward is paid only after verification",if(stage==RequesterFundingStage.COMPLETE) "Funding is confirmed. Contributors can find this refresh once it becomes available." else "Fresh photo, location and answer requirements stay locked to this refresh.",if(stage==RequesterFundingStage.COMPLETE) Icons.Outlined.Verified else Icons.Outlined.Shield)
@@ -61,7 +66,7 @@ fun RequesterFundingScreen(uiState:RequesterFundingUiState,onBack:()->Unit,onAmo
             NowSectionTitle("Transaction breakdown")
             ExperienceRow("Reward pool",amount.ifBlank { "Choose an amount" },Icons.Outlined.Toll)
             ExperienceRow("Network",uiState.network.ifBlank { "Not configured" },Icons.Outlined.Hub)
-            ExperienceRow("Network fee","The wallet shows the actual fee before you approve",Icons.Outlined.Info)
+            ExperienceRow("Solana costs","Network and account-creation costs are shown by your wallet before approval",Icons.Outlined.Info)
             if(stage==RequesterFundingStage.CONFIRMING) NowNotice("The submitted operation is being reconciled. Do not submit another funding transaction.",tone=NowNoticeTone.WARNING)
             if(!uiState.rewardConfigured) NowNotice("Configure the reward token before funding a refresh.",tone=NowNoticeTone.WARNING)
         }
