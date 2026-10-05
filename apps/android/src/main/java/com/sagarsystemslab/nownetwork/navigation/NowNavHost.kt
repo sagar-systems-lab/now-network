@@ -195,6 +195,7 @@ fun NowNavHost(
                 com.sagarsystemslab.nownetwork.feature.ask.AskComposerScreen(
                     ask, composer::name, composer::target, composer::need, composer::stage,
                     composer::checkCoverage, composer::permissionDenied, composer::resolve, appState::navigateBack,
+                    onSearch = { composer.search() }, onSelectPlace = composer::selectPlace, onQuestion = composer::question,
                 )
             }
         }

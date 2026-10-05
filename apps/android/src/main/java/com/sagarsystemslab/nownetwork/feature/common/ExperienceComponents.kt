@@ -136,14 +136,14 @@ fun ExperienceRow(title: String, subtitle: String? = null, icon: ImageVector = I
 }
 
 @Composable
-fun SyncStrip(refreshing: Boolean, count: Int, cached: Boolean, onRefresh: () -> Unit) {
+fun SyncStrip(refreshing: Boolean, count: Int, cached: Boolean, onRefresh: () -> Unit, unavailableMessage: String? = null) {
     NowGlassCard(emphasized = true, contentPadding = 8.dp) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             if (refreshing) CircularProgressIndicator(Modifier.padding(start = 4.dp).size(30.dp), color = NowColors.Blue600, strokeWidth = 3.dp)
             else Icon(Icons.Outlined.Radar, null, Modifier.padding(start = 4.dp).size(30.dp), tint = NowColors.Blue600)
             Column(Modifier.weight(1f)) {
                 Text(if (refreshing) "Scanning nearby states…" else if (cached && count == 0) "Nearby data unavailable" else if (cached) "Saved nearby results" else "Nearby results", style = NowType.LabelL, color = NowColors.Ink950)
-                Text(if (refreshing) "Finding fresh information for this area" else if (cached && count == 0) "Check your connection and browse area" else "$count result${if (count == 1) "" else "s"} · ${if (cached) "Reconnect to update" else "Tap to update"}", style = NowType.BodyS, color = NowColors.Ink600)
+                Text(if (refreshing) "Finding fresh information for this area" else if (unavailableMessage != null) unavailableMessage else if (cached && count == 0) "Check your connection and browse area" else "$count result${if (count == 1) "" else "s"} · ${if (cached) "Reconnect to update" else "Tap to update"}", style = NowType.BodyS, color = NowColors.Ink600)
             }
             IconButton(onRefresh, enabled = !refreshing) { Icon(Icons.Outlined.Refresh, "Refresh nearby", tint = NowColors.Blue600) }
         }

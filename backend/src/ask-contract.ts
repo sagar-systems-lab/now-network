@@ -24,6 +24,7 @@ export type AskInput = {
   location: Point & { name: string; location_type: string };
   policy_template_key: string;
   requester_location: RequesterLocation | null;
+  custom_question: string | null;
 };
 export const ASK_TEMPLATES = {
   "parking.available_spaces.v1": {
@@ -95,11 +96,31 @@ export function parseAsk(body: Record<string, unknown>, now: Date): AskInput {
   const name = requiredString(location, "name", 120).normalize("NFKC").replace(/\s+/gu, " ").trim();
   if (!name || name.length > 120 || /[\p{Cc}\p{Cf}]/u.test(name)) invalid("name");
   if (location.location_type !== template.type) invalid("location_type");
+  const customQuestion = body.custom_question == null
+    ? null
+    : requiredString(body, "custom_question", 200).normalize("NFKC").replace(/\s+/gu, " ").trim();
+  if (
+    customQuestion !== null && (key !== "visual.current_condition.v1" ||
+      customQuestion.length < 8 || customQuestion.length > 200 ||
+      /[\p{Cc}\p{Cf}]/u.test(customQuestion))
+  ) {
+    invalid("custom_question");
+  }
   return {
     location: { ...point(location), name, location_type: template.type },
     policy_template_key: key,
     requester_location: requesterLocation(body.requester_location, now),
+    custom_question: customQuestion,
   };
+}
+
+export async function questionFingerprint(question: string | null): Promise<string> {
+  if (question === null) return "";
+  const bytes = new TextEncoder().encode(question.toLowerCase());
+  return Array.from(
+    new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)),
+    (b) => b.toString(16).padStart(2, "0"),
+  ).join("");
 }
 
 // A named place in a ~1 m coordinate cell. Nearby places with different names never collapse.

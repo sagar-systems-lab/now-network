@@ -65,6 +65,7 @@ fun LiveMapCard(
     onMapTap: ((GeoCenter) -> Unit)? = null,
     searchAreaLabel: String = "Search this area",
     minimumPanMeters: Float = 100f,
+    animateCenterChanges: Boolean = false,
 ) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -203,8 +204,10 @@ fun LiveMapCard(
         gestureMoved = false
         pendingCenter = null
         val position = browseCamera(center?.takeIf { it.valid }, cameraSnapshot)
-        ready.moveCamera(CameraUpdateFactory.newCameraPosition(CameraPosition.Builder()
-            .target(LatLng(position[0], position[1])).zoom(position[2]).tilt(if (tilted && !basicMap) 38.0 else 0.0).build()))
+        val update = CameraUpdateFactory.newCameraPosition(CameraPosition.Builder()
+            .target(LatLng(position[0], position[1])).zoom(position[2]).tilt(if (tilted && !basicMap) 38.0 else 0.0).build())
+        if (animateCenterChanges && motion && appliedCenter != null && appliedCenter != center) ready.animateCamera(update, 650)
+        else ready.moveCamera(update)
         appliedCenter = center
         cameraReady = true
         centerPoint = center?.takeIf { it.valid }?.let { c ->

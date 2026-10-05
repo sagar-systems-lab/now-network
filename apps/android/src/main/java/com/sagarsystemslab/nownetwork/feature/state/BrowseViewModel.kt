@@ -30,6 +30,7 @@ import kotlinx.coroutines.withContext
 enum class BrowseNotice {
     NONE,
     AREA_REQUIRED,
+    CONFIGURATION_REQUIRED,
     NETWORK_UNAVAILABLE,
     SERVER_UNAVAILABLE,
     DATA_UNAVAILABLE,
@@ -183,7 +184,7 @@ class BrowseViewModel @Inject constructor(
 
         if (!runtimeConfig.apiConfigured) {
             mutableHomeState.update {
-                it.copy(refreshing = false, notice = BrowseNotice.NETWORK_UNAVAILABLE)
+                it.copy(refreshing = false, notice = BrowseNotice.CONFIGURATION_REQUIRED)
             }
             return
         }
@@ -281,7 +282,7 @@ class BrowseViewModel @Inject constructor(
             notice = if (runtimeConfig.apiConfigured) {
                 BrowseNotice.NONE
             } else {
-                BrowseNotice.NETWORK_UNAVAILABLE
+                BrowseNotice.CONFIGURATION_REQUIRED
             },
         )
 
@@ -376,6 +377,7 @@ class BrowseViewModel @Inject constructor(
 
     private fun Exception.toBrowseNotice(): BrowseNotice =
         when (this) {
+            is ApiFailure.Configuration -> BrowseNotice.CONFIGURATION_REQUIRED
             is ApiFailure.NetworkUnavailable,
             is ApiFailure.Timeout,
             is ApiFailure.RateLimited -> BrowseNotice.NETWORK_UNAVAILABLE

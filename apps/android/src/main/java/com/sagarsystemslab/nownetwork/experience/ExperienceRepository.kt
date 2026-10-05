@@ -80,8 +80,8 @@ class ExperienceRepository @Inject constructor(
     }
 
     suspend fun connectWallet(host: WalletInteractionHost): MeDto = walletMutex.withLock {
-        val account = wallets.connect(host).required()
         val me = me()
+        val account = wallets.connect(host).required()
         val bound = me.walletBindings.any { it.status == "ACTIVE" && it.cluster == config.cluster && it.walletAddress == account.address }
         if (!bound) {
             val challenge = authenticated { api.walletBindingChallenge(WalletBindingChallengeRequest(account.address, config.cluster), it) }

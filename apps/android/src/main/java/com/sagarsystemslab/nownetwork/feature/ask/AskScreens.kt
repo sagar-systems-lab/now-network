@@ -16,6 +16,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.sagarsystemslab.nownetwork.designsystem.*
 import com.sagarsystemslab.nownetwork.experience.number
@@ -35,6 +39,9 @@ fun AskComposerScreen(
     onPermissionDenied: ()->Unit,
     onResolve: ()->Unit,
     onBack: ()->Unit,
+    onSearch: ()->Unit = {},
+    onSelectPlace: (PlaceSuggestion)->Unit = {},
+    onQuestion: (String)->Unit = {},
 ) {
     fun back() { when(state.stage) {
         AskStage.TARGET -> onBack()
@@ -46,6 +53,7 @@ fun AskComposerScreen(
         if(grants[Manifest.permission.ACCESS_FINE_LOCATION]==true) onCoverage() else onPermissionDenied()
     }
     val duration=nowMotionDuration(rememberNowMotionEnabled(),220)
+    val focus = LocalFocusManager.current
     val scroll=androidx.compose.foundation.lazy.rememberLazyListState()
     LaunchedEffect(state.stage) { scroll.scrollToItem(0) }
     LazyColumn(Modifier.fillMaxSize().imePadding().testTag("ask-composer"),contentPadding=PaddingValues(16.dp),state=scroll,
@@ -62,25 +70,47 @@ fun AskComposerScreen(
             FlowRow(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                 AskStage.entries.forEachIndexed { index,stage ->
                     FilterChip(selected=state.stage==stage,onClick={ onStage(stage) },enabled=!state.busy &&
-                        (stage==AskStage.TARGET || state.draft.targetReady && (stage!=AskStage.PREVIEW || state.draft.need!=null)),
-                        label={ Text("${index+1} · ${stage.name.lowercase().replaceFirstChar { it.uppercase() }}") })
+                        (stage==AskStage.TARGET || state.draft.targetReady && (stage!=AskStage.PREVIEW || state.draft.needReady)),
+                        label={ Text("${index+1} · ${when(stage) { AskStage.TARGET -> "Place"; AskStage.NEED -> "Question"; AskStage.PREVIEW -> "Review" }}") })
                 }
             }
         }
         when(state.stage) {
             AskStage.TARGET -> {
                 item {
-                    LiveMapCard(state.draft.target,listOfNotNull(state.draft.target?.let {
+                    NowGlassCard(emphasized=true) {
+                        NowSectionTitle("Where do you need an update?", "Search a place, street or full address.")
+                        NowTextField(state.query,onName,"Place or address",Modifier.testTag("ask-place-search"),
+                            supportingText="Try Nehru Place, Delhi",enabled=!state.busy,
+                            keyboardOptions=KeyboardOptions(imeAction=ImeAction.Search),
+                            keyboardActions=KeyboardActions(onSearch={ onSearch() }))
+                        if(state.searching) {
+                            LinearProgressIndicator(Modifier.fillMaxWidth())
+                            Text("Finding matching places…",style=NowType.BodyS,color=NowColors.Ink600)
+                        }
+                        state.suggestions.forEachIndexed { index,place ->
+                            if(index>0) HorizontalDivider()
+                            ExperienceRow(place.name,place.address,Icons.Outlined.LocationOn,
+                                onClick={ focus.clearFocus(); onSelectPlace(place) },tag="ask-place-result-$index",compact=false)
+                        }
+                        state.searchMessage?.let { Text(it,style=NowType.BodyS,color=NowColors.Ink600) }
+                        if(!state.draft.targetReady && state.query.trim().length>=3 && !state.searching) {
+                            TextButton(onSearch,Modifier.fillMaxWidth()) { Text(if(state.searchMessage!=null) "Retry address search" else "Search places") }
+                        }
+                    }
+                }
+                item {
+                    LiveMapCard(state.mapCenter,listOfNotNull(state.draft.target?.let {
                         LiveMapPin("ask-target",state.draft.name.ifBlank { "Selected place" },it,"UNKNOWN")
                     }),onPin={},onSearchArea=onTarget,onLocateArea=onTarget,onMapTap=onTarget,
-                        searchAreaLabel="Use this pin",minimumPanMeters=0f)
+                        searchAreaLabel="Choose this pin",minimumPanMeters=0f,animateCenterChanges=true)
                 }
                 item {
                     NowGlassCard(Modifier.animateContentSize(tween(duration)),emphasized=true) {
-                        NowSectionTitle("Choose the exact spot","Tap the map or move it and use the pin. A remote place is welcome.")
-                        NowTextField(state.draft.name,onName,"Place name",supportingText="Use the entrance, lot or landmark name people will recognise.")
+                        NowSectionTitle(if(state.draft.targetReady) state.draft.name else "Choose an exact spot",
+                            if(state.draft.targetReady) "This is where the contributor will capture fresh proof." else "Select a search result, or tap the map. You can ask about a place far away.")
                         Text(state.draft.target?.let { "Pin selected · %.5f, %.5f".format(java.util.Locale.ROOT,it.latitude,it.longitude) }
-                            ?: "Choose a point on the map",style=NowType.BodyS,color=NowColors.Ink600)
+                            ?: "No place selected yet",style=NowType.BodyS,color=NowColors.Ink600)
                         NowPrimaryButton("Choose what to ask",{ onStage(AskStage.NEED) },Modifier.fillMaxWidth(),enabled=state.draft.targetReady)
                     }
                 }
@@ -90,7 +120,7 @@ fun AskComposerScreen(
                 AskNeed.entries.forEach { need -> item {
                     NowGlassCard(emphasized=state.draft.need==need) {
                         Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
-                            LuminousIcon(when(need) { AskNeed.PARKING -> Icons.Outlined.LocalParking; AskNeed.GATE -> Icons.Outlined.MeetingRoom; AskNeed.VISUAL -> Icons.Outlined.PhotoCamera },Modifier.size(44.dp))
+                            LuminousIcon(when(need) { AskNeed.PARKING -> Icons.Outlined.LocalParking; AskNeed.GATE -> Icons.Outlined.MeetingRoom; AskNeed.VISUAL -> Icons.Outlined.PhotoCamera; AskNeed.OTHER -> Icons.Outlined.QuestionAnswer },Modifier.size(44.dp))
                             Column(Modifier.weight(1f)) {
                                 Text(need.title,style=NowType.TitleS,color=NowColors.Ink950)
                                 Text(need.question,style=NowType.BodyS,color=NowColors.Ink600)
@@ -100,7 +130,14 @@ fun AskComposerScreen(
                         TextButton({ onNeed(need) },Modifier.fillMaxWidth()) { Text(if(state.draft.need==need) "Selected" else "Choose ${need.title.lowercase()}") }
                     }
                 } }
-                item { NowPrimaryButton("Preview request",{ onStage(AskStage.PREVIEW) },Modifier.fillMaxWidth(),enabled=state.draft.need!=null) }
+                if(state.draft.need==AskNeed.OTHER) item {
+                    NowGlassCard(emphasized=true) {
+                        NowTextField(state.draft.customQuestion,onQuestion,"Your question",Modifier.testTag("ask-custom-question"),
+                            supportingText="Ask something visible at this place, e.g. How long is the queue at the main entrance?",singleLine=false)
+                        Text("${state.draft.customQuestion.length}/200 · A fresh photo and on-site answer are required.",style=NowType.BodyS,color=NowColors.Ink600)
+                    }
+                }
+                item { NowPrimaryButton("Preview request",{ focus.clearFocus(); onStage(AskStage.PREVIEW) },Modifier.fillMaxWidth(),enabled=state.draft.needReady) }
             }
             AskStage.PREVIEW -> {
                 item {
@@ -110,7 +147,7 @@ fun AskComposerScreen(
                             Column(Modifier.weight(1f)) { Text(state.draft.name,style=NowType.TitleM,color=NowColors.Ink950)
                                 Text(state.draft.need?.title.orEmpty(),style=NowType.BodyS,color=NowColors.Ink600) }
                         }
-                        Text(state.draft.need?.question.orEmpty(),style=NowType.TitleS,color=NowColors.Ink950)
+                        Text(state.draft.question,style=NowType.TitleS,color=NowColors.Ink950)
                         HorizontalDivider()
                         Text("Fresh photo + on-site location",style=NowType.BodyM,color=NowColors.Ink950)
                         Text("The contributor captures new proof at your pin. Verification and payout follow the usual request process.",style=NowType.BodyS,color=NowColors.Ink600)

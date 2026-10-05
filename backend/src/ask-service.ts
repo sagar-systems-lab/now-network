@@ -11,6 +11,7 @@ import {
   parseAsk,
   type Point,
   point,
+  questionFingerprint,
   type RequesterLocation,
   requesterLocation,
 } from "./ask-contract.ts";
@@ -132,6 +133,7 @@ export class PostgresAskService implements AskApi {
           return replay[0].response_body;
         }
         const input = parseAsk(raw, new Date());
+        const questionKey = await questionFingerprint(input.custom_question);
         const template = ASK_TEMPLATES[input.policy_template_key as keyof typeof ASK_TEMPLATES];
         const policy = policyTemplateForKey(input.policy_template_key)!;
         await this.rate(tx, actor.actorId, "resolve", ASK_CONFIG.resolvesPerMinute);
@@ -168,7 +170,7 @@ export class PostgresAskService implements AskApi {
         }
         const states =
           await tx`select state_id,status from app.state_definitions where location_id=${locationId}::uuid
-          and policy_template_key=${input.policy_template_key} and version=1`;
+          and policy_template_key=${input.policy_template_key} and ask_question_key=${questionKey} and version=1`;
         let stateId: string;
         if (states[0]) {
           if (states[0].status !== "ACTIVE") {
@@ -182,14 +184,15 @@ export class PostgresAskService implements AskApi {
         } else {
           await this.rate(tx, actor.actorId, "new_state", ASK_CONFIG.statesPerDay, 86400);
           stateId = crypto.randomUUID();
-          await tx`insert into app.state_definitions(state_id,version,canonical_key,policy_template_key,title,question,
+          await tx`insert into app.state_definitions(state_id,version,canonical_key,policy_template_key,ask_question_key,title,question,
             state_type,answer_schema,unit_code,freshness_policy,location_id,status,created_by_actor_id)
             values (${stateId}::uuid,1,${
-            input.policy_template_key + ":" + locationId
-          },${input.policy_template_key},
+            input.policy_template_key + ":" + locationId + (questionKey ? ":" + questionKey : "")
+          },${input.policy_template_key},${questionKey},
             ${
-            input.location.name + " · " + template.title
-          },${template.question},${policy.state_type},
+            input.location.name + " · " +
+            (input.custom_question ? "On-site update" : template.title)
+          },${input.custom_question ?? template.question},${policy.state_type},
             ${JSON.stringify(template.answer)}::text::jsonb,${template.unit},
             ${
             JSON.stringify({

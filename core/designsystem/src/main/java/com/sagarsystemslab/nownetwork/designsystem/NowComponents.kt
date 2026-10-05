@@ -241,6 +241,7 @@ fun NowTextField(
     isError: Boolean = false,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     visualTransformation: VisualTransformation = VisualTransformation.None,
+    keyboardActions: androidx.compose.foundation.text.KeyboardActions = androidx.compose.foundation.text.KeyboardActions.Default,
 ) {
     OutlinedTextField(
         value = value,
@@ -264,6 +265,7 @@ fun NowTextField(
             }
         },
         keyboardOptions = keyboardOptions,
+        keyboardActions = keyboardActions,
         visualTransformation = visualTransformation,
         shape = NowShapes.medium,
     )

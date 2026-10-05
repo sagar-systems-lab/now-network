@@ -78,12 +78,13 @@ Screenshot generation and artifact transport are not part of that job. The optio
 `scripts/android/capture-visuals.sh` helper is for a separately provisioned, rendered Android device;
 ATD images do not render screenshot evidence.
 
-For a connected phone build, run `bash scripts/android/build-connected.sh`. It selects
-`NOW_RUNTIME=hosted` and loads `apps/android/hosted-runtime.properties`, which contains only
+For a connected phone build, run `bash scripts/android/build-connected.sh`. Android builds default to
+`NOW_RUNTIME=hosted` and load `apps/android/hosted-runtime.properties`, which contains only
 the hosted endpoint and public client configuration. Gradle properties and environment variables
 override those defaults; retain any reward-mint configuration for the selected deployment.
 Missing URLs, non-HTTPS endpoints and non-publishable client keys fail Gradle configuration.
-The normal test builds retain their isolated configuration.
+The script also rejects APKs missing the hosted public configuration. CI unit and instrumented
+test builds explicitly use `NOW_RUNTIME=offline`; use `-PNOW_RUNTIME=offline` for isolated local tests.
 
 The Android job also builds `NOW-connected-debug`, a downloadable APK artifact with its source
 commit and SHA-256. APK upload has a three-minute timeout and is optional; a transport failure
@@ -92,6 +93,9 @@ does not change test results. On the runner, the connected APK remains at
 release candidate. The required instrumented tests run separately with their normal configuration.
 
 Deploy the matching migrations and API/worker before testing the new account and inbox routes.
+ASK also needs all pending migrations, including `20261004164414_dynamic_ask_coverage.sql` and
+`20261005090600_ask_custom_questions.sql`, followed by deployment of both `now-api` and `now-worker`
+from the same commit. Installing an APK alone does not update these services.
 A connected build does not populate the location catalog: real locations and state definitions
 must be added before nearby results exist. Device location centers the map independently.
 Local appearance and permission settings do not require an account request.

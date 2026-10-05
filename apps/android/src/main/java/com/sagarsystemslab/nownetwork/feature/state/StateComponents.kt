@@ -120,6 +120,8 @@ fun BrowseNoticeCard(
     val text = when (notice) {
         BrowseNotice.AREA_REQUIRED ->
             "Choose a browse area to see nearby live states."
+        BrowseNotice.CONFIGURATION_REQUIRED ->
+            "This build isn't connected to NOW. Install the connected APK to load live places and your account."
         BrowseNotice.NETWORK_UNAVAILABLE ->
             if (hasCachedContent) {
                 "Live connection unavailable · showing the latest verified states saved on this device."

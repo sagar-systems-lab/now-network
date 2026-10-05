@@ -9,18 +9,19 @@ plugins {
     alias(libs.plugins.androidx.baselineprofile)
 }
 
-val hostedRuntime = providers.gradleProperty("NOW_RUNTIME")
+val runtimeMode = providers.gradleProperty("NOW_RUNTIME")
     .orElse(providers.environmentVariable("NOW_RUNTIME"))
-    .getOrElse("offline") == "hosted"
+    .getOrElse("hosted").trim().lowercase()
+require(runtimeMode in setOf("hosted", "offline")) { "NOW_RUNTIME must be hosted or offline" }
+val hostedRuntime = runtimeMode == "hosted"
 val hostedPublicConfig = Properties().apply {
     if (hostedRuntime) file("hosted-runtime.properties").inputStream().use { load(it) }
 }
 
 fun publicConfig(name: String, fallback: String = ""): String =
-    providers.gradleProperty(name)
-        .orElse(providers.environmentVariable(name))
-        .orElse(hostedPublicConfig.getProperty(name, fallback))
-        .get()
+    sequenceOf(providers.gradleProperty(name).orNull, providers.environmentVariable(name).orNull,
+        hostedPublicConfig.getProperty(name), fallback)
+        .filterNotNull().map { it.trim() }.firstOrNull { it.isNotEmpty() }.orEmpty()
 
 if (hostedRuntime) {
     listOf("NOW_API_BASE_URL", "NOW_SUPABASE_URL", "NOW_SUPABASE_PUBLISHABLE_KEY").forEach { name ->

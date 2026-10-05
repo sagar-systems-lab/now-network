@@ -45,6 +45,29 @@ class AskComposerInstrumentedTest {
         compose.runOnIdle { assertEquals(1,continued); assertEquals(0,gpsCalls) }
     }
 
+    @Test fun otherQuestionNeedsDetailsAndPreservesTheQuestionOnReview() {
+        val target = GeoCenter(28.55,77.25)
+        val question = "How busy is the main entrance?"
+        var state by mutableStateOf(AskUiState(AskDraft("Nehru Place",target),AskStage.NEED))
+        var gpsCalls = 0
+        compose.setContent { NowTheme(darkTheme=false) {
+            AskComposerScreen(state,{}, {},{ state=state.copy(draft=state.draft.copy(need=it)) },
+                { state=state.copy(stage=it) },{ gpsCalls++ },{}, {},{},
+                onQuestion={ state=state.copy(draft=state.draft.copy(customQuestion=it)) })
+        } }
+        scrollToText("Choose other question").performClick()
+        scrollToText("Preview request").assertIsNotEnabled()
+        compose.onNodeWithTag("ask-composer").performScrollToNode(hasTestTag("ask-custom-question"))
+        compose.onNodeWithTag("ask-custom-question").performTextInput(question)
+        scrollToText("Preview request").performClick()
+        compose.onNodeWithText(question).assertExists()
+        compose.runOnIdle {
+            assertEquals(target,state.draft.target)
+            assertEquals(question,state.draft.question)
+            assertEquals(0,gpsCalls)
+        }
+    }
+
     private fun scrollToText(text: String): SemanticsNodeInteraction {
         compose.onNodeWithTag("ask-composer").performScrollToNode(hasText(text))
         return compose.onNodeWithText(text)
