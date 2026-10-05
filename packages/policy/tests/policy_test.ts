@@ -57,11 +57,18 @@ Deno.test("all shipped policy templates pass strict parsing", async () => {
 
   assertEquals(gate.state_type, "BINARY");
   assertEquals(visual.state_type, "VISUAL");
+  for (const template of [parking, gate, visual]) {
+    assertEquals(template.capture.media_required, true);
+    assertEquals(template.capture.video_required, true);
+    assertEquals(template.capture.location_required, true);
+  }
 });
 
 Deno.test("policy parser rejects unknown critical fields and invalid cross-field data", async () => {
   const raw = JSON.parse(
-    await Deno.readTextFile(new URL("parking.available_spaces.v1.json", templateRoot)),
+    await Deno.readTextFile(
+      new URL("parking.available_spaces.v1.json", templateRoot),
+    ),
   ) as Record<string, unknown>;
 
   assertThrows(() => parsePolicyTemplate({ ...raw, arbitrary_expression: "allow()" }));
@@ -113,10 +120,22 @@ Deno.test("policy freshness uses template timestamps deterministically", async (
   const parking = await loadTemplate("parking.available_spaces.v1.json");
   const observedAt = 1_000_000;
 
-  assertEquals(derivePolicyFreshness(observedAt + 419_999, observedAt, parking), "LIVE");
-  assertEquals(derivePolicyFreshness(observedAt + 420_000, observedAt, parking), "AGING");
-  assertEquals(derivePolicyFreshness(observedAt + 599_999, observedAt, parking), "AGING");
-  assertEquals(derivePolicyFreshness(observedAt + 600_000, observedAt, parking), "STALE");
+  assertEquals(
+    derivePolicyFreshness(observedAt + 419_999, observedAt, parking),
+    "LIVE",
+  );
+  assertEquals(
+    derivePolicyFreshness(observedAt + 420_000, observedAt, parking),
+    "AGING",
+  );
+  assertEquals(
+    derivePolicyFreshness(observedAt + 599_999, observedAt, parking),
+    "AGING",
+  );
+  assertEquals(
+    derivePolicyFreshness(observedAt + 600_000, observedAt, parking),
+    "STALE",
+  );
 });
 
 Deno.test("reward aggregation includes only confirmed active contributions", () => {
@@ -245,5 +264,7 @@ Deno.test("legacy capture snapshots keep their original fields and new templates
     ...current,
     capture: { ...current.capture, video_required: true },
   });
-  if (!next.capture.video_required) throw new Error("Video requirement was lost");
+  if (!next.capture.video_required) {
+    throw new Error("Video requirement was lost");
+  }
 });

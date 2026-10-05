@@ -462,6 +462,9 @@ class DefaultEvidenceCaptureRepository @Inject constructor(
 
     override suspend fun requestSubmission(evidenceId: String) {
         val (_, secret) = loadDraft(evidenceId)
+        if (secret.videoRequired && secret.video == null) {
+            throw EvidenceCaptureFailure.Unavailable("Record the short video before submitting.")
+        }
         writeSecret(secret.copy(submissionRequested = true))
     }
 

@@ -129,10 +129,14 @@ class EvidenceCaptureRepositoryTest {
     }
 
     @Test
-    fun missingRequiredVideoNeverStartsAnUpload() = runBlocking {
+    fun missingRequiredVideoNeverQueuesOrLocksTheDraft() = runBlocking {
         val fixture = Fixture()
         fixture.api.videoRequired = true
-        val evidenceId = fixture.prepareCapturedEvidence()
+        val evidenceId = fixture.prepareCapturedEvidence(requestSubmission = false)
+        val queueError = runCatching {
+            fixture.repository.requestSubmission(evidenceId)
+        }.exceptionOrNull()
+        assertTrue(queueError is EvidenceCaptureFailure.Unavailable)
         try {
             fixture.repository.submit(evidenceId)
             throw AssertionError("Photo-only evidence passed a video requirement")
@@ -142,6 +146,10 @@ class EvidenceCaptureRepositoryTest {
         val restored = fixture.recreatedRepository().load(ACCEPTANCE_ID, REFRESH_ID) as EvidenceCaptureRecovery.Draft
         assertTrue(restored.draft.videoRequired)
         assertTrue(restored.draft.localFile.isFile)
+        assertTrue(fixture.repository.resumeSubmission(evidenceId) == null)
+        val editable = fixture.repository.resetVideo(evidenceId)
+        assertTrue(editable.localFile.isFile)
+        assertTrue(editable.video == null)
     }
 
     private class Fixture {
@@ -159,7 +167,7 @@ class EvidenceCaptureRepositoryTest {
         var repository = newRepository()
             private set
 
-        suspend fun prepareCapturedEvidence(): String {
+        suspend fun prepareCapturedEvidence(requestSubmission: Boolean = true): String {
             val draft = repository.begin(ACCEPTANCE_ID, REFRESH_ID)
             val file = draft.localFile
             file.parentFile?.mkdirs()
@@ -183,7 +191,7 @@ class EvidenceCaptureRepositoryTest {
                 captureCompletedMonotonicMs = 1_200,
             )
             repository.updateAnswer(draft.evidenceId, "2")
-            repository.requestSubmission(draft.evidenceId)
+            if (requestSubmission) repository.requestSubmission(draft.evidenceId)
             return draft.evidenceId
         }
 
