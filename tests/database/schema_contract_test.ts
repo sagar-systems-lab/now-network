@@ -46,6 +46,7 @@ const expectedMigrations = [
   "20261003152110_native_experience.sql",
   "20261003161302_experience_notification_events.sql",
   "20261004164414_dynamic_ask_coverage.sql",
+  "20261005090600_ask_custom_questions.sql",
 ] as const;
 
 async function readMigration(name: string): Promise<string> {

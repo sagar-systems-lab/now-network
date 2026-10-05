@@ -3,6 +3,7 @@ import {
   coveragePayload,
   locationFingerprint,
   parseAsk,
+  questionFingerprint,
   requesterLocation,
 } from "../src/ask-contract.ts";
 import { ApiFault } from "../src/errors.ts";
@@ -40,6 +41,33 @@ Deno.test("ASK identity normalizes equivalent labels and retains distinct nearby
       locationFingerprint(parseAsk(input("Lot A", 28.61), now).location),
     "remote place collapsed",
   );
+});
+
+Deno.test("custom photo questions are bounded and keep their own identity", async () => {
+  const base = {
+    ...input(),
+    location: { ...input().location, location_type: "PLACE" },
+    policy_template_key: "visual.current_condition.v1",
+  };
+  const first = parseAsk({ ...base, custom_question: "  How busy  is the entrance? " }, now);
+  const same = parseAsk({ ...base, custom_question: "how busy is the entrance?" }, now);
+  const other = parseAsk({ ...base, custom_question: "Is the entrance flooded?" }, now);
+  assert(first.custom_question === "How busy is the entrance?", "question normalization failed");
+  assert(
+    await questionFingerprint(first.custom_question) ===
+      await questionFingerprint(same.custom_question),
+    "same question duplicated",
+  );
+  assert(
+    await questionFingerprint(first.custom_question) !==
+      await questionFingerprint(other.custom_question),
+    "different questions merged",
+  );
+  assert(await questionFingerprint(null) === "", "standard template identity changed");
+  rejects(() => parseAsk({ ...base, custom_question: "Short" }, now));
+  rejects(() => parseAsk({ ...base, custom_question: "x".repeat(201) }, now));
+  rejects(() => parseAsk({ ...base, custom_question: "Hidden\u200b question" }, now));
+  rejects(() => parseAsk({ ...input(), custom_question: "Is there an open entrance?" }, now));
 });
 Deno.test("ASK rejects unregistered work, mismatched place type and invalid coordinates", () => {
   rejects(() => parseAsk({ ...input(), policy_template_key: "custom.delivery" }, now));

@@ -271,3 +271,77 @@ Deno.test({
     }
   },
 });
+
+Deno.test({
+  name: "ASK database: custom questions persist, reuse only matching questions and replay",
+  ignore: !database,
+  fn: async () => {
+    const sql = postgres(database!, { max: 1, prepare: false });
+    const service = new PostgresAskService(database!);
+    const actor = { actorId: crypto.randomUUID(), status: "ACTIVE" as const, revision: 1 };
+    let locationId: string | null = null;
+    const resolve = (body: unknown, key = crypto.randomUUID()) =>
+      service.request(
+        new Request("https://now.test/v1/asks/resolve", {
+          method: "POST",
+          headers: { "Idempotency-Key": key },
+          body: JSON.stringify(body),
+        }),
+        actor,
+      ) as Promise<Record<string, unknown>>;
+    try {
+      await sql`insert into app.actors(actor_id,status) values(${actor.actorId}::uuid,'ACTIVE')`;
+      const base = {
+        location: {
+          name: `Entrance ${actor.actorId}`,
+          location_type: "PLACE",
+          lat: 28.55,
+          lng: 77.25,
+        },
+        policy_template_key: "visual.current_condition.v1",
+      };
+      const standard = await resolve(base);
+      locationId = String(standard.location_id);
+      const key = crypto.randomUUID();
+      const request = { ...base, custom_question: "How busy is the main entrance?" };
+      const custom = await resolve(request, key);
+      const repeated = await resolve({
+        ...base,
+        custom_question: "  how busy is the main entrance?  ",
+      });
+      const other = await resolve({
+        ...base,
+        custom_question: "Is water collecting at the entrance?",
+      });
+      assert(
+        custom.state_id !== standard.state_id && other.state_id !== custom.state_id,
+        "different questions shared a state",
+      );
+      assert(
+        repeated.state_id === custom.state_id && repeated.state_reused === true,
+        "equivalent question was not reused",
+      );
+      assert(
+        canonicalJson(await resolve(request, key)) === canonicalJson(custom),
+        "custom question retry changed",
+      );
+      const rows =
+        await sql`select question,state_type,policy_template_key,answer_schema,ask_question_key
+        from app.state_definitions where state_id=${String(custom.state_id)}::uuid`;
+      assert(
+        rows[0].question === request.custom_question && rows[0].state_type === "VISUAL" &&
+          rows[0].policy_template_key === "visual.current_condition.v1" &&
+          rows[0].answer_schema.type === "string" &&
+          rows[0].ask_question_key.length === 64,
+        "custom question lost its registered proof policy",
+      );
+    } finally {
+      await service.close();
+      await sql`delete from app.idempotency_records where actor_id=${actor.actorId}::uuid`;
+      await sql`delete from app.state_definitions where created_by_actor_id=${actor.actorId}::uuid`;
+      if (locationId) await sql`delete from app.locations where location_id=${locationId}::uuid`;
+      await sql`delete from app.actors where actor_id=${actor.actorId}::uuid`;
+      await sql.end({ timeout: 1 });
+    }
+  },
+});

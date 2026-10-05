@@ -56,7 +56,14 @@ fun NowScreen(
     LazyColumn(Modifier.testTag("screen-now"), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { ExperienceHeader("NOW", "Live states near you", uiState.areaLabel, onBrowseAreas, onNotifications, onProfile, unread) }
         item { LiveMapCard(center, states.mapNotNull { s -> s.location?.center?.let { LiveMapPin(s.stateId, s.title, it, s.freshnessAt(nowMillis).name) } }, onStateClick, onSearchArea = onSearchArea, onLocateArea = onLocateArea) }
-        item { SyncStrip(uiState.refreshing, uiState.states.size, uiState.notice != BrowseNotice.NONE, onRefresh) }
+        item { SyncStrip(uiState.refreshing, uiState.states.size, uiState.notice != BrowseNotice.NONE, onRefresh,
+            unavailableMessage = when(uiState.notice) {
+                BrowseNotice.CONFIGURATION_REQUIRED -> "Install the connected APK to load live data."
+                BrowseNotice.AREA_REQUIRED -> "Choose a browse area to see nearby places."
+                BrowseNotice.SERVER_UNAVAILABLE -> "The service is temporarily unavailable. Try again shortly."
+                BrowseNotice.DATA_UNAVAILABLE -> "This area's data could not load. Tap to retry."
+                else -> null
+            }) }
         item {
             NowGlassCard(Modifier.testTag("home-ask-refresh"), emphasized = true, contentPadding = 12.dp, spacing = 8.dp) {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
