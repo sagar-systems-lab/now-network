@@ -18,6 +18,7 @@ import { PostgresPaymentStatusRepository } from "./postgres-payment-status-repos
 import { PostgresReceiptRepository } from "./postgres-receipt-repository.ts";
 import { PostgresRuntimeHealthRepository } from "./postgres-runtime-health-repository.ts";
 import { PostgresRefreshRepository } from "./postgres-refresh-repository.ts";
+import { configuredRewardMint } from "./reward-config.ts";
 import { PostgresStateRepository } from "./postgres-state-repository.ts";
 import { PostgresStateProjectionRepository } from "./postgres-state-projection-repository.ts";
 import { PaymentStatusService } from "./payment-status-service.ts";
@@ -105,7 +106,7 @@ export function createProductionHandler(): (request: Request) => Promise<Respons
     chainObserver,
     {
       cluster,
-      rewardMint: requiredEnv("NOW_REWARD_MINT"),
+      rewardMint: configuredRewardMint(cluster, Deno.env.get("NOW_REWARD_MINT")),
       refreshLifetimeSeconds: requiredPositiveIntegerEnv(
         "NOW_REFRESH_LIFETIME_SECONDS",
       ),
