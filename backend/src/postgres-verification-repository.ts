@@ -36,6 +36,7 @@ type EvidenceRow = {
   media_sha256: Uint8Array | null;
   media_size_bytes: number | string | null;
   media_mime: string | null;
+  video_metadata: VerificationEvidence["video"];
   location_sample_count: number | string;
   server_observation_earliest: DateLike;
   server_observation_latest: DateLike;
@@ -118,6 +119,7 @@ function evidenceFromRow(row: EvidenceRow): VerificationEvidence {
     mediaSha256: row.media_sha256 === null ? null : new Uint8Array(row.media_sha256),
     mediaSizeBytes: row.media_size_bytes === null ? null : Number(row.media_size_bytes),
     mediaMime: row.media_mime,
+    video: row.video_metadata,
     locationSampleCount: Number(row.location_sample_count),
     serverObservationEarliest: date(row.server_observation_earliest),
     serverObservationLatest: date(row.server_observation_latest),
@@ -151,6 +153,7 @@ const EVIDENCE_SQL = String.raw`
     ep.media_sha256,
     ep.media_size_bytes,
     ep.media_mime,
+    ep.video_metadata,
     (
       select count(*)::integer
       from app.evidence_location_samples els

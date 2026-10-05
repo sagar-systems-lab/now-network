@@ -10,6 +10,7 @@ import com.sagarsystemslab.nownetwork.evidence.EvidenceObjectUploadFailure
 import com.sagarsystemslab.nownetwork.evidence.EvidenceObjectUploader
 import com.sagarsystemslab.nownetwork.network.ApiFailure
 import com.sagarsystemslab.nownetwork.network.EvidenceChallengeDto
+import com.sagarsystemslab.nownetwork.network.EvidenceVideoDto
 import com.sagarsystemslab.nownetwork.network.EvidenceCommitDto
 import com.sagarsystemslab.nownetwork.network.EvidenceCommitRequest
 import com.sagarsystemslab.nownetwork.network.EvidenceLocationSampleDto
@@ -42,6 +43,7 @@ data class EvidenceCaptureContext(
     val locationRequired: Boolean,
     val claimDeadline: String?,
     val evidenceDeadline: String,
+    val videoRequired: Boolean = false,
 )
 
 data class EvidenceCaptureDraft(
@@ -60,6 +62,8 @@ data class EvidenceCaptureDraft(
     val captureStartedMonotonicMs: Long?,
     val captureCompletedMonotonicMs: Long?,
     val locationSampleCount: Int,
+    val videoRequired: Boolean = false,
+    val video: EvidenceVideoDto? = null,
 )
 
 sealed interface EvidenceCaptureRecovery {
@@ -119,6 +123,12 @@ interface EvidenceCaptureRepository {
         captureCompletedMonotonicMs: Long,
     ): EvidenceCaptureDraft
 
+    suspend fun completeVideo(evidenceId: String, startedMs: Long, completedMs: Long, durationMs: Long): EvidenceCaptureDraft =
+        throw EvidenceCaptureFailure.Unavailable("Video capture is unavailable.")
+
+    suspend fun resetVideo(evidenceId: String): EvidenceCaptureDraft =
+        throw EvidenceCaptureFailure.Unavailable("Video capture is unavailable.")
+
     suspend fun updateAnswer(
         evidenceId: String,
         answer: String?,
@@ -152,6 +162,9 @@ private data class EvidenceDraftSecret(
     val captureCompletedMonotonicMs: Long? = null,
     val locations: List<EvidenceLocationSecret> = emptyList(),
     val submissionRequested: Boolean = false,
+    val videoRequired: Boolean = false,
+    val video: EvidenceVideoDto? = null,
+    val videoUploaded: Boolean = false,
 )
 
 @Serializable
@@ -263,6 +276,7 @@ class DefaultEvidenceCaptureRepository @Inject constructor(
             question = context.question,
             stateType = context.stateType,
             mediaRequired = challenge.capture.mediaRequired,
+            videoRequired = challenge.capture.videoRequired,
             locationRequired = challenge.capture.locationRequired,
         )
         writeSecret(secret)
@@ -358,6 +372,49 @@ class DefaultEvidenceCaptureRepository @Inject constructor(
         return toDraft(updated, updatedSecret)
     }
 
+    override suspend fun completeVideo(evidenceId: String, startedMs: Long, completedMs: Long, durationMs: Long): EvidenceCaptureDraft {
+        val (pending, secret) = loadDraft(evidenceId)
+        checkEditable(pending, secret)
+        val photoCompleted = secret.captureCompletedMonotonicMs ?: throw EvidenceCaptureFailure.MissingFile()
+        if (durationMs !in 3000L..15000L || startedMs < photoCompleted || completedMs < startedMs ||
+            completedMs - startedMs < durationMs - 250 || completedMs - startedMs > 20000L) {
+            throw EvidenceCaptureFailure.Unavailable("Record a clear video lasting 3–15 seconds.")
+        }
+        val file = File(pending.localFilePath + ".mp4")
+        if (!file.isFile || file.length() <= 0) throw EvidenceCaptureFailure.MissingFile()
+        if (file.length() > 6L * 1024 * 1024) throw EvidenceCaptureFailure.MediaTooLarge()
+        val actualDuration = withContext(Dispatchers.IO) {
+            val metadata = android.media.MediaMetadataRetriever()
+            try { metadata.setDataSource(file.absolutePath)
+                metadata.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull()
+            } finally { metadata.release() }
+        }
+        if (actualDuration == null || actualDuration !in 3000L..15000L || kotlin.math.abs(actualDuration - durationMs) > 100) {
+            throw EvidenceCaptureFailure.Unavailable("Video is incomplete. Keep the photo and record the clip again.")
+        }
+        val digest = hashMedia(file)
+        val next = secret.copy(video = EvidenceVideoDto(digest.sha256Hex,digest.sizeBytes,actualDuration,startedMs,completedMs),videoUploaded=false)
+        writeSecret(next)
+        return toDraft(pending,next)
+    }
+
+    override suspend fun resetVideo(evidenceId: String): EvidenceCaptureDraft {
+        val (pending, secret) = loadDraft(evidenceId)
+        checkEditable(pending,secret)
+        fileStore.delete(File(pending.localFilePath + ".mp4"))
+        val next = secret.copy(video=null,videoUploaded=false)
+        writeSecret(next)
+        return toDraft(pending,next)
+    }
+
+    private fun checkEditable(pending: PendingEvidenceEntity, secret: EvidenceDraftSecret) {
+        if (isExpired(secret.expiresAt)) throw EvidenceCaptureFailure.Expired()
+        if (secret.submissionRequested || pending.uploadState in setOf(PendingEvidenceStatus.UPLOADING,
+            PendingEvidenceStatus.UPLOADED,PendingEvidenceStatus.COMMITTING,PendingEvidenceStatus.COMMITTED)) {
+            throw EvidenceCaptureFailure.Unavailable("This proof is already submitting. Resume the saved upload.")
+        }
+    }
+
     override suspend fun updateAnswer(
         evidenceId: String,
         answer: String?,
@@ -376,13 +433,17 @@ class DefaultEvidenceCaptureRepository @Inject constructor(
             throw EvidenceCaptureFailure.Expired()
         }
 
+        checkEditable(pending, secret)
         fileStore.delete(File(pending.localFilePath))
+        fileStore.delete(File(pending.localFilePath + ".mp4"))
 
         val updatedSecret = secret.copy(
             captureStartedMonotonicMs = null,
             captureCompletedMonotonicMs = null,
             locations = emptyList(),
             submissionRequested = false,
+            video = null,
+            videoUploaded = false,
         )
         writeSecret(updatedSecret)
 
@@ -401,6 +462,9 @@ class DefaultEvidenceCaptureRepository @Inject constructor(
 
     override suspend fun requestSubmission(evidenceId: String) {
         val (_, secret) = loadDraft(evidenceId)
+        if (secret.videoRequired && secret.video == null) {
+            throw EvidenceCaptureFailure.Unavailable("Record the short video before submitting.")
+        }
         writeSecret(secret.copy(submissionRequested = true))
     }
 
@@ -464,6 +528,7 @@ class DefaultEvidenceCaptureRepository @Inject constructor(
             pendingEvidenceDao.upsert(pending)
         }
 
+        if (secret.videoRequired && secret.video == null) throw EvidenceCaptureFailure.Unavailable("Record the short video before submitting.")
         val answer = answerValue(secret)
         if (secret.locationRequired && secret.locations.isEmpty()) {
             throw EvidenceCaptureFailure.LocationRequired()
@@ -476,7 +541,7 @@ class DefaultEvidenceCaptureRepository @Inject constructor(
         secret = secret.copy(submissionRequested = true)
         writeSecret(secret)
 
-        if (pending.uploadState == PendingEvidenceStatus.UPLOADING) {
+        if (pending.uploadState in setOf(PendingEvidenceStatus.UPLOADING,PendingEvidenceStatus.UPLOADED,PendingEvidenceStatus.COMMITTING)) {
             try {
                 return commitPrepared(
                     pending = pending,
@@ -486,6 +551,8 @@ class DefaultEvidenceCaptureRepository @Inject constructor(
                     captureCompleted = captureCompleted,
                 )
             } catch (error: EvidenceCaptureFailure.UploadNotReady) {
+                secret = secret.copy(videoUploaded=false)
+                writeSecret(secret)
                 pending = pending.copy(
                     uploadState = PendingEvidenceStatus.UPLOAD_READY,
                     lastError = null,
@@ -494,6 +561,31 @@ class DefaultEvidenceCaptureRepository @Inject constructor(
                 pendingEvidenceDao.upsert(pending)
             }
         }
+
+        if (secret.video != null && !secret.videoUploaded) {
+            val clip = secret.video!!
+            val clipFile = File(pending.localFilePath + ".mp4")
+            if (!clipFile.isFile) throw EvidenceCaptureFailure.MissingFile()
+            val digest = hashMedia(clipFile)
+            if (digest.sha256Hex != clip.sha256 || digest.sizeBytes != clip.sizeBytes) {
+                throw EvidenceCaptureFailure.Unavailable("Saved video changed. This proof cannot be submitted.")
+            }
+            val authorization = withAuthRetry { token -> evidenceApi.authorizeEvidenceUpload(secret.challengeId,
+                EvidenceUploadAuthorizeRequest(secret.nonce, MEDIA_MIME), token) }
+            if (authorization.evidenceId != evidenceId || authorization.challengeId != secret.challengeId) {
+                throw EvidenceCaptureFailure.Protocol("Video reservation identity changed.")
+            }
+            val target = authorization.videoUpload ?: throw EvidenceCaptureFailure.Protocol("The server has no video upload support for this claim.")
+            if (target.contentType != "video/mp4" || target.method != "PUT") throw EvidenceCaptureFailure.Protocol("Unexpected video upload target.")
+            try { uploader.upload(target.signedUrl,target.method,target.contentType,clipFile) }
+            catch (error: CancellationException) { throw error }
+            catch (error: EvidenceObjectUploadFailure.Network) { throw EvidenceCaptureFailure.Network(error) }
+            catch (error: EvidenceObjectUploadFailure) { throw EvidenceCaptureFailure.Storage("Video upload will retry safely.",error) }
+            secret = secret.copy(videoUploaded=true)
+            writeSecret(secret)
+        }
+
+
 
         if (
             pending.uploadState !in setOf(
@@ -578,11 +670,12 @@ class DefaultEvidenceCaptureRepository @Inject constructor(
         )
         pendingEvidenceDao.upsert(committing)
 
-        val committed = withAuthRetry { token ->
+        val committed = try { withAuthRetry { token ->
             evidenceApi.commitEvidence(
                 evidenceId = pending.evidenceId,
                 request = EvidenceCommitRequest(
                     nonce = secret.nonce,
+                    video = secret.video,
                     mediaSha256 = checkNotNull(pending.sha256Hex),
                     mediaSizeBytes = checkNotNull(pending.mediaSizeBytes),
                     answerValue = answer,
@@ -603,6 +696,9 @@ class DefaultEvidenceCaptureRepository @Inject constructor(
                 idempotencyKey = commitKey(pending.evidenceId),
                 accessToken = token,
             )
+        } } catch (error: EvidenceCaptureFailure.UploadNotReady) {
+            writeSecret(secret.copy(videoUploaded=false))
+            throw error
         }
 
         if (
@@ -708,6 +804,7 @@ class DefaultEvidenceCaptureRepository @Inject constructor(
             question = opportunity.question,
             stateType = opportunity.stateType,
             mediaRequired = opportunity.evidenceSummary.mediaRequired,
+            videoRequired = opportunity.evidenceSummary.videoRequired,
             locationRequired = opportunity.evidenceSummary.locationRequired,
             claimDeadline = claim.claimDeadline,
             evidenceDeadline = claim.evidenceDeadline,
@@ -780,6 +877,8 @@ class DefaultEvidenceCaptureRepository @Inject constructor(
             captureStartedMonotonicMs = secret.captureStartedMonotonicMs,
             captureCompletedMonotonicMs = secret.captureCompletedMonotonicMs,
             locationSampleCount = secret.locations.size,
+            videoRequired = secret.videoRequired,
+            video = secret.video,
         )
 
     private suspend fun markExpired(pending: PendingEvidenceEntity) {
@@ -821,7 +920,7 @@ class DefaultEvidenceCaptureRepository @Inject constructor(
                 JsonPrimitive(value)
             }
 
-            "VISUAL" -> JsonPrimitive(VISUAL_CAPTURE_VALUE)
+            "VISUAL" -> JsonPrimitive(secret.answer?.take(500) ?: VISUAL_CAPTURE_VALUE)
 
             else -> throw EvidenceCaptureFailure.Protocol("Unsupported evidence answer type.")
         }
@@ -864,7 +963,8 @@ class DefaultEvidenceCaptureRepository @Inject constructor(
             is ApiFailure.RateLimited ->
                 EvidenceCaptureFailure.Network(this)
             is ApiFailure.ServerFailure ->
-                EvidenceCaptureFailure.Server(message ?: "Evidence service is unavailable.")
+                if (code == "EVIDENCE_UPLOAD_UNAVAILABLE") EvidenceCaptureFailure.UploadNotReady(this)
+                else EvidenceCaptureFailure.Server(message ?: "Evidence service is unavailable.")
             is ApiFailure.BusinessError ->
                 when (code) {
                     "CHALLENGE_EXPIRED" -> EvidenceCaptureFailure.Expired()
@@ -872,6 +972,8 @@ class DefaultEvidenceCaptureRepository @Inject constructor(
                         EvidenceCaptureFailure.Unavailable("Evidence is already submitted.")
                     "EVIDENCE_UPLOAD_UNAVAILABLE" ->
                         EvidenceCaptureFailure.UploadNotReady(this)
+                    "EVIDENCE_MEDIA_INVALID",
+                    "EVIDENCE_REPLAY",
                     "CLAIM_NOT_AVAILABLE",
                     "VERIFICATION_NOT_ELIGIBLE" ->
                         EvidenceCaptureFailure.Unavailable(message ?: "Evidence is not eligible.")

@@ -6,6 +6,13 @@ import org.junit.Test
 
 class EvidenceCaptureUiStateTest {
     @Test
+    fun requiredVideoBlocksSubmissionUntilItHasBeenValidated() {
+        val state = EvidenceCaptureUiState(stage=EvidenceCaptureStage.REVIEW,stateType="VISUAL",videoRequired=true)
+        assertFalse(state.canSubmit)
+        assertTrue(state.copy(videoReady=true,videoDurationMs=3000).canSubmit)
+        assertFalse(state.copy(stage=EvidenceCaptureStage.VIDEO,videoReady=true).canSubmit)
+    }
+    @Test
     fun numericEvidenceRequiresAnswerAndLocationWhenPolicyRequiresIt() {
         val base = EvidenceCaptureUiState(
             stage = EvidenceCaptureStage.REVIEW,

@@ -109,6 +109,7 @@ function payload(record: OpportunityRecord): Record<string, unknown> {
     evidence_summary: {
       template_key: record.proofPolicySnapshot.template_key,
       media_required: record.proofPolicySnapshot.capture.media_required,
+      video_required: record.proofPolicySnapshot.capture.video_required === true,
       location_required: record.proofPolicySnapshot.capture.location_required,
       required_witnesses: record.requiredWitnesses,
       max_witnesses: record.maxWitnesses,

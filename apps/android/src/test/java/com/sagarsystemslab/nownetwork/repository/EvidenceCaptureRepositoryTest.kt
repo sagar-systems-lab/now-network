@@ -128,6 +128,30 @@ class EvidenceCaptureRepositoryTest {
         )
     }
 
+    @Test
+    fun missingRequiredVideoNeverQueuesOrLocksTheDraft() = runBlocking {
+        val fixture = Fixture()
+        fixture.api.videoRequired = true
+        val evidenceId = fixture.prepareCapturedEvidence(requestSubmission = false)
+        val queueError = runCatching {
+            fixture.repository.requestSubmission(evidenceId)
+        }.exceptionOrNull()
+        assertTrue(queueError is EvidenceCaptureFailure.Unavailable)
+        try {
+            fixture.repository.submit(evidenceId)
+            throw AssertionError("Photo-only evidence passed a video requirement")
+        } catch (_: EvidenceCaptureFailure.Unavailable) { }
+        assertEquals(0, fixture.uploader.calls)
+        assertEquals(0, fixture.api.commitCalls)
+        val restored = fixture.recreatedRepository().load(ACCEPTANCE_ID, REFRESH_ID) as EvidenceCaptureRecovery.Draft
+        assertTrue(restored.draft.videoRequired)
+        assertTrue(restored.draft.localFile.isFile)
+        assertTrue(fixture.repository.resumeSubmission(evidenceId) == null)
+        val editable = fixture.repository.resetVideo(evidenceId)
+        assertTrue(editable.localFile.isFile)
+        assertTrue(editable.video == null)
+    }
+
     private class Fixture {
         val dao = MemoryPendingEvidenceDao()
         val secrets = MemorySecretStore()
@@ -143,7 +167,7 @@ class EvidenceCaptureRepositoryTest {
         var repository = newRepository()
             private set
 
-        suspend fun prepareCapturedEvidence(): String {
+        suspend fun prepareCapturedEvidence(requestSubmission: Boolean = true): String {
             val draft = repository.begin(ACCEPTANCE_ID, REFRESH_ID)
             val file = draft.localFile
             file.parentFile?.mkdirs()
@@ -167,7 +191,7 @@ class EvidenceCaptureRepositoryTest {
                 captureCompletedMonotonicMs = 1_200,
             )
             repository.updateAnswer(draft.evidenceId, "2")
-            repository.requestSubmission(draft.evidenceId)
+            if (requestSubmission) repository.requestSubmission(draft.evidenceId)
             return draft.evidenceId
         }
 
@@ -270,6 +294,7 @@ class EvidenceCaptureRepositoryTest {
     private class FakeEvidenceApi(
         private val remote: RemoteEvidenceState,
     ) : EvidenceApiClient {
+        var videoRequired = false
         var authorizeCalls = 0
         var commitCalls = 0
         var ambiguousCommitOnce = false
@@ -289,6 +314,7 @@ class EvidenceCaptureRepositoryTest {
                 policyVersion = 1,
                 capture = EvidenceCapturePolicyDto(
                     mediaRequired = true,
+                    videoRequired = videoRequired,
                     locationRequired = true,
                 ),
                 claimStatus = "CAPTURE_ACTIVE",
@@ -327,11 +353,9 @@ class EvidenceCaptureRepositoryTest {
         ): EvidenceCommitDto {
             commitCalls += 1
             if (!remote.uploaded) {
-                throw ApiFailure.BusinessError(
+                throw ApiFailure.ServerFailure(
                     statusCode = 503,
                     code = "EVIDENCE_UPLOAD_UNAVAILABLE",
-                    safeToRetry = true,
-                    retryAfterMs = 1_000,
                     message = "Uploaded evidence could not be inspected yet.",
                 )
             }

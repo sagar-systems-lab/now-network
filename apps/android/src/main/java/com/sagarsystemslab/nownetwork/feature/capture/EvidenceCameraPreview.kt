@@ -107,6 +107,7 @@ fun EvidenceCameraPreview(
     DisposableEffect(lifecycleOwner, previewView, imageCapture) {
         val providerFuture = ProcessCameraProvider.getInstance(context)
         var provider: ProcessCameraProvider? = null
+        var boundPreview: Preview? = null
         var disposed = false
 
         providerFuture.addListener(
@@ -117,7 +118,7 @@ fun EvidenceCameraPreview(
                     val preview = Preview.Builder().build().also {
                         it.setSurfaceProvider(previewView.surfaceProvider)
                     }
-                    provider?.unbindAll()
+                    boundPreview = preview
                     controller.camera = provider?.bindToLifecycle(
                         lifecycleOwner,
                         CameraSelector.DEFAULT_BACK_CAMERA,
@@ -135,7 +136,7 @@ fun EvidenceCameraPreview(
         onDispose {
             disposed = true
             controller.camera = null
-            provider?.unbindAll()
+            boundPreview?.let { provider?.unbind(it, imageCapture) }
         }
     }
 

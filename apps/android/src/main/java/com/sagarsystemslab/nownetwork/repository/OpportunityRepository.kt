@@ -113,6 +113,7 @@ private fun OpportunityDto.toDomain(): OpportunitySummary =
         evidenceDeadlineMillis = evidenceDeadline.toEpochMillis("evidence_deadline"),
         verificationClass = verificationClass,
         mediaRequired = evidenceSummary.mediaRequired,
+        videoRequired = evidenceSummary.videoRequired,
         locationRequired = evidenceSummary.locationRequired,
         claimable = availability.claimable,
         remainingSlots = availability.remainingSlots,

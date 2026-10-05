@@ -149,6 +149,7 @@ export class EvidenceChallengeService {
       policy_version: result.challenge.policyVersion,
       capture: {
         media_required: context.proofPolicySnapshot.capture.media_required,
+        video_required: context.proofPolicySnapshot.capture.video_required === true,
         location_required: context.proofPolicySnapshot.capture.location_required,
       },
       claim_status: result.claimStatus,

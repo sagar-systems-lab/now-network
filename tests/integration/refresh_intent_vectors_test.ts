@@ -9,36 +9,52 @@ import {
   encodeRefreshIntentCoreV1,
 } from "../../packages/contracts/src/refresh-intent.ts";
 import { policyTemplateForKey } from "../../packages/policy/src/registry.ts";
-import { policyDigestHex } from "../../packages/policy/src/template.ts";
+import {
+  canonicalJson,
+  parsePolicyTemplate,
+  policyDigestHex,
+} from "../../packages/policy/src/template.ts";
+
+type RefreshIntentVector = {
+  refresh_id: string;
+  state_id: string;
+  state_definition_version: number;
+  location_id: string;
+  center_ewkb_hex: string;
+  boundary_ewkb_hex: string;
+  answer_schema: unknown;
+  policy_template_key: string;
+  policy_snapshot: unknown;
+  reward_mint: string;
+  refresh_expires_at_unix: number;
+  expected: Record<string, string>;
+};
+
+async function loadVector(name: string): Promise<RefreshIntentVector> {
+  return JSON.parse(
+    await Deno.readTextFile(
+      new URL(`../../test-vectors/${name}`, import.meta.url),
+    ),
+  );
+}
 
 function hexToBytes(value: string): Uint8Array {
   if (value.length === 0) return new Uint8Array();
   if (!/^[0-9a-f]+$/u.test(value) || value.length % 2 !== 0) {
     throw new TypeError("invalid hex fixture");
   }
-  return Uint8Array.from(value.match(/../gu) ?? [], (part) => Number.parseInt(part, 16));
+  return Uint8Array.from(
+    value.match(/../gu) ?? [],
+    (part) => Number.parseInt(part, 16),
+  );
 }
 
-Deno.test("refresh intent golden vector is byte-stable", async () => {
-  const url = new URL("../../test-vectors/refresh-intent-v1.json", import.meta.url);
-  const vector = JSON.parse(
-    await Deno.readTextFile(url),
-  ) as {
-    refresh_id: string;
-    state_id: string;
-    state_definition_version: number;
-    location_id: string;
-    center_ewkb_hex: string;
-    boundary_ewkb_hex: string;
-    answer_schema: unknown;
-    policy_template_key: string;
-    reward_mint: string;
-    refresh_expires_at_unix: number;
-    expected: Record<string, string>;
-  };
-
-  const policy = policyTemplateForKey(vector.policy_template_key);
-  if (!policy) throw new Error("policy fixture missing");
+async function assertGoldenVector(vector: RefreshIntentVector): Promise<void> {
+  // Funded intents bind the frozen snapshot, not the current registry defaults.
+  const policy = parsePolicyTemplate(vector.policy_snapshot);
+  if (policy.template_key !== vector.policy_template_key) {
+    throw new Error("policy snapshot does not match the fixture key");
+  }
 
   const [
     chainRefreshId,
@@ -84,9 +100,46 @@ Deno.test("refresh intent golden vector is byte-stable", async () => {
     intent_core_hash_hex: bytesToHex(intentHash),
   };
 
-  for (const [key, expected] of Object.entries(vector.expected)) {
-    if (actual[key as keyof typeof actual] !== expected) {
+  for (const [key, value] of Object.entries(actual)) {
+    if (value !== vector.expected[key]) {
       throw new Error(`${key} golden vector mismatch`);
+    }
+  }
+}
+
+Deno.test("legacy photo-only refresh intent golden vector is byte-stable", async () => {
+  const vector = await loadVector("refresh-intent-v1.json");
+  const policy = parsePolicyTemplate(vector.policy_snapshot);
+  if (Object.hasOwn(policy.capture, "video_required")) {
+    throw new Error("legacy snapshot acquired a video requirement");
+  }
+  await assertGoldenVector(vector);
+});
+
+Deno.test("video-required refresh intent golden vector is byte-stable", async () => {
+  await assertGoldenVector(await loadVector("refresh-intent-video-v1.json"));
+});
+
+Deno.test("new requests bind the video policy and a different intent hash", async () => {
+  const legacy = await loadVector("refresh-intent-v1.json");
+  const video = await loadVector("refresh-intent-video-v1.json");
+  const current = policyTemplateForKey(video.policy_template_key);
+  const snapshot = parsePolicyTemplate(video.policy_snapshot);
+  if (
+    !current?.capture.video_required ||
+    canonicalJson(current) !== canonicalJson(snapshot)
+  ) {
+    throw new Error("current policy does not match the video golden snapshot");
+  }
+  for (
+    const key of [
+      "proof_policy_digest_hex",
+      "intent_core_canonical_hex",
+      "intent_core_hash_hex",
+    ]
+  ) {
+    if (legacy.expected[key] === video.expected[key]) {
+      throw new Error(`${key} does not bind the video requirement`);
     }
   }
 });

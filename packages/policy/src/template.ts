@@ -13,7 +13,7 @@ const topLevelKeys = new Set([
   "numeric",
 ]);
 
-const captureKeys = new Set(["media_required", "location_required"]);
+const captureKeys = new Set(["media_required", "location_required", "video_required"]);
 const numericKeys = new Set(["scale", "min", "max", "conflict_tolerance", "allow_two_of_three"]);
 const stateTypes = new Set<string>(STATE_TYPES);
 const verificationClasses = new Set<string>(VERIFICATION_CLASSES);
@@ -75,9 +75,15 @@ function requiredSafeInteger(value: unknown, name: string): number {
 function parseCapture(value: unknown): PolicyTemplateV1["capture"] {
   const capture = asRecord(value, "capture");
   rejectUnknownKeys(capture, captureKeys, "capture");
+  if (capture.video_required === true && capture.media_required !== true) {
+    throw new TypeError("Video proof requires the primary photo");
+  }
 
   return {
     media_required: requiredBoolean(capture.media_required, "capture.media_required"),
+    ...(capture.video_required === undefined
+      ? {}
+      : { video_required: requiredBoolean(capture.video_required, "capture.video_required") }),
     location_required: requiredBoolean(capture.location_required, "capture.location_required"),
   };
 }

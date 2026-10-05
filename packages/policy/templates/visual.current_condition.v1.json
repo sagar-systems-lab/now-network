@@ -7,6 +7,7 @@
   "required_witnesses": 1,
   "capture": {
     "media_required": true,
-    "location_required": true
+    "location_required": true,
+    "video_required": true
   }
 }

@@ -176,9 +176,9 @@ fun RefreshContextCard(title: String, subtitle: String, value: String? = null, o
 }
 
 @Composable
-fun ProofSteps(photo: Boolean, location: Boolean, answer: String) {
+fun ProofSteps(photo: Boolean, location: Boolean, answer: String, video: Boolean = false) {
     Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(10.dp)) {
-        listOf(Triple(Icons.Outlined.PhotoCamera,"Photo",if(photo) "Fresh photo required" else "No photo required"),Triple(Icons.Outlined.LocationOn,"Location",if(location) "Precise proof on site" else "No location required"),Triple(Icons.Outlined.Assignment,"Answer",answer)).forEach { (icon,title,body) ->
+        listOf(Triple(Icons.Outlined.PhotoCamera,if(video) "Photo + video" else "Photo",if(video) "Fresh photo + 3–15s clip" else if(photo) "Fresh photo required" else "No photo required"),Triple(Icons.Outlined.LocationOn,"Location",if(location) "Precise proof on site" else "No location required"),Triple(Icons.Outlined.Assignment,"Answer",answer)).forEach { (icon,title,body) ->
             Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(7.dp),horizontalAlignment=Alignment.CenterHorizontally) {
                 Surface(shape=CircleShape,color=NowColors.InfoSoft) { Icon(icon,null,Modifier.padding(12.dp).size(22.dp),tint=NowColors.Blue600) }
                 Text(title,style=NowType.LabelL,color=NowColors.Ink950)

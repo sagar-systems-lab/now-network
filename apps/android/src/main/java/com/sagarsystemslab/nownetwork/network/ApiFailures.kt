@@ -22,6 +22,7 @@ sealed class ApiFailure(
     class ServerFailure(
         val statusCode: Int,
         message: String,
+        val code: String? = null,
     ) : ApiFailure(message)
 
     class BusinessError(

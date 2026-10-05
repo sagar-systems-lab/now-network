@@ -423,6 +423,16 @@ export class VerificationService {
         );
       }
       if (
+        policy.capture.video_required && (!evidence.video || evidence.video.duration_ms < 3000 ||
+          evidence.video.duration_ms > 15000 || !/^[a-f0-9]{64}$/u.test(evidence.video.sha256))
+      ) {
+        throw new ApiFault(
+          409,
+          "VERIFICATION_NOT_ELIGIBLE",
+          "Required video proof is unavailable.",
+        );
+      }
+      if (
         policy.capture.media_required &&
         (
           evidence.mediaSha256 === null ||
@@ -527,6 +537,8 @@ export class VerificationService {
       },
       mediaIntegritySummary: {
         required: policy.capture.media_required,
+        video_required: policy.capture.video_required === true,
+        bound_video_count: context.evidence.filter((item) => item.video != null).length,
         bound_media_count:
           context.evidence.filter((item) =>
             item.mediaSha256 !== null && item.mediaSha256.length === 32

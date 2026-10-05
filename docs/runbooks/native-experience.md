@@ -104,3 +104,21 @@ Before shipping, exercise physical camera capture, wallet handoff, device-creden
 permission changes, background push delivery and requester/contributor operation on separate
 phones. Emulator timings do not establish device smoothness, and a source build does not establish
 that the new API and migrations have been deployed.
+
+Short video proof
+-----------------
+
+New requests lock a fresh photo followed by a silent 3–15 second video into their proof policy.
+Existing funded requests retain their stored capture requirements. Video capture uses the rear
+camera, targets 720p at 2 Mbps, stops automatically before 15 seconds and limits the file to 6 MiB.
+Contributors can review both captures and retake the video before submission. A lost connection
+keeps the original files and reconciles the same evidence identity before any retry.
+
+Apply `20261005102427_evidence_short_video.sql` before deploying the API and worker and installing
+the matching Android build. The migration adds immutable clip metadata, exact-video replay
+protection and MP4 support to the existing private `now-evidence` bucket. Custom evidence buckets
+must also allow `video/mp4`; they must remain private. The server hashes the uploaded video and
+validates its MP4 video-track duration before committing the photo and clip together.
+Authorized participants receive short-lived photo and video URLs through the existing proof route.
+Map thumbnails use only those authorized verified photos; they do not expose private evidence to
+other users. The map's external Maps action opens the selected area in an installed maps app.

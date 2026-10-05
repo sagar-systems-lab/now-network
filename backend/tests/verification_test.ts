@@ -377,3 +377,17 @@ Deno.test("verification maps malformed frozen policy to a stable fail-closed fau
     throw new Error("verification persisted after malformed frozen policy");
   }
 });
+
+Deno.test("video-required verification cannot pass photo-only evidence", async () => {
+  const value = context();
+  value.proofPolicySnapshot.capture.video_required = true;
+  const repository = new MemoryVerificationRepository(value);
+  const service = new VerificationService(repository, "verification-test-v1", () => NOW);
+  try {
+    await service.verify(actor(), REFRESH_ID);
+  } catch (error) {
+    if (faultCode(error) === "VERIFICATION_NOT_ELIGIBLE" && repository.persistCalls === 0) return;
+    throw error;
+  }
+  throw new Error("Missing required video passed verification");
+});

@@ -378,6 +378,12 @@ export class PostgresEvidenceCommitRepository implements EvidenceCommitRepositor
         limit 1
       `;
       if (replayRows[0]) return { kind: "exact_replay" } as const;
+      if (input.video) {
+        await tx`select pg_advisory_xact_lock(hashtextextended(${input.video.sha256}, 43))`;
+        const reused = await tx`select evidence_id from app.evidence_packets
+          where video_metadata->>'sha256'=${input.video.sha256} and evidence_id<>${input.evidenceId}::uuid limit 1`;
+        if (reused[0]) return { kind: "exact_replay" } as const;
+      }
 
       await tx`
         update app.refresh_requests
@@ -407,6 +413,7 @@ export class PostgresEvidenceCommitRepository implements EvidenceCommitRepositor
           media_sha256,
           media_size_bytes,
           media_mime,
+          video_metadata,
           status,
           committed_at,
           updated_at,
@@ -433,6 +440,7 @@ export class PostgresEvidenceCommitRepository implements EvidenceCommitRepositor
           ${input.mediaSha256},
           ${input.mediaSizeBytes},
           ${input.mediaMime},
+          ${input.video ? JSON.stringify(input.video) : null}::text::jsonb,
           'COMMITTED',
           ${input.observedAt},
           ${input.observedAt},

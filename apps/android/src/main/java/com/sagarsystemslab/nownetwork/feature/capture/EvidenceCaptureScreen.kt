@@ -84,9 +84,13 @@ fun EvidenceCaptureScreen(
     onSubmit: () -> Unit,
     onRetry: () -> Unit,
     onContinueVerification: () -> Unit,
+    onVideoCaptured: (CapturedVideo) -> Unit = {},
+    onRetakeVideo: () -> Unit = {},
 ) {
     val context = LocalContext.current
     var cameraController by remember { mutableStateOf<EvidenceCameraController?>(null) }
+    var takingPhoto by remember { mutableStateOf(false) }
+    LaunchedEffect(uiState.stage) { takingPhoto = false; if(uiState.stage != EvidenceCaptureStage.CAMERA) cameraController=null }
 
     LaunchedEffect(uiState.stage, uiState.evidenceId) {
         if (uiState.stage == EvidenceCaptureStage.CAMERA) {
@@ -142,9 +146,10 @@ fun EvidenceCaptureScreen(
     TransactionPage(
         title = "Capture evidence",
         subtitle = when (uiState.stage) {
-            EvidenceCaptureStage.CAMERA -> "Step 1 of 3 · Take a clear photo"
-            EvidenceCaptureStage.REVIEW -> "Step 2 of 3 · Review your observation"
-            EvidenceCaptureStage.SUBMITTING, EvidenceCaptureStage.QUEUED -> "Step 3 of 3 · Submit your proof"
+            EvidenceCaptureStage.CAMERA -> "Step 1 · Take a clear photo"
+            EvidenceCaptureStage.VIDEO -> "Step 2 · Record 3–15 seconds"
+            EvidenceCaptureStage.REVIEW -> "Review your observation"
+            EvidenceCaptureStage.SUBMITTING, EvidenceCaptureStage.QUEUED -> "Submit your proof"
             else -> "Fresh proof, captured on site"
         },
         tag = "screen-evidence-capture",
@@ -155,8 +160,9 @@ fun EvidenceCaptureScreen(
                     if (uiState.stage == EvidenceCaptureStage.ERROR) "Try again" else "Start fresh capture",
                     ::requestCapturePermissions, Modifier.fillMaxWidth())
                 EvidenceCaptureStage.CAMERA -> NowPrimaryButton("Capture now", {
-                    uiState.localFilePath?.let { path -> cameraController?.capture(File(path), onPhotoCaptured, { onCameraError() }) }
-                }, Modifier.fillMaxWidth(), enabled = cameraController != null && uiState.localFilePath != null)
+                    takingPhoto = true
+                    uiState.localFilePath?.let { path -> cameraController?.capture(File(path), onPhotoCaptured, { takingPhoto=false; onCameraError() }) }
+                }, Modifier.fillMaxWidth(), enabled = !takingPhoto && cameraController != null && uiState.localFilePath != null)
                 EvidenceCaptureStage.REVIEW -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     NowSecondaryButton("Retake", onRecapture, Modifier.weight(1f))
                     NowPrimaryButton("Submit evidence", onSubmit, Modifier.weight(1f).testTag("submit-evidence"), enabled = uiState.canSubmit)
@@ -214,6 +220,11 @@ fun EvidenceCaptureScreen(
                 }
             }
 
+            EvidenceCaptureStage.VIDEO -> {
+                uiState.localFilePath?.let { path -> EvidenceVideoCapture(File(path + ".mp4"), onVideoCaptured) }
+                uiState.message?.let { NowNotice(body=it,tone=NowNoticeTone.WARNING) }
+            }
+
             EvidenceCaptureStage.PROCESSING -> {
                 EvidenceProcessCard(
                     title = "Securing local evidence",
@@ -230,6 +241,7 @@ fun EvidenceCaptureScreen(
                     onRefreshLocation = onRefreshLocation,
                     onRecapture = onRecapture,
                     onSubmit = onSubmit,
+                    onRetakeVideo = onRetakeVideo,
                 )
             }
 
@@ -377,9 +389,9 @@ private fun EvidenceTaskCard(
             ) {
                 if (uiState.mediaRequired) {
                     NowStatusChip(
-                        label = "PHOTO",
+                        label = if(uiState.videoRequired) "PHOTO + VIDEO" else "PHOTO",
                         tone = NowStatusTone.INFO,
-                        accessibilityLabel = "Fresh photo required",
+                        accessibilityLabel = if(uiState.videoRequired) "Fresh photo and short video required" else "Fresh photo required",
                     )
                 }
                 if (uiState.locationRequired) {
@@ -522,9 +534,14 @@ private fun EvidenceReview(
     onRefreshLocation: () -> Unit,
     onRecapture: () -> Unit,
     onSubmit: () -> Unit,
+    onRetakeVideo: () -> Unit,
 ) {
     uiState.localFilePath?.let { path ->
         EvidencePreview(path)
+        if (uiState.videoReady) {
+            com.sagarsystemslab.nownetwork.feature.common.EvidenceVideoPlayer(android.net.Uri.fromFile(File(path + ".mp4")).toString())
+            NowSecondaryButton("Retake video",onRetakeVideo,Modifier.fillMaxWidth())
+        }
     }
 
     Column(
@@ -596,8 +613,10 @@ private fun EvidenceReview(
             }
 
             "VISUAL" -> {
+                NowTextField(uiState.answer,onAnswerChange,"Your on-site observation",supportingText="Describe what you can see · up to 500 characters",singleLine=false)
                 NowNotice(
-                    body = "The fresh image is the visual answer for this task.",
+                    body = if(uiState.videoRequired) "Your fresh photo and video show the place. Add a short answer to the requester’s question."
+                        else "Your fresh photo shows the place. Add a short answer to the requester’s question.",
                     tone = NowNoticeTone.INFO,
                 )
             }

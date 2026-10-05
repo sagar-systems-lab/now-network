@@ -24,6 +24,7 @@ enum class EvidenceCaptureStage {
     READY,
     PREPARING,
     CAMERA,
+    VIDEO,
     PROCESSING,
     REVIEW,
     SUBMITTING,
@@ -48,6 +49,9 @@ data class EvidenceCaptureUiState(
     val locationSampleCount: Int = 0,
     val message: String? = null,
     val nextStep: String? = null,
+    val videoRequired: Boolean = false,
+    val videoReady: Boolean = false,
+    val videoDurationMs: Long? = null,
 ) {
     val answerReady: Boolean
         get() = when (stateType) {
@@ -60,7 +64,7 @@ data class EvidenceCaptureUiState(
         get() = !locationRequired || locationSampleCount > 0
 
     val canSubmit: Boolean
-        get() = stage == EvidenceCaptureStage.REVIEW && answerReady && locationReady
+        get() = stage == EvidenceCaptureStage.REVIEW && answerReady && locationReady && (!videoRequired || videoReady)
 }
 
 @HiltViewModel
@@ -174,7 +178,7 @@ class EvidenceCaptureViewModel @Inject constructor(
 
                 applyDraft(
                     draft,
-                    EvidenceCaptureStage.REVIEW,
+                    if (draft.videoRequired && draft.video == null) EvidenceCaptureStage.VIDEO else EvidenceCaptureStage.REVIEW,
                     if (draft.locationRequired && draft.locationSampleCount == 0) {
                         "Photo is saved. Refresh precise location before submitting."
                     } else {
@@ -189,6 +193,31 @@ class EvidenceCaptureViewModel @Inject constructor(
         }
     }
 
+    fun videoCaptured(video: CapturedVideo) {
+        val state = mutableState.value
+        val id = state.evidenceId ?: return
+        if (video.file.absolutePath != state.localFilePath + ".mp4" || state.stage != EvidenceCaptureStage.VIDEO) return
+        viewModelScope.launch {
+            mutableState.update { it.copy(stage=EvidenceCaptureStage.PROCESSING,message="Securing your video…") }
+            try {
+                var draft = repository.completeVideo(id,video.startedMs,video.completedMs,video.durationMs)
+                if (draft.locationRequired) try { draft=repository.addLocationSample(id,location.currentSample()) }
+                    catch (cancel: CancellationException) { throw cancel } catch (_: Exception) { }
+                applyDraft(draft,EvidenceCaptureStage.REVIEW,null)
+            } catch (cancel: CancellationException) { throw cancel }
+            catch (error: Exception) { if(error is EvidenceCaptureFailure.Expired) showFailure(error) else mutableState.update { it.copy(stage=EvidenceCaptureStage.VIDEO,message=error.message) } }
+        }
+    }
+
+    fun retakeVideo() {
+        val id=mutableState.value.evidenceId ?: return
+        viewModelScope.launch {
+            try { applyDraft(repository.resetVideo(id),EvidenceCaptureStage.VIDEO,null) }
+            catch (cancel: CancellationException) { throw cancel }
+            catch (error: Exception) { showFailure(error,preferReview=true) }
+        }
+    }
+
     fun updateAnswer(value: String) {
         val evidenceId = mutableState.value.evidenceId ?: return
         val stateType = mutableState.value.stateType
@@ -196,7 +225,7 @@ class EvidenceCaptureViewModel @Inject constructor(
         val normalized = when (stateType) {
             "NUMERIC" -> value.filter { it.isDigit() || it == '-' }.take(16)
             "BINARY" -> value.uppercase().take(64)
-            else -> value.take(128)
+            else -> value.take(500)
         }
         mutableState.update { it.copy(answer = normalized) }
 
@@ -373,6 +402,7 @@ class EvidenceCaptureViewModel @Inject constructor(
                         question = recovery.context.question,
                         stateType = recovery.context.stateType,
                         mediaRequired = recovery.context.mediaRequired,
+                        videoRequired = recovery.context.videoRequired,
                         locationRequired = recovery.context.locationRequired,
                         expiresAt = recovery.context.claimDeadline
                             ?: recovery.context.evidenceDeadline,
@@ -414,7 +444,7 @@ class EvidenceCaptureViewModel @Inject constructor(
                 if (stage == EvidenceCaptureStage.QUEUED) {
                     workScheduler.schedule(recovery.draft.evidenceId)
                 }
-                applyDraft(recovery.draft, stage, null)
+                applyDraft(recovery.draft, if (stage == EvidenceCaptureStage.REVIEW && recovery.draft.videoRequired && recovery.draft.video == null) EvidenceCaptureStage.VIDEO else stage, null)
             }
 
             is EvidenceCaptureRecovery.Submitted -> {
@@ -443,6 +473,9 @@ class EvidenceCaptureViewModel @Inject constructor(
                 question = draft.question,
                 stateType = draft.stateType,
                 mediaRequired = draft.mediaRequired,
+                videoRequired = draft.videoRequired,
+                videoReady = draft.video != null,
+                videoDurationMs = draft.video?.durationMs,
                 locationRequired = draft.locationRequired,
                 expiresAt = draft.expiresAt,
                 localFilePath = draft.localFile.absolutePath,

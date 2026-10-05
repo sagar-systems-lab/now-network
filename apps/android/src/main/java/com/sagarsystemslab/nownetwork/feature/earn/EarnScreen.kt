@@ -110,7 +110,7 @@ fun EarnScreen(
             ExperienceHeader("EARN", "Nearby refresh opportunities", uiState.areaLabel, onBrowseAreas, onNotifications, onProfile, unread)
         }
         if (availability != null) item { availability() }
-        item { LiveMapCard(center, visibleOpportunities.mapNotNull { o -> o.center?.let { LiveMapPin(o.refreshId, o.title, it, if (o.claimable && !o.cachedOnly) "CLAIMABLE" else "UNKNOWN") } }, onOpportunityClick, onSearchArea = onSearchArea, onLocateArea = onLocateArea) }
+        item { LiveMapCard(center, visibleOpportunities.mapNotNull { o -> o.center?.let { LiveMapPin(o.refreshId, o.title, it, if (o.claimable && !o.cachedOnly) "CLAIMABLE" else "UNKNOWN", photoStateId=o.stateId) } }, onOpportunityClick, onSearchArea = onSearchArea, onLocateArea = onLocateArea) }
         item { SyncStrip(uiState.refreshing, visibleOpportunities.size, uiState.notice != EarnNotice.NONE, onRefresh) }
         if (activeWork != null) item { activeWork() }
         if (visibleOpportunities.isNotEmpty()) item { MetricStrip(listOf((uiState.total?.toString() ?: "—") to "Available nearby", visibleOpportunities.size.toString() to "Results shown")) }
@@ -314,7 +314,7 @@ private fun OpportunityCard(
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             OpportunityAvailability(opportunity)
             Text(buildList {
-                if(opportunity.mediaRequired == true) add("Fresh photo")
+                if(opportunity.mediaRequired == true) add(if(opportunity.videoRequired) "Photo + 3–15s video" else "Fresh photo")
                 if(opportunity.locationRequired == true) add("On site")
                 opportunity.remainingSlots?.let { add("$it slots") }
             }.joinToString(" · "), style = NowType.BodyS, color = NowColors.Ink600, modifier = Modifier.weight(1f))

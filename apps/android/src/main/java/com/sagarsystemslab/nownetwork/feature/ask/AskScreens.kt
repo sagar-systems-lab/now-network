@@ -134,7 +134,7 @@ fun AskComposerScreen(
                     NowGlassCard(emphasized=true) {
                         NowTextField(state.draft.customQuestion,onQuestion,"Your question",Modifier.testTag("ask-custom-question"),
                             supportingText="Ask something visible at this place, e.g. How long is the queue at the main entrance?",singleLine=false)
-                        Text("${state.draft.customQuestion.length}/200 · A fresh photo and on-site answer are required.",style=NowType.BodyS,color=NowColors.Ink600)
+                        Text("${state.draft.customQuestion.length}/200 · A fresh photo, short video and on-site answer are required.",style=NowType.BodyS,color=NowColors.Ink600)
                     }
                 }
                 item { NowPrimaryButton("Preview request",{ focus.clearFocus(); onStage(AskStage.PREVIEW) },Modifier.fillMaxWidth(),enabled=state.draft.needReady) }
@@ -149,8 +149,8 @@ fun AskComposerScreen(
                         }
                         Text(state.draft.question,style=NowType.TitleS,color=NowColors.Ink950)
                         HorizontalDivider()
-                        Text("Fresh photo + on-site location",style=NowType.BodyM,color=NowColors.Ink950)
-                        Text("The contributor captures new proof at your pin. Verification and payout follow the usual request process.",style=NowType.BodyS,color=NowColors.Ink600)
+                        Text("Fresh photo + short video + on-site location",style=NowType.BodyM,color=NowColors.Ink950)
+                        Text("The contributor captures a photo and 3–15 second video at your pin. Verification and payout follow the usual request process.",style=NowType.BodyS,color=NowColors.Ink600)
                     }
                 }
                 item {

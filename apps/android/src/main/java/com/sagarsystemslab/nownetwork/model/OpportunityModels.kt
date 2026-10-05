@@ -22,6 +22,7 @@ data class OpportunitySummary(
     val center: GeoCenter? = null,
     val payoutRule: String? = null,
     val requiredWitnesses: Int? = null,
+    val videoRequired: Boolean = false,
 )
 
 data class OpportunityPage(

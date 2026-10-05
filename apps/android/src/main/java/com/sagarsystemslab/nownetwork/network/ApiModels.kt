@@ -208,6 +208,8 @@ data class OpportunityEvidenceSummaryDto(
     val requiredWitnesses: Int,
     @SerialName("max_witnesses")
     val maxWitnesses: Int,
+    @SerialName("video_required")
+    val videoRequired: Boolean = false,
 )
 
 @Serializable
@@ -506,6 +508,8 @@ data class EvidenceCapturePolicyDto(
     val mediaRequired: Boolean,
     @SerialName("location_required")
     val locationRequired: Boolean,
+    @SerialName("video_required")
+    val videoRequired: Boolean = false,
 )
 
 @Serializable
@@ -529,6 +533,8 @@ data class EvidenceUploadAuthorizationDto(
     @SerialName("application_deadline")
     val applicationDeadline: String,
     val replayed: Boolean,
+    @SerialName("video_upload")
+    val videoUpload: EvidenceUploadTargetDto? = null,
 )
 
 @Serializable
@@ -568,6 +574,16 @@ data class EvidenceCommitRequest(
     val captureCompletedMonotonicMs: Long,
     @SerialName("location_samples")
     val locationSamples: List<EvidenceLocationSampleDto> = emptyList(),
+    val video: EvidenceVideoDto? = null,
+)
+
+@Serializable
+data class EvidenceVideoDto(
+    val sha256: String,
+    @SerialName("size_bytes") val sizeBytes: Long,
+    @SerialName("duration_ms") val durationMs: Long,
+    @SerialName("capture_started_monotonic_ms") val captureStartedMonotonicMs: Long,
+    @SerialName("capture_completed_monotonic_ms") val captureCompletedMonotonicMs: Long,
 )
 
 @Serializable

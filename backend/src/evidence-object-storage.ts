@@ -1,3 +1,5 @@
+import { inspectMp4 } from "./evidence-video.ts";
+
 export type SignedUploadAuthorization = {
   signedUrl: string;
 };
@@ -6,6 +8,7 @@ export type EvidenceObjectIntegrity = {
   sha256: Uint8Array;
   sizeBytes: number;
   mediaMime: string;
+  videoDurationMs?: number;
 };
 
 export interface EvidenceObjectStorage {
@@ -142,7 +145,28 @@ export class SupabaseEvidenceObjectStorage implements EvidenceObjectStorage {
       }
     }
 
-    const bytes = new Uint8Array(await response.arrayBuffer());
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error("Evidence object body is missing");
+    const chunks: Uint8Array[] = [];
+    let length = 0;
+    try {
+      while (true) {
+        const part = await reader.read();
+        if (part.done) break;
+        length += part.value.length;
+        if (length > maxBytes) throw new Error("Evidence object exceeds size limit");
+        chunks.push(part.value);
+      }
+    } finally {
+      await reader.cancel();
+      reader.releaseLock();
+    }
+    const bytes = new Uint8Array(length);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.length;
+    }
     if (bytes.length === 0 || bytes.length > maxBytes) {
       throw new Error("evidence object is empty or exceeds configured size limit");
     }
@@ -160,6 +184,11 @@ export class SupabaseEvidenceObjectStorage implements EvidenceObjectStorage {
     const sha256 = new Uint8Array(
       await crypto.subtle.digest("SHA-256", copy.buffer),
     );
-    return { sha256, sizeBytes: bytes.length, mediaMime };
+    return {
+      sha256,
+      sizeBytes: bytes.length,
+      mediaMime,
+      ...(mediaMime === "video/mp4" ? { videoDurationMs: inspectMp4(bytes) } : {}),
+    };
   }
 }

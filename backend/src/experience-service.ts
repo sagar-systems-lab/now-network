@@ -304,7 +304,7 @@ export class PostgresExperienceService implements ExperienceApi {
     if (stateProof && method === "GET") {
       const id = idFromPath(stateProof[1]);
       const rows = await this
-        .sql`select ep.evidence_id,ep.media_object_key,ep.status::text,ep.committed_at from app.evidence_packets ep
+        .sql`select ep.evidence_id,ep.media_object_key,ep.video_metadata,ep.status::text,ep.committed_at from app.evidence_packets ep
         join app.refresh_requests rr on rr.refresh_id=ep.refresh_id
         where ep.state_id=${id}::uuid and ep.status='VERIFIED' and ep.media_object_key is not null
         and (ep.actor_id=${actor.actorId}::uuid or rr.requester_actor_id=${actor.actorId}::uuid or exists
@@ -317,6 +317,15 @@ export class PostgresExperienceService implements ExperienceApi {
         status: rows[0].status,
         committed_at: iso(rows[0].committed_at),
         url: await this.signedUrl(this.storage.evidenceBucket, rows[0].media_object_key),
+        ...(rows[0].video_metadata
+          ? {
+            video_url: await this.signedUrl(
+              this.storage.evidenceBucket,
+              rows[0].video_metadata.object_key,
+            ),
+            video_duration_ms: rows[0].video_metadata.duration_ms,
+          }
+          : {}),
         expires_in: 60,
       };
     }
@@ -324,7 +333,7 @@ export class PostgresExperienceService implements ExperienceApi {
     if (preview && method === "GET") {
       const id = idFromPath(preview[1]);
       const rows = await this
-        .sql`select ep.media_object_key from app.evidence_packets ep join app.refresh_requests rr on rr.refresh_id=ep.refresh_id
+        .sql`select ep.media_object_key,ep.video_metadata from app.evidence_packets ep join app.refresh_requests rr on rr.refresh_id=ep.refresh_id
         where ep.evidence_id=${id}::uuid and ep.media_object_key is not null and ep.status in ('COMMITTED','VERIFYING','VERIFIED','CONFLICT','REJECTED')
         and (ep.actor_id=${actor.actorId}::uuid or rr.requester_actor_id=${actor.actorId}::uuid or exists
           (select 1 from app.refresh_contributions c where c.refresh_id=ep.refresh_id and c.actor_id=${actor.actorId}::uuid and c.status in ('CONFIRMED','FINALIZED'))) limit 1`;
@@ -333,6 +342,15 @@ export class PostgresExperienceService implements ExperienceApi {
       }
       return {
         url: await this.signedUrl(this.storage.evidenceBucket, rows[0].media_object_key),
+        ...(rows[0].video_metadata
+          ? {
+            video_url: await this.signedUrl(
+              this.storage.evidenceBucket,
+              rows[0].video_metadata.object_key,
+            ),
+            video_duration_ms: rows[0].video_metadata.duration_ms,
+          }
+          : {}),
         expires_in: 60,
       };
     }

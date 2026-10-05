@@ -57,11 +57,18 @@ Deno.test("all shipped policy templates pass strict parsing", async () => {
 
   assertEquals(gate.state_type, "BINARY");
   assertEquals(visual.state_type, "VISUAL");
+  for (const template of [parking, gate, visual]) {
+    assertEquals(template.capture.media_required, true);
+    assertEquals(template.capture.video_required, true);
+    assertEquals(template.capture.location_required, true);
+  }
 });
 
 Deno.test("policy parser rejects unknown critical fields and invalid cross-field data", async () => {
   const raw = JSON.parse(
-    await Deno.readTextFile(new URL("parking.available_spaces.v1.json", templateRoot)),
+    await Deno.readTextFile(
+      new URL("parking.available_spaces.v1.json", templateRoot),
+    ),
   ) as Record<string, unknown>;
 
   assertThrows(() => parsePolicyTemplate({ ...raw, arbitrary_expression: "allow()" }));
@@ -113,10 +120,22 @@ Deno.test("policy freshness uses template timestamps deterministically", async (
   const parking = await loadTemplate("parking.available_spaces.v1.json");
   const observedAt = 1_000_000;
 
-  assertEquals(derivePolicyFreshness(observedAt + 419_999, observedAt, parking), "LIVE");
-  assertEquals(derivePolicyFreshness(observedAt + 420_000, observedAt, parking), "AGING");
-  assertEquals(derivePolicyFreshness(observedAt + 599_999, observedAt, parking), "AGING");
-  assertEquals(derivePolicyFreshness(observedAt + 600_000, observedAt, parking), "STALE");
+  assertEquals(
+    derivePolicyFreshness(observedAt + 419_999, observedAt, parking),
+    "LIVE",
+  );
+  assertEquals(
+    derivePolicyFreshness(observedAt + 420_000, observedAt, parking),
+    "AGING",
+  );
+  assertEquals(
+    derivePolicyFreshness(observedAt + 599_999, observedAt, parking),
+    "AGING",
+  );
+  assertEquals(
+    derivePolicyFreshness(observedAt + 600_000, observedAt, parking),
+    "STALE",
+  );
 });
 
 Deno.test("reward aggregation includes only confirmed active contributions", () => {
@@ -225,5 +244,27 @@ Deno.test("authoritative policy evaluation is identical across 1000 runs", async
   const expected = evaluate();
   for (let iteration = 0; iteration < 1_000; iteration++) {
     assertEquals(evaluate(), expected);
+  }
+});
+
+Deno.test("legacy capture snapshots keep their original fields and new templates require video", () => {
+  const current = parsePolicyTemplate({
+    template_key: "visual.current_condition.v1",
+    state_type: "VISUAL",
+    fresh_ttl_seconds: 3600,
+    aging_ratio: 0.7,
+    verification_class: "FAST",
+    required_witnesses: 1,
+    capture: { media_required: true, location_required: true },
+  });
+  if (Object.hasOwn(current.capture, "video_required")) {
+    throw new Error("Legacy snapshot was changed");
+  }
+  const next = parsePolicyTemplate({
+    ...current,
+    capture: { ...current.capture, video_required: true },
+  });
+  if (!next.capture.video_required) {
+    throw new Error("Video requirement was lost");
   }
 });
