@@ -238,6 +238,8 @@ fun NowTextField(
     supportingText: String? = null,
     enabled: Boolean = true,
     singleLine: Boolean = true,
+    minLines: Int = 1,
+    maxLines: Int = if (singleLine) 1 else 5,
     isError: Boolean = false,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     visualTransformation: VisualTransformation = VisualTransformation.None,
@@ -249,6 +251,8 @@ fun NowTextField(
         modifier = modifier.fillMaxWidth(),
         enabled = enabled,
         singleLine = singleLine,
+        minLines = minLines,
+        maxLines = maxLines,
         isError = isError,
         label = {
             Text(
