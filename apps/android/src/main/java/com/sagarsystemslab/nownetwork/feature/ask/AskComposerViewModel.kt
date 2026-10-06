@@ -110,7 +110,7 @@ class AskComposerViewModel @Inject constructor(
         edit(mutable.value.draft.copy(
             name = "Exact map pin",
             target = value,
-            displayAddress = "Exact spot selected on the map",
+            displayAddress = "",
         ))
         saved["ask_query"] = ""
         mutable.value = mutable.value.copy(
