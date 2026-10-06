@@ -1,11 +1,13 @@
 package com.sagarsystemslab.nownetwork.feature.earn
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sagarsystemslab.nownetwork.auth.AuthGatewayException
 import com.sagarsystemslab.nownetwork.config.BrowseAreaConfig
 import com.sagarsystemslab.nownetwork.config.PublicRuntimeConfig
 import com.sagarsystemslab.nownetwork.config.RewardDisplayConfig
+import com.sagarsystemslab.nownetwork.experience.NowPush
 import com.sagarsystemslab.nownetwork.model.OpportunitySummary
 import com.sagarsystemslab.nownetwork.model.estimatedPayoutAtomic
 import com.sagarsystemslab.nownetwork.network.ApiFailure
@@ -16,9 +18,11 @@ import com.sagarsystemslab.nownetwork.repository.SessionBootstrapState
 import com.sagarsystemslab.nownetwork.repository.SessionRepository
 import dagger.Lazy
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -67,6 +71,7 @@ class EarnViewModel @Inject constructor(
     private val rewardConfig: RewardDisplayConfig,
     private val serverClock: ServerClock,
     private val sessionRepository: Lazy<SessionRepository>,
+    @ApplicationContext private val context: Context,
 ) : ViewModel() {
     private val browseArea: BrowseAreaConfig get() = browseContext.state.value
     private var areaVersion = 0
@@ -86,10 +91,12 @@ class EarnViewModel @Inject constructor(
     private var actorId: String? = null
     private var sessionReady = false
     private var initialRefreshStarted = false
+    private var knownOpportunityIds: Set<String>? = null
 
     init {
         viewModelScope.launch {
             browseContext.state.collectLatest { area ->
+                knownOpportunityIds = null
                 areaVersion++
                 refreshJob?.cancel()
                 pageJob?.cancel()
@@ -119,6 +126,15 @@ class EarnViewModel @Inject constructor(
                 }
         }
 
+        viewModelScope.launch {
+            while (true) {
+                delay(LIVE_POLL_INTERVAL_MS)
+                if (sessionReady && browseArea.configured && !mutableState.value.refreshing) {
+                    refresh()
+                }
+            }
+        }
+
         if (
             runtimeConfig.apiConfigured &&
             runtimeConfig.authConfigured
@@ -132,6 +148,7 @@ class EarnViewModel @Inject constructor(
                         is SessionBootstrapState.Ready -> {
                             if (actorId != sessionState.actorId) {
                                 refreshJob?.cancel(); pageJob?.cancel(); areaVersion++; initialRefreshStarted = false
+                                knownOpportunityIds = null
                                 actorId = sessionState.actorId
                                 activeSnapshotIds = browseContext.snapshot(snapshotKind(), actorId)
                                 val cached = withContext(Dispatchers.IO) { repository.get().observeCached().first() }.filter { it.refreshId in activeSnapshotIds.orEmpty() }
@@ -219,6 +236,17 @@ class EarnViewModel @Inject constructor(
                     )
                 }
                 if (requestedVersion != areaVersion) return@launch
+                val liveItems = page.items.filter { it.claimable && !it.cachedOnly }
+                val previousIds = knownOpportunityIds
+                if (previousIds != null) {
+                    liveItems
+                        .filter { it.refreshId !in previousIds }
+                        .take(MAX_ALERTS_PER_REFRESH)
+                        .forEach { item ->
+                            NowPush.notifyNearbyTask(context, item.refreshId, item.title)
+                        }
+                }
+                knownOpportunityIds = previousIds.orEmpty() + liveItems.map { it.refreshId }
                 activeSnapshotIds = page.items.mapTo(linkedSetOf()) { it.refreshId }
                 browseContext.saveSnapshot(snapshotKind(sort, category), activeSnapshotIds.orEmpty(), actorId, requestedArea)
                 mutableState.update {
@@ -307,6 +335,11 @@ class EarnViewModel @Inject constructor(
         val positions = activeSnapshotIds.orEmpty().withIndex().associate { it.value to it.index }
         return items.sortedWith(compareBy<OpportunitySummary> { positions[it.refreshId] ?: Int.MAX_VALUE }
             .thenBy { it.refreshId })
+    }
+
+    private companion object {
+        const val LIVE_POLL_INTERVAL_MS = 8_000L
+        const val MAX_ALERTS_PER_REFRESH = 3
     }
 
     private fun Exception.toNotice(): EarnNotice =
