@@ -129,7 +129,7 @@ class EarnViewModel @Inject constructor(
         viewModelScope.launch {
             while (true) {
                 delay(LIVE_POLL_INTERVAL_MS)
-                if (sessionReady && browseArea.configured && !mutableState.value.refreshing) {
+                if (sessionReady && browseArea.configured && !mutableState.value.refreshing && !mutableState.value.loadingMore) {
                     refresh()
                 }
             }
