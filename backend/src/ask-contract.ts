@@ -97,7 +97,8 @@ export function parseAsk(body: Record<string, unknown>, now: Date): AskInput {
   if (!name || name.length > 120 || /[\p{Cc}\p{Cf}]/u.test(name)) invalid("name");
   const displayAddress = location.display_address == null
     ? null
-    : requiredString(location, "display_address", 250).normalize("NFKC").replace(/\s+/gu, " ")\n      .trim();
+    : requiredString(location, "display_address", 250).normalize("NFKC").replace(/\s+/gu, " ")
+      .trim();
   if (displayAddress !== null && (!displayAddress || /[\p{Cc}\p{Cf}]/u.test(displayAddress))) {
     invalid("display_address");
   }
