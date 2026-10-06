@@ -56,7 +56,7 @@ fun ContributorClaimScreen(uiState:ContributorClaimUiState,rewardText:String,onB
                     LiveMapCard(
                         center = target,
                         pins = listOf(LiveMapPin(opportunity.refreshId, opportunity.location.name, target, "CLAIMABLE")),
-                        onPin = {},
+                        onPin = null,
                         initialZoom = 16.4,
                         instruction = "Satellite view · confirm the exact building, gate or parking area.",
                     )
