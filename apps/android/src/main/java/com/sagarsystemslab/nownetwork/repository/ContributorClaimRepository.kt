@@ -778,7 +778,7 @@ class DefaultContributorClaimRepository @Inject constructor(
 
     private companion object {
         const val PROFILE_KEY = "default"
-        const val WALLET_SIGN_MS = 25_000L
+        const val WALLET_SIGN_MS = 30_000L
         const val WALLET_WAIT_MS = 30_000L
         const val OPERATION_TYPE = "CONTRIBUTOR_CLAIM"
 
