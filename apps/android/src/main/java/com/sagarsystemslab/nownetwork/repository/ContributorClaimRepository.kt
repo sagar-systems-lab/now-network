@@ -24,9 +24,11 @@ import com.sagarsystemslab.nownetwork.wallet.WalletInteractionHost
 import com.sagarsystemslab.nownetwork.wallet.WalletRequestCoordinator
 import com.sagarsystemslab.nownetwork.wallet.WalletResult
 import java.util.UUID
+import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.withTimeoutOrNull
 
 data class PreparedContributorClaim(
     val operation: ActiveOperationEntity,
@@ -49,7 +51,10 @@ sealed interface ClaimReconciliation {
 
     data class ReadyForWallet(
         val prepared: PreparedContributorClaim,
+        val afterUncertainWallet: Boolean = false,
     ) : ClaimReconciliation
+
+    data object WalletOutcomeUnknown : ClaimReconciliation
 
     data object None : ClaimReconciliation
 }
@@ -133,15 +138,19 @@ class DefaultContributorClaimRepository @Inject constructor(
         )
         operationDao.upsert(provisional)
 
-        val intent = withAuthRetry { token ->
-            api.prepareClaim(
-                refreshId = refreshId,
-                request = ClaimPrepareRequest(
-                    walletBindingId = binding.walletBindingId,
-                ),
-                idempotencyKey = idempotencyKey,
-                accessToken = token,
-            )
+        val intent = try {
+            withAuthRetry { token ->
+                api.prepareClaim(refreshId, ClaimPrepareRequest(binding.walletBindingId),
+                    idempotencyKey, token)
+            }
+        } catch (error: ContributorClaimFailure.Expired) {
+            operationDao.upsert(provisional.copy(localState = STATE_REJECTED,
+                updatedAtMs = serverClock.nowMillis()))
+            throw error
+        } catch (error: ContributorClaimFailure.Unavailable) {
+            operationDao.upsert(provisional.copy(localState = STATE_REJECTED,
+                updatedAtMs = serverClock.nowMillis()))
+            throw error
         }
 
         if (intent.refreshId != refreshId) {
@@ -162,6 +171,8 @@ class DefaultContributorClaimRepository @Inject constructor(
                 "Claim is already confirmed; reconcile before preparing another transaction.",
             )
         }
+
+        requireLiveOpportunity(operation, intent.refreshStatus, intent.refreshExpiresAt)
 
         val latest = rpc.latestBlockhash()
         val transaction = transactionBuilder.buildClaim(
@@ -195,11 +206,14 @@ class DefaultContributorClaimRepository @Inject constructor(
         )
         operationDao.upsert(walletPending)
 
-        return when (val result = wallet.signAndSend(host, prepared.transaction.bytes)) {
+        return when (val result = withTimeoutOrNull(WALLET_SIGN_MS) {
+            wallet.signAndSend(host, prepared.transaction.bytes)
+        } ?: WalletResult.UnknownFailure("Wallet did not respond in time.")) {
             is WalletResult.Success -> {
                 if (result.value.account.address != prepared.wallet.address) {
                     val uncertain = walletPending.copy(
                         localState = STATE_RECONCILING,
+                        chainSignature = result.value.signatureBase58,
                         updatedAtMs = serverClock.nowMillis(),
                     )
                     operationDao.upsert(uncertain)
@@ -283,6 +297,10 @@ class DefaultContributorClaimRepository @Inject constructor(
             .maxByOrNull { it.updatedAtMs }
             ?: return ClaimReconciliation.None
 
+        if (operation.localState == STATE_REJECTED) {
+            throw ContributorClaimFailure.Expired()
+        }
+
         if (operation.localState == STATE_ACKNOWLEDGED) {
             return claimDetailResult(operation)
         }
@@ -308,6 +326,14 @@ class DefaultContributorClaimRepository @Inject constructor(
             STATE_PREPARING_REMOTE,
             STATE_PREPARING_TRANSACTION,
             STATE_READY_FOR_WALLET -> {
+                if (operation.localState != STATE_PREPARING_REMOTE) {
+                    val claim = withAuthRetry { api.claimDetail(operation.operationId, it) }
+                    resolvedClaim(claim, operation)?.let { return it }
+                    requireLiveOpportunity(operation, claim.refreshStatus, claim.refreshExpiresAt)
+                    if (claim.chainSignature != null) {
+                        return observeSignature(operation.copy(chainSignature = claim.chainSignature), claim.chainSignature)
+                    }
+                }
                 val prepared = prepareExisting(operation)
                 if (prepared != null) {
                     ClaimReconciliation.ReadyForWallet(prepared)
@@ -337,13 +363,19 @@ class DefaultContributorClaimRepository @Inject constructor(
             expectedBindingId = expectedBindingId,
         ) ?: return null
 
-        val intent = withAuthRetry { token ->
-            api.prepareClaim(
-                refreshId = operation.entityId,
-                request = ClaimPrepareRequest(binding.walletBindingId),
-                idempotencyKey = operation.idempotencyKey,
-                accessToken = token,
-            )
+        val intent = try {
+            withAuthRetry { token ->
+                api.prepareClaim(operation.entityId, ClaimPrepareRequest(binding.walletBindingId),
+                    operation.idempotencyKey, token)
+            }
+        } catch (error: ContributorClaimFailure.Expired) {
+            operationDao.upsert(operation.copy(localState = STATE_REJECTED,
+                updatedAtMs = serverClock.nowMillis()))
+            throw error
+        } catch (error: ContributorClaimFailure.Unavailable) {
+            operationDao.upsert(operation.copy(localState = STATE_REJECTED,
+                updatedAtMs = serverClock.nowMillis()))
+            throw error
         }
         val migrated = migratePreparedOperation(
             operation = operation,
@@ -358,6 +390,8 @@ class DefaultContributorClaimRepository @Inject constructor(
             )
             return null
         }
+
+        requireLiveOpportunity(migrated, intent.refreshStatus, intent.refreshExpiresAt)
 
         val latest = rpc.latestBlockhash()
         val transaction = transactionBuilder.buildClaim(
@@ -454,16 +488,13 @@ class DefaultContributorClaimRepository @Inject constructor(
             }
         } catch (error: CancellationException) {
             throw error
-        } catch (_: Exception) {
-            val confirming = operation.copy(
-                localState = STATE_CONFIRMING,
-                updatedAtMs = serverClock.nowMillis(),
-            )
-            operationDao.upsert(confirming)
-            return ClaimReconciliation.Confirming(confirming)
+        } catch (error: Exception) {
+            if (error is ContributorClaimFailure) throw error
+            throw ContributorClaimFailure.Network(error)
         }
 
         resolvedClaim(claim, operation)?.let { return it }
+        requireLiveOpportunity(operation, claim.refreshStatus, claim.refreshExpiresAt)
         if (claim.status == "CLAIMED") {
             val completed = operation.copy(
                 localState = STATE_ACKNOWLEDGED,
@@ -482,13 +513,23 @@ class DefaultContributorClaimRepository @Inject constructor(
             )
         }
 
-        val confirming = operation.copy(
-            localState = STATE_CONFIRMING,
+        if (claim.status !in setOf("WALLET_PENDING", "SUBMITTED", "CONFIRMING", "UNKNOWN")) {
+            throw ContributorClaimFailure.Rejected("This claim is no longer available. Return to EARN for current opportunities.")
+        }
+        if (operation.localState == STATE_RECONCILING &&
+            serverClock.nowMillis() - operation.updatedAtMs < WALLET_WAIT_MS
+        ) {
+            return ClaimReconciliation.WalletOutcomeUnknown
+        }
+        val afterUncertainWallet = operation.localState == STATE_RECONCILING
+        val ready = operation.copy(
+            localState = STATE_READY_FOR_WALLET,
             remoteState = claim.status,
             updatedAtMs = serverClock.nowMillis(),
         )
-        operationDao.upsert(confirming)
-        return ClaimReconciliation.Confirming(confirming)
+        operationDao.upsert(ready)
+        return prepareExisting(ready)?.let { ClaimReconciliation.ReadyForWallet(it, afterUncertainWallet) }
+            ?: claimDetailResult(ready)
     }
 
     private suspend fun claimDetailResult(
@@ -498,6 +539,12 @@ class DefaultContributorClaimRepository @Inject constructor(
             api.claimDetail(operation.operationId, token)
         }
         resolvedClaim(claim, operation)?.let { return it }
+
+        requireLiveOpportunity(operation, claim.refreshStatus, claim.refreshExpiresAt)
+        if (claim.chainSignature == null) {
+            return prepareExisting(operation)?.let(ClaimReconciliation::ReadyForWallet)
+                ?: ClaimReconciliation.None
+        }
 
         val confirming = operation.copy(
             localState = STATE_CONFIRMING,
@@ -525,6 +572,21 @@ class DefaultContributorClaimRepository @Inject constructor(
             throw ContributorClaimFailure.Rejected("This saved claim is ${claim.status.lowercase()}. Return to EARN for current opportunities.")
         }
         return null
+    }
+
+    private suspend fun requireLiveOpportunity(
+        operation: ActiveOperationEntity,
+        refreshStatus: String,
+        refreshExpiresAt: String,
+    ) {
+        val expired = refreshStatus in setOf("EXPIRED", "CANCELLED", "FAILED") ||
+            runCatching { Instant.parse(refreshExpiresAt).toEpochMilli() <= serverClock.nowMillis() }
+                .getOrDefault(false)
+        if (expired) {
+            operationDao.upsert(operation.copy(localState = STATE_REJECTED,
+                remoteState = refreshStatus, updatedAtMs = serverClock.nowMillis()))
+            throw ContributorClaimFailure.Expired()
+        }
     }
 
     private suspend fun ensureBinding(
@@ -716,6 +778,8 @@ class DefaultContributorClaimRepository @Inject constructor(
 
     private companion object {
         const val PROFILE_KEY = "default"
+        const val WALLET_SIGN_MS = 25_000L
+        const val WALLET_WAIT_MS = 30_000L
         const val OPERATION_TYPE = "CONTRIBUTOR_CLAIM"
 
         const val STATE_PREPARING_REMOTE = "PREPARING_REMOTE"

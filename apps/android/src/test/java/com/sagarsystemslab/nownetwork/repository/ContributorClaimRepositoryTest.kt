@@ -80,7 +80,7 @@ class ContributorClaimRepositoryTest {
     }
 
     @Test
-    fun ambiguousWalletCallbackNeverResendsDuringRecovery() = runBlocking {
+    fun ambiguousWalletCallbackIsNotPresentedAsSubmittedAndTimesOutToExplicitRetry() = runBlocking {
         val fixture = fixture(
             walletSubmission = WalletResult.UnknownFailure("wallet callback lost"),
             observeUnknown = false,
@@ -90,10 +90,38 @@ class ContributorClaimRepositoryTest {
         val first = fixture.repository.submit(HOST, prepared)
         val recovered = fixture.repository.recover(REFRESH_ID)
 
-        assertTrue(first is ClaimReconciliation.Confirming)
-        assertTrue(recovered is ClaimReconciliation.Confirming)
+        assertTrue(first is ClaimReconciliation.WalletOutcomeUnknown)
+        assertTrue(recovered is ClaimReconciliation.WalletOutcomeUnknown)
         assertEquals(1, fixture.wallet.signCalls)
         assertTrue(fixture.api.detailCalls >= 2)
+        val saved = fixture.operationDao.listAll().single()
+        assertEquals(null, saved.chainSignature)
+        fixture.operationDao.upsert(saved.copy(updatedAtMs = System.currentTimeMillis() - 31_000L))
+        assertTrue(fixture.repository.recover(REFRESH_ID) is ClaimReconciliation.ReadyForWallet)
+        assertEquals(1, fixture.wallet.signCalls)
+    }
+
+    @Test
+    fun walletProtocolFailureAllowsRetryWithoutClaimingASubmission() = runBlocking {
+        val fixture = fixture(WalletResult.ProtocolFailure("Wallet declined transaction"), false)
+        val prepared = fixture.repository.prepareNew(HOST, REFRESH_ID)
+        val error = runCatching { fixture.repository.submit(HOST, prepared) }.exceptionOrNull()
+        assertTrue(error is ContributorClaimFailure.Wallet)
+        assertEquals("READY_FOR_WALLET", fixture.operationDao.listAll().single().localState)
+        assertTrue(fixture.repository.recover(REFRESH_ID) is ClaimReconciliation.ReadyForWallet)
+        assertEquals(null, fixture.operationDao.listAll().single().chainSignature)
+        assertEquals(1, fixture.wallet.signCalls)
+    }
+
+    @Test
+    fun expiredRefreshRemovesUnsignedSavedClaimFromActiveRecovery() = runBlocking {
+        val fixture = fixture(WalletResult.UserRejected, false)
+        val prepared = fixture.repository.prepareNew(HOST, REFRESH_ID)
+        runCatching { fixture.repository.submit(HOST, prepared) }
+        fixture.api.detailRefreshStatus = "EXPIRED"
+        assertTrue(runCatching { fixture.repository.recover(REFRESH_ID) }.exceptionOrNull() is ContributorClaimFailure.Expired)
+        assertEquals("REJECTED", fixture.operationDao.listAll().single().localState)
+        assertEquals(1, fixture.wallet.signCalls)
     }
 
     @Test
@@ -275,6 +303,7 @@ private class ClaimApi(
 ) : NowApiClient {
     var observeCalls = 0
     var detailStatus = "WALLET_PENDING"
+    var detailRefreshStatus = "AVAILABLE"
     var detailCalls = 0
     var prepareCalls = 0
     var preferredWallet: String? = null
@@ -342,7 +371,7 @@ private class ClaimApi(
             claimDeadline = if (status == "CLAIMED") "2035-01-01T00:05:00Z" else null,
             chainSignature = signature,
             chainStatus = if (status == "CLAIMED") "confirmed" else null,
-            refreshStatus = intent.refreshStatus,
+            refreshStatus = detailRefreshStatus,
             refreshExpiresAt = intent.refreshExpiresAt,
             evidenceDeadline = intent.evidenceDeadline,
             revision = 1,

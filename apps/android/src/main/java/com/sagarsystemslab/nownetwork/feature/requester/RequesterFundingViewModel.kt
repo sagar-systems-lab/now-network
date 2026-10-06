@@ -16,7 +16,9 @@ import java.math.BigDecimal
 import java.math.RoundingMode
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,6 +32,7 @@ enum class RequesterFundingStage {
     REVIEW,
     SUBMITTING,
     CONFIRMING,
+    WALLET_OUTCOME_UNKNOWN,
     COMPLETE,
 }
 
@@ -67,13 +70,8 @@ class RequesterFundingViewModel @Inject constructor(
     val state: StateFlow<RequesterFundingUiState> = mutableState.asStateFlow()
 
     private var prepared: PreparedRequesterFunding? = null
-    private var openedStateId: String? = null
 
     fun open(stateId: String) {
-        if (openedStateId == stateId && mutableState.value.stage != RequesterFundingStage.LOADING) {
-            return
-        }
-        openedStateId = stateId
         prepared = null
         mutableState.value = RequesterFundingUiState(
             stateId = stateId,
@@ -84,7 +82,8 @@ class RequesterFundingViewModel @Inject constructor(
         )
 
         viewModelScope.launch {
-            val detail = runCatching { stateRepository.getState(stateId) }.getOrNull()
+            val detail = try { withTimeout(OPERATION_WAIT_MS) { stateRepository.getState(stateId) } }
+                catch (error: Exception) { if (error is CancellationException && error !is TimeoutCancellationException) throw error; null }
             mutableState.update {
                 it.copy(
                     title = detail?.title ?: "Refresh this state",
@@ -93,7 +92,9 @@ class RequesterFundingViewModel @Inject constructor(
             }
 
             try {
-                applyRecovery(stateId, detail, repository.recoverLatest())
+                applyRecovery(stateId, detail, withTimeout(OPERATION_WAIT_MS) { repository.recoverLatest() })
+            } catch (error: TimeoutCancellationException) {
+                mutableState.update { it.copy(stage = RequesterFundingStage.SETUP, notice = "Funding check timed out. Try again.") }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
@@ -152,11 +153,16 @@ class RequesterFundingViewModel @Inject constructor(
             }
 
             try {
-                val next = repository.prepareNew(
+                val existing = withTimeout(OPERATION_WAIT_MS) { repository.recoverLatest() }
+                if (existing !is FundingReconciliation.None) {
+                    applyRecovery(stateId, current.stateDetail, existing)
+                    return@launch
+                }
+                val next = withTimeout(OPERATION_WAIT_MS) { repository.prepareNew(
                     host = host,
                     stateId = stateId,
                     fundingTargetAtomic = atomic,
-                )
+                ) }
                 prepared = next
                 mutableState.update {
                     it.copy(
@@ -167,6 +173,8 @@ class RequesterFundingViewModel @Inject constructor(
                         expiresAt = next.refresh.refreshExpiresAt,
                     )
                 }
+            } catch (error: TimeoutCancellationException) {
+                mutableState.update { it.copy(stage = RequesterFundingStage.SETUP, notice = "Preparation timed out. Check Activity before creating another refresh.") }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
@@ -192,7 +200,7 @@ class RequesterFundingViewModel @Inject constructor(
             }
 
             try {
-                when (val result = repository.submit(host, funding)) {
+                when (val result = withTimeout(OPERATION_WAIT_MS) { repository.submit(host, funding) }) {
                     is FundingReconciliation.Available -> {
                         prepared = null
                         mutableState.update {
@@ -220,15 +228,25 @@ class RequesterFundingViewModel @Inject constructor(
                         mutableState.update { it.copy(stage = RequesterFundingStage.REVIEW) }
                     }
 
+                    is FundingReconciliation.WalletOutcomeUnknown -> {
+                        mutableState.update { it.copy(
+                            stage = RequesterFundingStage.WALLET_OUTCOME_UNKNOWN,
+                            notice = "No transaction signature was received. Check the funding status; retry in the wallet if it remains pending after 30 seconds.",
+                        ) }
+                    }
+
                     FundingReconciliation.None -> {
                         mutableState.update {
                             it.copy(
-                                stage = RequesterFundingStage.CONFIRMING,
-                                notice = "Funding status is being reconciled.",
+                                stage = RequesterFundingStage.SETUP,
+                                notice = "No active funding operation remains. Review the current state before trying again.",
                             )
                         }
                     }
                 }
+            } catch (error: TimeoutCancellationException) {
+                mutableState.update { it.copy(stage = RequesterFundingStage.WALLET_OUTCOME_UNKNOWN,
+                    notice = "Wallet or funding check timed out. Check the saved operation before retrying.") }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
@@ -252,11 +270,14 @@ class RequesterFundingViewModel @Inject constructor(
             }
 
             try {
-                applyRecovery(
+                withTimeout(OPERATION_WAIT_MS) { applyRecovery(
                     expectedStateId = mutableState.value.stateId,
                     detail = null,
                     recovery = repository.recoverLatest(),
-                )
+                ) }
+            } catch (error: TimeoutCancellationException) {
+                mutableState.update { it.copy(stage = RequesterFundingStage.WALLET_OUTCOME_UNKNOWN,
+                    notice = "Funding check timed out. You can try checking again.") }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
@@ -273,7 +294,9 @@ class RequesterFundingViewModel @Inject constructor(
     private suspend fun pollConfirmation() {
         repeat(3) {
             delay(1_500L)
-            when (val recovery = repository.recoverLatest()) {
+            val recovery = try { withTimeout(OPERATION_WAIT_MS) { repository.recoverLatest() } }
+                catch (error: TimeoutCancellationException) { return }
+            when (recovery) {
                 is FundingReconciliation.Available -> {
                     prepared = null
                     mutableState.update {
@@ -298,6 +321,7 @@ class RequesterFundingViewModel @Inject constructor(
                 }
 
                 is FundingReconciliation.Confirming,
+                is FundingReconciliation.WalletOutcomeUnknown,
                 FundingReconciliation.None -> Unit
             }
         }
@@ -362,10 +386,23 @@ class RequesterFundingViewModel @Inject constructor(
                 }
             }
 
+            is FundingReconciliation.WalletOutcomeUnknown -> {
+                mutableState.update { it.copy(
+                    stage = RequesterFundingStage.WALLET_OUTCOME_UNKNOWN,
+                    refreshId = recovery.operation.entityId,
+                    operationId = recovery.operation.operationId,
+                    notice = "Wallet result is unclear; no transaction signature was received. Check status again after 30 seconds.",
+                ) }
+            }
+
             FundingReconciliation.None -> {
                 mutableState.update { it.copy(stage = RequesterFundingStage.SETUP) }
             }
         }
+    }
+
+    private companion object {
+        const val OPERATION_WAIT_MS = 30_000L
     }
 }
 

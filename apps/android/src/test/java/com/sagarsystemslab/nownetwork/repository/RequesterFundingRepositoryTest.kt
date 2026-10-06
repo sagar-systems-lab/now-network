@@ -47,6 +47,40 @@ import org.junit.Test
 
 class RequesterFundingRepositoryTest {
     @Test
+    fun missingWalletSignatureNeverLooksLikeSubmittedFunding() = runBlocking {
+        val operationDao = FundingOperationDao()
+        val api = FundingApi()
+        val walletAddress = "wallet-a"
+        var sends = 0
+        val gateway = object : WalletGateway {
+            override suspend fun connect(host: WalletInteractionHost): WalletResult<WalletAccount> =
+                WalletResult.Success(WalletAccount(walletAddress, "Requester"))
+            override suspend fun disconnect(host: WalletInteractionHost): WalletResult<Unit> =
+                WalletResult.Success(Unit)
+            override suspend fun signWalletProof(host: WalletInteractionHost, message: String): WalletResult<WalletProof> =
+                error("not used")
+            override suspend fun signAndSend(host: WalletInteractionHost, transaction: ByteArray): WalletResult<WalletSubmission> {
+                sends += 1
+                return WalletResult.UnknownFailure("wallet callback lost")
+            }
+        }
+        val config = SolanaRuntimeConfig("devnet", "https://api.devnet.solana.com", "program-a",
+            "https://example.test", "icon.png")
+        val repository = DefaultRequesterFundingRepository(
+            FundingAuth(), api, WalletRequestCoordinator(gateway), FundingWalletMetadataDao(),
+            operationDao, FundingRpc(), SolanaTransactionBuilder(config,
+                RewardDisplayConfig("mint-a", "USDC", 6)), ServerClock(), config,
+        )
+        val prepared = prepared(walletAddress)
+        operationDao.upsert(prepared.operation)
+        val result = repository.submit(object : WalletInteractionHost {}, prepared)
+        assertTrue(result is FundingReconciliation.WalletOutcomeUnknown)
+        assertEquals(null, operationDao.listAll().single().chainSignature)
+        assertEquals(0, api.observeCalls)
+        assertEquals(1, sends)
+    }
+
+    @Test
     fun submittedWalletTransactionStaysConfirmingWhenBackendIsNotCertainYet() = runBlocking {
         val operationDao = FundingOperationDao()
         val api = FundingApi()
