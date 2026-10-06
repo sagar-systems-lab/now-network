@@ -32,6 +32,7 @@ data class AskDraft(
             put("location", buildJsonObject {
                 put("name", name.trim()); put("lat", selectedTarget.latitude)
                 put("lng", selectedTarget.longitude); put("location_type", selectedNeed.locationType)
+                if (displayAddress.isNotBlank()) put("display_address", displayAddress.trim())
             })
             put("policy_template_key", selectedNeed.key)
             if (selectedNeed == AskNeed.OTHER) put("custom_question", question)
