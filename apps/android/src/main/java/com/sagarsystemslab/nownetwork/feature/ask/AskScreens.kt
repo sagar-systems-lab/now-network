@@ -184,7 +184,7 @@ fun AskComposerScreen(
                         Text(state.draft.question,style=NowType.TitleS,color=NowColors.Ink950)
                         HorizontalDivider()
                         Text("What the contributor must send",style=NowType.LabelL,color=NowColors.Ink600)
-                        ProofSteps(media = true, location = true, answer = "Answer your exact question", video = true)
+                        ProofSteps(photo = true, location = true, answer = "Answer your exact question", video = true)
                         Text("The proof must be captured at your selected pin. You can review the place and question again before funding.",style=NowType.BodyS,color=NowColors.Ink600)
                     }
                 }
