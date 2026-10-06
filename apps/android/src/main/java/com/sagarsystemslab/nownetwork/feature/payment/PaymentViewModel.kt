@@ -9,11 +9,13 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 
 enum class PaymentStage {
     PENDING,
@@ -64,50 +66,60 @@ class PaymentViewModel @Inject constructor(
         trackingJob?.cancel()
         trackingJob = viewModelScope.launch {
             try {
-                repository.prime(refreshId)
-                while (true) {
-                    try {
-                        val outcome = repository.check(refreshId)
-                        apply(outcome)
-                        if (
-                            mutableState.value.stage == PaymentStage.PAID ||
-                            mutableState.value.stage == PaymentStage.FAILED
-                        ) {
-                            return@launch
+                withTimeout(TRACKING_WINDOW_MS) {
+                    repository.prime(refreshId)
+                    while (true) {
+                        try {
+                            val outcome = repository.check(refreshId)
+                            apply(outcome)
+                            if (
+                                mutableState.value.stage == PaymentStage.PAID ||
+                                mutableState.value.stage == PaymentStage.FAILED
+                            ) {
+                                return@withTimeout
+                            }
+                        } catch (error: CancellationException) {
+                            throw error
+                        } catch (_: PaymentFailure.Retryable) {
+                            val last = mutableState.value
+                            mutableState.value = last.copy(
+                                stage = when (last.stage) {
+                                    PaymentStage.VERIFYING -> PaymentStage.VERIFYING
+                                    PaymentStage.PAID -> PaymentStage.PAID
+                                    PaymentStage.FAILED -> PaymentStage.FAILED
+                                    else -> PaymentStage.PENDING
+                                },
+                                message = if (last.stage == PaymentStage.VERIFYING) {
+                                    "Connection interrupted. NOW is still reconciling the previous settlement before any retry."
+                                } else {
+                                    "Connection interrupted. Your payment state is saved and will be checked again."
+                                },
+                            )
+                        } catch (error: PaymentFailure) {
+                            mutableState.value = mutableState.value.copy(
+                                stage = PaymentStage.ATTENTION,
+                                message = error.message
+                                    ?: "Payment status could not be confirmed safely.",
+                            )
+                            return@withTimeout
+                        } catch (_: Exception) {
+                            mutableState.value = mutableState.value.copy(
+                                stage = PaymentStage.ATTENTION,
+                                message = "Payment status could not be confirmed safely.",
+                            )
+                            return@withTimeout
                         }
-                    } catch (error: CancellationException) {
-                        throw error
-                    } catch (_: PaymentFailure.Retryable) {
-                        val last = mutableState.value
-                        mutableState.value = last.copy(
-                            stage = when (last.stage) {
-                                PaymentStage.VERIFYING -> PaymentStage.VERIFYING
-                                PaymentStage.PAID -> PaymentStage.PAID
-                                PaymentStage.FAILED -> PaymentStage.FAILED
-                                else -> PaymentStage.PENDING
-                            },
-                            message = if (last.stage == PaymentStage.VERIFYING) {
-                                "Connection interrupted. NOW is still reconciling the previous settlement before any retry."
-                            } else {
-                                "Connection interrupted. Your payment state is saved and will be checked again."
-                            },
-                        )
-                    } catch (error: PaymentFailure) {
-                        mutableState.value = mutableState.value.copy(
-                            stage = PaymentStage.ATTENTION,
-                            message = error.message
-                                ?: "Payment status could not be confirmed safely.",
-                        )
-                        return@launch
-                    } catch (_: Exception) {
-                        mutableState.value = mutableState.value.copy(
-                            stage = PaymentStage.ATTENTION,
-                            message = "Payment status could not be confirmed safely.",
-                        )
-                        return@launch
-                    }
 
-                    delay(POLL_INTERVAL_MS)
+                        delay(POLL_INTERVAL_MS)
+                    }
+                }
+            } catch (_: TimeoutCancellationException) {
+                val last = mutableState.value
+                if (last.stage != PaymentStage.PAID && last.stage != PaymentStage.FAILED) {
+                    mutableState.value = last.copy(
+                        stage = PaymentStage.ATTENTION,
+                        message = "Payment is still pending. Automatic tracking paused after 30 seconds; tap Check payment status to continue. No second transfer is sent.",
+                    )
                 }
             } catch (error: CancellationException) {
                 throw error
@@ -175,5 +187,6 @@ class PaymentViewModel @Inject constructor(
 
     private companion object {
         const val POLL_INTERVAL_MS = 2_000L
+        const val TRACKING_WINDOW_MS = 30_000L
     }
 }
