@@ -169,6 +169,14 @@ fun AskComposerScreen(
                         Text("The contributor will provide a fresh photo, 3–15 second video, location proof and an on-site answer.",style=NowType.BodyS,color=NowColors.Ink600)
                     }
                 }
+                item {
+                    NowGlassCard {
+                        NowSectionTitle("Proof requirements", "Locked for this demo so every answer has the same minimum evidence.")
+                        ExperienceRow("Fresh photo + 3–15s video","Captured inside NOW at the requested place",Icons.Outlined.PhotoCamera)
+                        ExperienceRow("Precise on-site location","Bound to the fresh capture",Icons.Outlined.LocationOn)
+                        ExperienceRow("Direct answer","The contributor must answer your question before submitting",Icons.Outlined.Assignment)
+                    }
+                }
                 item { NowPrimaryButton("Preview request",{ focus.clearFocus(); onStage(AskStage.PREVIEW) },Modifier.fillMaxWidth(),enabled=state.draft.needReady) }
             }
             AskStage.PREVIEW -> {
