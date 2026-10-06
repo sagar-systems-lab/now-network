@@ -268,7 +268,9 @@ class DefaultContributorClaimRepository @Inject constructor(
             is WalletResult.UnknownFailure -> {
                 val reconciling = walletPending.copy(
                     localState = STATE_RECONCILING,
-                    updatedAtMs = serverClock.nowMillis(),
+                    // Preserve the moment the wallet request started. Recovery uses this
+                    // timestamp to release a no-signature operation after the hard timeout.
+                    updatedAtMs = walletPending.updatedAtMs,
                 )
                 operationDao.upsert(reconciling)
                 reconcileWithoutResend(reconciling)
@@ -464,6 +466,17 @@ class DefaultContributorClaimRepository @Inject constructor(
         }
 
         resolvedClaim(claim, operation)?.let { return it }
+
+        if (claim.refreshStatus in setOf("EXPIRED", "CANCELLED", "FAILED")) {
+            val rejected = operation.copy(
+                localState = STATE_REJECTED,
+                remoteState = claim.refreshStatus,
+                updatedAtMs = serverClock.nowMillis(),
+            )
+            operationDao.upsert(rejected)
+            throw ContributorClaimFailure.Expired()
+        }
+
         if (claim.status == "CLAIMED") {
             val completed = operation.copy(
                 localState = STATE_ACKNOWLEDGED,
@@ -482,10 +495,28 @@ class DefaultContributorClaimRepository @Inject constructor(
             )
         }
 
+        if (
+            claim.status == "WALLET_PENDING" &&
+            claim.chainSignature == null &&
+            serverClock.nowMillis() - operation.updatedAtMs >= WALLET_PENDING_TIMEOUT_MS
+        ) {
+            val retryable = operation.copy(
+                localState = STATE_READY_FOR_WALLET,
+                remoteState = claim.status,
+                updatedAtMs = serverClock.nowMillis(),
+            )
+            operationDao.upsert(retryable)
+            val prepared = prepareExisting(retryable)
+            if (prepared != null) {
+                return ClaimReconciliation.ReadyForWallet(prepared)
+            }
+        }
+
         val confirming = operation.copy(
             localState = STATE_CONFIRMING,
             remoteState = claim.status,
-            updatedAtMs = serverClock.nowMillis(),
+            // Do not move the timeout window forward on every recovery check.
+            updatedAtMs = operation.updatedAtMs,
         )
         operationDao.upsert(confirming)
         return ClaimReconciliation.Confirming(confirming)
@@ -727,5 +758,6 @@ class DefaultContributorClaimRepository @Inject constructor(
         const val STATE_CONFIRMING = "CONFIRMING"
         const val STATE_ACKNOWLEDGED = "ACKNOWLEDGED"
         const val STATE_REJECTED = "REJECTED"
+        const val WALLET_PENDING_TIMEOUT_MS = 30_000L
     }
 }
