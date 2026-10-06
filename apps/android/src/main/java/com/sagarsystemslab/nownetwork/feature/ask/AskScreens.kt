@@ -105,7 +105,7 @@ fun AskComposerScreen(
                         listOfNotNull(state.draft.target?.let {
                             LiveMapPin("ask-target",state.draft.name.ifBlank { "Selected place" },it,"UNKNOWN")
                         }),
-                        onPin = {},
+                        onPin = null,
                         onSearchArea = onTarget,
                         onLocateArea = onTarget,
                         onMapTap = onTarget,
