@@ -36,16 +36,57 @@ class PlaceSearchRepository @Inject constructor(@ApplicationContext private val 
             @Suppress("DEPRECATION")
             withContext(Dispatchers.IO) { geocoder.getFromLocationName(query, 6).orEmpty() }
         }
-        return addresses.mapNotNull { address ->
-            if (!address.hasLatitude() || !address.hasLongitude()) return@mapNotNull null
-            val center = GeoCenter(address.latitude, address.longitude)
-            if (!center.valid) return@mapNotNull null
-            val line = address.getAddressLine(0).orEmpty().ifBlank {
-                listOfNotNull(address.thoroughfare, address.subLocality, address.locality, address.adminArea, address.countryName).distinct().joinToString(", ")
+        return addresses.mapNotNull { suggestion(it, query) }
+            .distinctBy { "${it.center.latitude},${it.center.longitude}:${it.address}" }
+            .take(6)
+    }
+
+    suspend fun reverse(center: GeoCenter): PlaceSuggestion? {
+        if (!center.valid || !Geocoder.isPresent()) return null
+        val geocoder = Geocoder(context, Locale.getDefault())
+        val addresses = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            suspendCancellableCoroutine<List<Address>> { continuation ->
+                geocoder.getFromLocation(center.latitude, center.longitude, 1, object : Geocoder.GeocodeListener {
+                    override fun onGeocode(addresses: MutableList<Address>) {
+                        if (continuation.isActive) continuation.resume(addresses)
+                    }
+
+                    override fun onError(errorMessage: String?) {
+                        if (continuation.isActive) continuation.resume(emptyList())
+                    }
+                })
             }
-            val name = address.featureName?.takeUnless { it.isBlank() || it.all(Char::isDigit) }
-                ?: line.substringBefore(',').ifBlank { query }
-            PlaceSuggestion(name.take(120), line.take(250), center)
-        }.distinctBy { "${it.center.latitude},${it.center.longitude}:${it.address}" }.take(6)
+        } else {
+            @Suppress("DEPRECATION")
+            withContext(Dispatchers.IO) {
+                runCatching { geocoder.getFromLocation(center.latitude, center.longitude, 1).orEmpty() }
+                    .getOrDefault(emptyList())
+            }
+        }
+        return addresses.firstNotNullOfOrNull { suggestion(it, "Selected place") }
+    }
+
+    private fun suggestion(address: Address, fallback: String): PlaceSuggestion? {
+        if (!address.hasLatitude() || !address.hasLongitude()) return null
+        val center = GeoCenter(address.latitude, address.longitude)
+        if (!center.valid) return null
+        val line = address.getAddressLine(0).orEmpty().ifBlank {
+            listOfNotNull(
+                address.thoroughfare,
+                address.subLocality,
+                address.locality,
+                address.adminArea,
+                address.countryName,
+            ).distinct().joinToString(", ")
+        }
+        val feature = address.featureName?.takeUnless { it.isBlank() || it.all(Char::isDigit) }
+        val contextualName = listOfNotNull(
+            address.thoroughfare?.takeUnless { it.isBlank() || it.all(Char::isDigit) },
+            address.subLocality?.takeUnless { it.isBlank() },
+            address.locality?.takeUnless { it.isBlank() },
+        ).distinct().joinToString(", ")
+        val name = feature
+            ?: contextualName.ifBlank { line.substringBefore(',').ifBlank { fallback } }
+        return PlaceSuggestion(name.take(120), line.ifBlank { fallback }.take(250), center)
     }
 }

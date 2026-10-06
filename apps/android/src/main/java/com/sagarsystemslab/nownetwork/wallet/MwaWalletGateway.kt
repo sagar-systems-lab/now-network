@@ -79,7 +79,7 @@ class MwaWalletGateway @Inject constructor(
     override suspend fun disconnect(
         host: WalletInteractionHost,
     ): WalletResult<Unit> {
-        val authToken = secrets.read(AUTH_TOKEN_KEY) ?: return WalletResult.Success(Unit)
+        val authToken = secrets.read(authTokenKey()) ?: return WalletResult.Success(Unit)
         val androidHost = host.androidHostOrFailure()
             ?: return WalletResult.AssociationFailure(
                 "Wallet interaction requires the active Android screen.",
@@ -89,7 +89,7 @@ class MwaWalletGateway @Inject constructor(
             associate(androidHost) { client, _ ->
                 await(client.deauthorize(authToken))
             }
-            secrets.remove(AUTH_TOKEN_KEY)
+            secrets.remove(authTokenKey())
             WalletResult.Success(Unit)
         } catch (error: CancellationException) {
             throw error
@@ -163,7 +163,8 @@ class MwaWalletGateway @Inject constructor(
                     client = client,
                     protocolVersion = sessionProperties.protocolVersion,
                 )
-                secrets.write(AUTH_TOKEN_KEY, auth.authToken)
+                secrets.write(authTokenKey(), auth.authToken)
+                secrets.remove(LEGACY_AUTH_TOKEN_KEY)
                 operation(client, auth)
             }
             WalletResult.Success(payload)
@@ -175,7 +176,7 @@ class MwaWalletGateway @Inject constructor(
             WalletResult.UserRejected
         } catch (error: Exception) {
             if (isAuthorizationFailure(error)) {
-                secrets.remove(AUTH_TOKEN_KEY)
+                secrets.remove(authTokenKey())
             }
             mapException(error)
         }
@@ -185,7 +186,7 @@ class MwaWalletGateway @Inject constructor(
         client: MobileWalletAdapterClient,
         protocolVersion: SessionProperties.ProtocolVersion,
     ): MobileWalletAdapterClient.AuthorizationResult {
-        val existingToken = secrets.read(AUTH_TOKEN_KEY)
+        val existingToken = secrets.read(authTokenKey())
 
         return try {
             authorizeOnce(
@@ -195,7 +196,7 @@ class MwaWalletGateway @Inject constructor(
             )
         } catch (error: Exception) {
             if (existingToken != null && isAuthorizationFailure(error)) {
-                secrets.remove(AUTH_TOKEN_KEY)
+                secrets.remove(authTokenKey())
                 authorizeOnce(
                     client = client,
                     protocolVersion = protocolVersion,
@@ -369,6 +370,10 @@ class MwaWalletGateway @Inject constructor(
                     WalletResult.ProtocolFailure("Wallet authorization is no longer valid.")
                 ProtocolContract.ERROR_TOO_MANY_PAYLOADS ->
                     WalletResult.ProtocolFailure("Wallet rejected the payload count.")
+                ProtocolContract.ERROR_INVALID_PAYLOADS ->
+                    WalletResult.ProtocolFailure("Wallet rejected this transaction before submission. Reconnect the wallet on ${config.cluster} and retry.")
+                ProtocolContract.ERROR_NOT_SUBMITTED ->
+                    WalletResult.ProtocolFailure("Wallet did not submit this transaction. Nothing was funded; retry from NOW.")
                 else -> WalletResult.ProtocolFailure(
                     remote.message ?: "Wallet protocol request failed.",
                 )
@@ -415,10 +420,13 @@ class MwaWalletGateway @Inject constructor(
         return encoded.reverse().toString()
     }
 
+    private fun authTokenKey(): String =
+        "mwa.auth.token.v2." + config.cluster.lowercase()
+
     private class WalletUserCancelled : Exception()
 
     private companion object {
-        const val AUTH_TOKEN_KEY = "mwa.auth.token.v1"
+        const val LEGACY_AUTH_TOKEN_KEY = "mwa.auth.token.v1"
         const val ASSOCIATION_START_TIMEOUT_SECONDS = 60L
         const val ASSOCIATION_CLOSE_TIMEOUT_SECONDS = 3L
         const val BASE58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"

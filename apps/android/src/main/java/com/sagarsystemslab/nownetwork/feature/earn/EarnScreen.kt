@@ -107,16 +107,23 @@ fun EarnScreen(
         verticalArrangement = Arrangement.spacedBy(NowSpacing.Space4),
     ) {
         item {
-            ExperienceHeader("EARN", "Nearby refresh opportunities", uiState.areaLabel, onBrowseAreas, onNotifications, onProfile, unread)
+            ExperienceHeader("EARN", "Nearby paid proof tasks", uiState.areaLabel, onBrowseAreas, onNotifications, onProfile, unread)
         }
         if (availability != null) item { availability() }
-        item { LiveMapCard(center, visibleOpportunities.mapNotNull { o -> o.center?.let { LiveMapPin(o.refreshId, o.title, it, if (o.claimable && !o.cachedOnly) "CLAIMABLE" else "UNKNOWN", photoStateId=o.stateId) } }, onOpportunityClick, onSearchArea = onSearchArea, onLocateArea = onLocateArea) }
+        item { LiveMapCard(
+            center,
+            visibleOpportunities.mapNotNull { o -> o.center?.let { LiveMapPin(o.refreshId, o.title, it, if (o.claimable && !o.cachedOnly) "CLAIMABLE" else "UNKNOWN", photoStateId=o.stateId) } },
+            onOpportunityClick,
+            onSearchArea = onSearchArea,
+            onLocateArea = onLocateArea,
+            instruction = "Satellite view · tap a task pin to see what needs proof.",
+        ) }
         item { SyncStrip(uiState.refreshing, visibleOpportunities.size, uiState.notice != EarnNotice.NONE, onRefresh) }
         if (activeWork != null) item { activeWork() }
         if (visibleOpportunities.isNotEmpty()) item { MetricStrip(listOf((uiState.total?.toString() ?: "—") to "Available nearby", visibleOpportunities.size.toString() to "Results shown")) }
         if (visibleOpportunities.isNotEmpty() || uiState.category != null) item {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("Explore opportunities", Modifier.weight(1f), style = NowType.TitleS, color = NowColors.Ink950)
+                Text("Find a task", Modifier.weight(1f), style = NowType.TitleS, color = NowColors.Ink950)
                 Box {
                     TextButton({ sortMenu = true }, enabled = !uiState.refreshing) { Text(uiState.sort.label + " ▾") }
                     DropdownMenu(sortMenu, { sortMenu = false }) {
@@ -165,7 +172,7 @@ fun EarnScreen(
                     verticalArrangement = Arrangement.spacedBy(NowSpacing.Space1),
                 ) {
                     Text(
-                        text = "Nearby opportunities",
+                        text = "Nearby paid tasks",
                         style = NowType.TitleS,
                         color = NowColors.Ink950,
                         modifier = Modifier.semantics {
@@ -193,14 +200,14 @@ fun EarnScreen(
             item {
                 if (uiState.category != null) {
                     com.sagarsystemslab.nownetwork.designsystem.NowGlassCard {
-                        Text("No opportunities in this category", style = NowType.TitleS, color = NowColors.Ink950)
+                        Text("No tasks in this category", style = NowType.TitleS, color = NowColors.Ink950)
                         Text("Try all categories or choose another area to explore available work.", style = NowType.BodyM, color = NowColors.Ink600)
                         NowSecondaryButton("Show all categories", { onCategory(null) }, Modifier.fillMaxWidth())
                     }
                 } else {
                     EmptyProofCard(
-                        if (uiState.notice == EarnNotice.NONE) "Nothing nearby needs fresh proof" else "Find your next opportunity",
-                        if (uiState.notice == EarnNotice.NONE) "New opportunities appear when nearby states need a fresh observation." else "Choose an area to explore. Nearby work will appear here when it is available and connected.",
+                        if (uiState.notice == EarnNotice.NONE) "No paid tasks nearby right now" else "Find your next task",
+                        if (uiState.notice == EarnNotice.NONE) "Keep availability on while NOW is open. New tasks appear when someone nearby asks for fresh proof." else "Choose an area to explore. Paid proof tasks will appear here when they are available.",
                         onBrowseAreas, onHelp,
                     )
                 }
@@ -223,9 +230,9 @@ fun EarnScreen(
                 )
             }
         }
-        if (uiState.moreFailed) item { NowNotice("More opportunities could not load. Your existing results are still available.") }
+        if (uiState.moreFailed) item { NowNotice("More tasks could not load. Your current tasks are still available.") }
         if (uiState.nextCursor != null) item {
-            NowSecondaryButton(if (uiState.loadingMore) "Loading more…" else if (uiState.moreFailed) "Retry more opportunities" else "Load more opportunities", onLoadMore, Modifier.fillMaxWidth(), enabled = !uiState.refreshing && !uiState.loadingMore)
+            NowSecondaryButton(if (uiState.loadingMore) "Loading more…" else if (uiState.moreFailed) "Retry more tasks" else "Load more tasks", onLoadMore, Modifier.fillMaxWidth(), enabled = !uiState.refreshing && !uiState.loadingMore)
         }
         if (onEarningAlerts != null) item {
             com.sagarsystemslab.nownetwork.designsystem.NowGlassCard {
@@ -323,9 +330,9 @@ private fun OpportunityCard(
             Text(if (rule == "EQUAL_SPLIT_REQUIRED_WITNESSES") "Pool split across ${opportunity.requiredWitnesses} accepted witnesses; final settlement determines payment." else "One accepted winner receives the pool; payment requires verification.", style = NowType.BodyS, color = NowColors.Ink600)
         }
         when {
-            opportunity.cachedOnly -> NowNotice("Saved opportunity · reconnect to confirm availability.")
-            opportunity.claimable -> NowPrimaryButton("View opportunity", onOpen, Modifier.fillMaxWidth())
-            else -> NowSecondaryButton("Opportunity filled", {}, Modifier.fillMaxWidth(), enabled = false)
+            opportunity.cachedOnly -> NowNotice("Saved task · reconnect to confirm it is still available.")
+            opportunity.claimable -> NowPrimaryButton("View task", onOpen, Modifier.fillMaxWidth())
+            else -> NowSecondaryButton("Task filled", {}, Modifier.fillMaxWidth(), enabled = false)
         }
     }
 }
@@ -347,7 +354,7 @@ private fun OpportunityAvailability(
             NowStatusChip(
                 label = "AVAILABLE",
                 tone = NowStatusTone.LIVE,
-                accessibilityLabel = "Opportunity available",
+                accessibilityLabel = "Task available",
             )
         }
 
@@ -355,7 +362,7 @@ private fun OpportunityAvailability(
             NowStatusChip(
                 label = "FILLED",
                 tone = NowStatusTone.STALE,
-                accessibilityLabel = "Opportunity filled",
+                accessibilityLabel = "Task filled",
             )
         }
     }
@@ -424,26 +431,26 @@ private fun EarnNoticeCard(
 ) {
     val message = when (notice) {
         EarnNotice.AREA_REQUIRED ->
-            "Choose a browse area to see nearby earning opportunities."
+            "Choose an area to see nearby paid tasks."
         EarnNotice.AUTH_REQUIRED ->
-            "Earning opportunities are unavailable until a session is ready."
+            "Paid tasks are unavailable until your session is ready."
         EarnNotice.NETWORK_UNAVAILABLE ->
             if (hasCachedContent) {
                 "Live connection unavailable · saved opportunities are shown."
             } else {
-                "Earning opportunities are unavailable right now."
+                "Paid tasks are unavailable right now."
             }
         EarnNotice.SERVER_UNAVAILABLE ->
             if (hasCachedContent) {
-                "Live opportunity service is temporarily unavailable · saved items are shown."
+                "Live task service is temporarily unavailable · saved items are shown."
             } else {
-                "Opportunity service is temporarily unavailable."
+                "Task service is temporarily unavailable."
             }
         EarnNotice.DATA_UNAVAILABLE ->
             if (hasCachedContent) {
-                "Some opportunity details could not be refreshed."
+                "Some task details could not be refreshed."
             } else {
-                "Opportunity data could not be loaded."
+                "Task data could not be loaded."
             }
         EarnNotice.NONE -> return
     }
@@ -468,7 +475,7 @@ private fun OpportunityLoadingCard() {
             .fillMaxWidth()
             .height(220.dp)
             .clearAndSetSemantics {
-                contentDescription = "Loading earning opportunity"
+                contentDescription = "Loading paid task"
             },
         shape = MaterialTheme.shapes.large,
         color = NowColors.SurfacePrimary,
@@ -516,12 +523,12 @@ private fun EmptyEarnState(
                 verticalArrangement = Arrangement.spacedBy(NowSpacing.Space1),
             ) {
                 Text(
-                    text = "Nothing nearby needs fresh proof",
+                    text = "No paid tasks nearby right now",
                     style = NowType.TitleS,
                     color = NowColors.Ink950,
                 )
                 Text(
-                    text = "New earning opportunities appear when nearby states become stale or need another verified observation.",
+                    text = "Keep availability on while NOW is open. New tasks appear when someone nearby needs fresh proof.",
                     style = NowType.BodyM,
                     color = NowColors.Ink500,
                 )

@@ -9,7 +9,7 @@ enum class AskNeed(val key: String, val locationType: String, val title: String,
     PARKING("parking.available_spaces.v1", "PARKING", "Parking availability", "How many parking spaces are available?"),
     GATE("gate.open_closed.v1", "GATE", "Gate access", "Is this gate open or closed?"),
     VISUAL("visual.current_condition.v1", "PLACE", "Current condition", "What does this place look like now?"),
-    OTHER("visual.current_condition.v1", "PLACE", "Other question", "Ask for a fresh photo and on-site update"),
+    OTHER("visual.current_condition.v1", "PLACE", "Ask your own question", "Type exactly what you want someone there to verify"),
 }
 
 data class AskDraft(
@@ -18,11 +18,12 @@ data class AskDraft(
     val need: AskNeed? = null,
     val key: String = UUID.randomUUID().toString(),
     val customQuestion: String = "",
+    val displayAddress: String = "",
 ) {
     val targetReady: Boolean get() = name.trim().length in 1..120 && target?.valid == true
     val question: String get() = if (need == AskNeed.OTHER) customQuestion.trim() else need?.question.orEmpty()
     val needReady: Boolean get() = need != null && (need != AskNeed.OTHER || question.length in 8..200)
-    fun searching(): AskDraft = copy(name = "", target = null)
+    fun searching(): AskDraft = copy(name = "", target = null, displayAddress = "")
     fun payload(): JsonObject {
         check(targetReady && needReady)
         val selectedTarget = requireNotNull(target)
@@ -31,6 +32,7 @@ data class AskDraft(
             put("location", buildJsonObject {
                 put("name", name.trim()); put("lat", selectedTarget.latitude)
                 put("lng", selectedTarget.longitude); put("location_type", selectedNeed.locationType)
+                if (displayAddress.isNotBlank()) put("display_address", displayAddress.trim())
             })
             put("policy_template_key", selectedNeed.key)
             if (selectedNeed == AskNeed.OTHER) put("custom_question", question)

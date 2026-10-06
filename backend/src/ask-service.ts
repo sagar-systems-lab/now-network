@@ -160,13 +160,20 @@ export class PostgresAskService implements AskApi {
           }
         }
         let locationId: string;
-        if (matches[0]) locationId = String(matches[0].location_id);
-        else {
+        if (matches[0]) {
+          locationId = String(matches[0].location_id);
+          if (input.location.display_address) {
+            await tx`update app.locations set
+              display_address=coalesce(display_address,${input.location.display_address})
+              where location_id=${locationId}::uuid`;
+          }
+        } else {
           await this.rate(tx, actor.actorId, "new_location", ASK_CONFIG.locationsPerDay, 86400);
           locationId = crypto.randomUUID();
-          await tx`insert into app.locations(location_id,name,location_type,center,ask_fingerprint)
+          await tx`insert into app.locations(location_id,name,location_type,center,display_address,ask_fingerprint)
             values (${locationId}::uuid,${input.location.name},${input.location.location_type},
-            extensions.st_setsrid(extensions.st_makepoint(${input.location.lng},${input.location.lat}),4326)::extensions.geography,${fingerprint})`;
+            extensions.st_setsrid(extensions.st_makepoint(${input.location.lng},${input.location.lat}),4326)::extensions.geography,
+            ${input.location.display_address},${fingerprint})`;
         }
         const states =
           await tx`select state_id,status from app.state_definitions where location_id=${locationId}::uuid

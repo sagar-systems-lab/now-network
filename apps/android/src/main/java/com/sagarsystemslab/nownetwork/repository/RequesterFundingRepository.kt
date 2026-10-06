@@ -212,8 +212,16 @@ class DefaultRequesterFundingRepository @Inject constructor(
 
             WalletResult.NoWalletFound -> throw RequesterFundingFailure.WalletUnavailable()
             WalletResult.Busy -> throw RequesterFundingFailure.WalletBusy()
+            is WalletResult.ProtocolFailure -> {
+                val ready = prepared.operation.copy(
+                    localState = STATE_READY_FOR_WALLET,
+                    updatedAtMs = serverClock.nowMillis(),
+                )
+                operationDao.upsert(ready)
+                throw RequesterFundingFailure.Wallet(result.reason)
+            }
+
             is WalletResult.AssociationFailure,
-            is WalletResult.ProtocolFailure,
             is WalletResult.UnknownFailure -> {
                 val reconciling = prepared.operation.copy(
                     localState = STATE_RECONCILING,

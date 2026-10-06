@@ -41,7 +41,7 @@ class AskComposerInstrumentedTest {
             AskComposerScreen(state,{}, {},{}, {},{ gpsCalls++ },{}, { continued++ },{})
         } }
         compose.runOnIdle { assertEquals(0,continued); assertEquals(0,gpsCalls) }
-        scrollToText("Continue to reward").performClick()
+        scrollToText("Next · choose reward").performClick()
         compose.runOnIdle { assertEquals(1,continued); assertEquals(0,gpsCalls) }
     }
 
@@ -55,7 +55,7 @@ class AskComposerInstrumentedTest {
                 { state=state.copy(stage=it) },{ gpsCalls++ },{}, {},{},
                 onQuestion={ state=state.copy(draft=state.draft.copy(customQuestion=it)) })
         } }
-        scrollToText("Choose other question").performClick()
+        scrollToText("Choose ask your own question").performClick()
         scrollToText("Preview request").assertIsNotEnabled()
         compose.onNodeWithTag("ask-composer").performScrollToNode(hasTestTag("ask-custom-question"))
         compose.onNodeWithTag("ask-custom-question").performTextInput(question)

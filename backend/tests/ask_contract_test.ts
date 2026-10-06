@@ -43,6 +43,32 @@ Deno.test("ASK identity normalizes equivalent labels and retains distinct nearby
   );
 });
 
+Deno.test("ASK preserves a bounded human-readable display address", () => {
+  const parsed = parseAsk({
+    ...input(),
+    location: {
+      ...input().location,
+      display_address: "  Sector 7, Faridabad, Haryana  ",
+    },
+  }, now);
+  assert(
+    parsed.location.display_address === "Sector 7, Faridabad, Haryana",
+    "address normalization failed",
+  );
+  rejects(() =>
+    parseAsk({
+      ...input(),
+      location: { ...input().location, display_address: "x".repeat(251) },
+    }, now)
+  );
+  rejects(() =>
+    parseAsk({
+      ...input(),
+      location: { ...input().location, display_address: "Hidden\u200b address" },
+    }, now)
+  );
+});
+
 Deno.test("custom photo questions are bounded and keep their own identity", async () => {
   const base = {
     ...input(),

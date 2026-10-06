@@ -143,28 +143,30 @@ fun EvidenceCaptureScreen(
     }
 
     TransactionPage(
-        title = "Capture evidence",
+        title = "Capture proof",
         subtitle = when (uiState.stage) {
-            EvidenceCaptureStage.CAMERA -> "Step 1 · Take a clear photo"
-            EvidenceCaptureStage.VIDEO -> "Step 2 · Record 3–15 seconds"
-            EvidenceCaptureStage.REVIEW -> "Review your observation"
-            EvidenceCaptureStage.SUBMITTING, EvidenceCaptureStage.QUEUED -> "Submit your proof"
-            else -> "Fresh proof, captured on site"
+            EvidenceCaptureStage.READY -> "Before you start · allow camera and location"
+            EvidenceCaptureStage.CAMERA -> "Step 1 of 3 · Take a clear photo"
+            EvidenceCaptureStage.VIDEO -> "Step 2 of 3 · Record a 3–15 second video"
+            EvidenceCaptureStage.REVIEW -> "Step 3 of 3 · Answer, review and submit"
+            EvidenceCaptureStage.SUBMITTING, EvidenceCaptureStage.QUEUED -> "Sending your proof safely"
+            EvidenceCaptureStage.SUBMITTED -> "Proof sent"
+            else -> "Fresh proof from the exact place"
         },
         tag = "screen-evidence-capture",
         onBack = onBack,
         footer = {
             when (uiState.stage) {
                 EvidenceCaptureStage.READY, EvidenceCaptureStage.ERROR -> NowPrimaryButton(
-                    if (uiState.stage == EvidenceCaptureStage.ERROR) "Try again" else "Start fresh capture",
+                    if (uiState.stage == EvidenceCaptureStage.ERROR) "Try again" else "Start proof",
                     ::requestCapturePermissions, Modifier.fillMaxWidth())
-                EvidenceCaptureStage.CAMERA -> NowPrimaryButton("Capture now", {
+                EvidenceCaptureStage.CAMERA -> NowPrimaryButton("Take photo", {
                     takingPhoto = true
                     uiState.localFilePath?.let { path -> cameraController?.capture(File(path), onPhotoCaptured, { takingPhoto=false; onCameraError() }) }
                 }, Modifier.fillMaxWidth(), enabled = !takingPhoto && cameraController != null && uiState.localFilePath != null)
                 EvidenceCaptureStage.REVIEW -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     NowSecondaryButton("Retake", onRecapture, Modifier.weight(1f))
-                    NowPrimaryButton("Submit evidence", onSubmit, Modifier.weight(1f).testTag("submit-evidence"), enabled = uiState.canSubmit)
+                    NowPrimaryButton("Submit proof", onSubmit, Modifier.weight(1f).testTag("submit-evidence"), enabled = uiState.canSubmit)
                 }
                 EvidenceCaptureStage.QUEUED -> NowSecondaryButton("Check submission", onRetry, Modifier.fillMaxWidth())
                 EvidenceCaptureStage.SUBMITTED -> NowPrimaryButton("Check verification", onContinueVerification, Modifier.fillMaxWidth())
@@ -177,8 +179,8 @@ fun EvidenceCaptureScreen(
         when (uiState.stage) {
             EvidenceCaptureStage.LOADING -> {
                 EvidenceProcessCard(
-                    title = "Loading proof requirements",
-                    body = "Checking your active claim and any capture already saved on this device.",
+                    title = "Checking your task",
+                    body = "Loading the question, proof requirements and any capture already saved on this phone.",
                     progress = true,
                 )
             }
@@ -190,9 +192,9 @@ fun EvidenceCaptureScreen(
 
             EvidenceCaptureStage.PREPARING -> {
                 EvidenceProcessCard(
-                    title = "Preparing secure capture",
+                    title = "Getting the camera ready",
                     body = uiState.message
-                        ?: "Binding a one-time evidence challenge before the camera opens.",
+                        ?: "Preparing a fresh one-time capture for this task.",
                     progress = true,
                 )
             }
@@ -226,9 +228,9 @@ fun EvidenceCaptureScreen(
 
             EvidenceCaptureStage.PROCESSING -> {
                 EvidenceProcessCard(
-                    title = "Securing local evidence",
+                    title = "Saving your photo",
                     body = uiState.message
-                        ?: "Computing integrity metadata before the evidence can be reviewed.",
+                        ?: "Keeping the fresh capture safe before you review it.",
                     progress = true,
                 )
             }
@@ -246,13 +248,13 @@ fun EvidenceCaptureScreen(
 
             EvidenceCaptureStage.SUBMITTING -> {
                 EvidenceProcessCard(
-                    title = "Submitting evidence",
+                    title = "Sending your proof",
                     body = uiState.message
-                        ?: "Uploading the captured bytes and committing their integrity metadata.",
+                        ?: "Uploading the photo, video, answer and location proof.",
                     progress = true,
                 )
                 NowNotice(
-                    body = "Keep this screen open if possible. If connectivity drops, the saved evidence can resume safely.",
+                    body = "Keep this screen open if possible. If the internet drops, your saved proof can retry safely.",
                     tone = NowNoticeTone.NEUTRAL,
                 )
             }
@@ -451,7 +453,7 @@ private fun PermissionCard(
                 )
             }
             NowNotice(
-                body = "Permissions are requested only when you start this task, not at app launch.",
+                body = "NOW asks for these permissions only when you start the task. Camera captures proof; precise location confirms you are at the requested place.",
                 tone = NowNoticeTone.NEUTRAL,
             )
         }
@@ -555,7 +557,7 @@ private fun EvidenceReview(
                 color = NowColors.Ink950,
             )
             Text(
-                text = "Make sure the capture is clear, recent, and answers the live question.",
+                text = "Check the photo/video and answer the requester’s question. If anything looks wrong, retake it now.",
                 style = NowType.BodyM,
                 color = NowColors.Ink600,
             )
@@ -567,7 +569,7 @@ private fun EvidenceReview(
                     value = uiState.answer,
                     onValueChange = onAnswerChange,
                     label = "Answer",
-                    supportingText = "Enter the value visible in your fresh observation.",
+                    supportingText = "Enter the number you can see at the place right now.",
                     modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Number,
@@ -612,10 +614,10 @@ private fun EvidenceReview(
             }
 
             "VISUAL" -> {
-                NowTextField(uiState.answer,onAnswerChange,"Your on-site observation",supportingText="Describe what you can see · up to 500 characters",singleLine=false)
+                NowTextField(uiState.answer,onAnswerChange,"Answer the requester",supportingText="Write a short, plain answer based on what you can see right now · up to 500 characters",singleLine=false)
                 NowNotice(
-                    body = if(uiState.videoRequired) "Your fresh photo and video show the place. Add a short answer to the requester’s question."
-                        else "Your fresh photo shows the place. Add a short answer to the requester’s question.",
+                    body = if(uiState.videoRequired) "Your photo and short video are ready. Add the on-site answer before submitting."
+                        else "Your fresh photo is ready. Add the on-site answer before submitting.",
                     tone = NowNoticeTone.INFO,
                 )
             }
