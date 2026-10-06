@@ -13,11 +13,13 @@ import com.sagarsystemslab.nownetwork.repository.EvidenceCaptureRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 
 enum class EvidenceCaptureStage {
     LOADING,
@@ -88,7 +90,14 @@ class EvidenceCaptureViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                applyRecovery(repository.load(acceptanceId, refreshId))
+                applyRecovery(withTimeout(OPERATION_WAIT_MS) { repository.load(acceptanceId, refreshId) })
+            } catch (_: TimeoutCancellationException) {
+                mutableState.update {
+                    it.copy(
+                        stage = EvidenceCaptureStage.ERROR,
+                        message = "Task check timed out after 30 seconds. Try again.",
+                    )
+                }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
@@ -109,8 +118,15 @@ class EvidenceCaptureViewModel @Inject constructor(
                 )
             }
             try {
-                val draft = repository.begin(acceptanceId, refreshId)
+                val draft = withTimeout(OPERATION_WAIT_MS) { repository.begin(acceptanceId, refreshId) }
                 enterCamera(draft)
+            } catch (_: TimeoutCancellationException) {
+                mutableState.update {
+                    it.copy(
+                        stage = EvidenceCaptureStage.READY,
+                        message = "Proof setup timed out after 30 seconds. Try again; no proof was submitted.",
+                    )
+                }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
@@ -299,7 +315,7 @@ class EvidenceCaptureViewModel @Inject constructor(
                     )
                 }
 
-                val result = repository.submit(evidenceId)
+                val result = withTimeout(OPERATION_WAIT_MS) { repository.submit(evidenceId) }
                 workScheduler.cancel(evidenceId)
 
                 mutableState.update {
@@ -311,6 +327,13 @@ class EvidenceCaptureViewModel @Inject constructor(
                             "Evidence committed successfully."
                         },
                         nextStep = result.evidence.nextStep,
+                    )
+                }
+            } catch (_: TimeoutCancellationException) {
+                mutableState.update {
+                    it.copy(
+                        stage = EvidenceCaptureStage.QUEUED,
+                        message = "Submission check timed out after 30 seconds. Your proof is saved and retry remains queued.",
                     )
                 }
             } catch (error: CancellationException) {
@@ -355,7 +378,14 @@ class EvidenceCaptureViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                applyRecovery(repository.load(acceptanceId, refreshId))
+                applyRecovery(withTimeout(OPERATION_WAIT_MS) { repository.load(acceptanceId, refreshId) })
+            } catch (_: TimeoutCancellationException) {
+                mutableState.update {
+                    it.copy(
+                        stage = if (it.evidenceId != null) EvidenceCaptureStage.QUEUED else EvidenceCaptureStage.ERROR,
+                        message = "Submission check timed out after 30 seconds. Try again.",
+                    )
+                }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
@@ -484,6 +514,10 @@ class EvidenceCaptureViewModel @Inject constructor(
                 message = message,
             )
         }
+    }
+
+    private companion object {
+        const val OPERATION_WAIT_MS = 30_000L
     }
 
     private fun showFailure(
