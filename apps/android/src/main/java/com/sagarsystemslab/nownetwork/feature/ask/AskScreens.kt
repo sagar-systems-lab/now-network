@@ -213,7 +213,7 @@ fun AskComposerScreen(
                             else -> "Coverage uses a recent opted-in contributor location. Contributors very close to the requester are excluded."
                         },style=NowType.BodyS,color=NowColors.Ink600)
                         NowSecondaryButton(if(state.checking) "Checking coverage…" else "Check coverage",{
-                            permission.launch(availabilityPermissions())
+                            permission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.ACCESS_COARSE_LOCATION))
                         },Modifier.fillMaxWidth(),enabled=!state.checking && !state.busy)
                         Text("Your location only filters coverage; it doesn't move the target pin.",style=NowType.BodyS,color=NowColors.Ink600)
                     }
