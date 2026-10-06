@@ -21,7 +21,7 @@ export const ASK_CONFIG = Object.freeze({
 export type Point = { lat: number; lng: number };
 export type RequesterLocation = Point & { accuracy_m: number; captured_at: string };
 export type AskInput = {
-  location: Point & { name: string; location_type: string };
+  location: Point & { name: string; location_type: string; display_address: string | null };
   policy_template_key: string;
   requester_location: RequesterLocation | null;
   custom_question: string | null;
@@ -95,6 +95,12 @@ export function parseAsk(body: Record<string, unknown>, now: Date): AskInput {
   const template = ASK_TEMPLATES[key as keyof typeof ASK_TEMPLATES];
   const name = requiredString(location, "name", 120).normalize("NFKC").replace(/\s+/gu, " ").trim();
   if (!name || name.length > 120 || /[\p{Cc}\p{Cf}]/u.test(name)) invalid("name");
+  const displayAddress = location.display_address == null
+    ? null
+    : requiredString(location, "display_address", 250).normalize("NFKC").replace(/\s+/gu, " ").trim();
+  if (displayAddress !== null && (!displayAddress || /[\p{Cc}\p{Cf}]/u.test(displayAddress))) {
+    invalid("display_address");
+  }
   if (location.location_type !== template.type) invalid("location_type");
   const customQuestion = body.custom_question == null
     ? null
@@ -107,7 +113,7 @@ export function parseAsk(body: Record<string, unknown>, now: Date): AskInput {
     invalid("custom_question");
   }
   return {
-    location: { ...point(location), name, location_type: template.type },
+    location: { ...point(location), name, location_type: template.type, display_address: displayAddress },
     policy_template_key: key,
     requester_location: requesterLocation(body.requester_location, now),
     custom_question: customQuestion,
