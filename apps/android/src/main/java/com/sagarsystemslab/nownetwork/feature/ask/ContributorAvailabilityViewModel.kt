@@ -37,7 +37,7 @@ class ContributorAvailabilityViewModel @Inject constructor(
     fun foreground(value: Boolean) {
         foreground=value
         if(value && mutable.value.enabled) start()
-        else if(!value) disable()
+        else if(!value) pause()
     }
     fun enable() {
         if(!foreground) return
@@ -48,8 +48,11 @@ class ContributorAvailabilityViewModel @Inject constructor(
         disable()
         mutable.value=AvailabilityUiState(false,AvailabilityStatus.PERMISSION_REQUIRED)
     }
-    fun disable() {
+    private fun pause() {
         heartbeat?.cancel(); heartbeat=null
+    }
+    fun disable() {
+        pause()
         val wasEnabled=mutable.value.enabled
         mutable.value=AvailabilityUiState()
         if(wasEnabled) viewModelScope.launch {
