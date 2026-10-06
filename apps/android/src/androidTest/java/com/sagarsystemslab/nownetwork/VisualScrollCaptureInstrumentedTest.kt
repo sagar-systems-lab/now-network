@@ -13,7 +13,6 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import java.io.File
-import org.junit.Assume.assumeTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -26,7 +25,7 @@ class VisualScrollCaptureInstrumentedTest {
     @Test
     fun captureScrollableContent() {
         val args = InstrumentationRegistry.getArguments()
-        assumeTrue("Run through capture-visuals.sh", args.getString("visualCapture") == "true")
+        if (args.getString("visualCapture") != "true") return
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val context = instrumentation.targetContext
         val output = File(context.getExternalFilesDir(null), "visual-scroll").apply { mkdirs() }
