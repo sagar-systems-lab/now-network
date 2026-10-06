@@ -117,7 +117,7 @@ fun AskComposerScreen(
             }
             AskStage.NEED -> {
                 item { NowSectionTitle("What do you need to know?",state.draft.name) }
-                AskNeed.entries.forEach { need -> item {
+                listOf(AskNeed.OTHER, AskNeed.PARKING, AskNeed.GATE, AskNeed.VISUAL).forEach { need -> item {
                     NowGlassCard(emphasized=state.draft.need==need) {
                         Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                             LuminousIcon(when(need) { AskNeed.PARKING -> Icons.Outlined.LocalParking; AskNeed.GATE -> Icons.Outlined.MeetingRoom; AskNeed.VISUAL -> Icons.Outlined.PhotoCamera; AskNeed.OTHER -> Icons.Outlined.QuestionAnswer },Modifier.size(44.dp))
@@ -132,9 +132,18 @@ fun AskComposerScreen(
                 } }
                 if(state.draft.need==AskNeed.OTHER) item {
                     NowGlassCard(emphasized=true) {
+                        NowSectionTitle("Write the exact question", "The contributor sees this wording on site.")
                         NowTextField(state.draft.customQuestion,onQuestion,"Your question",Modifier.testTag("ask-custom-question"),
-                            supportingText="Ask something visible at this place, e.g. How long is the queue at the main entrance?",singleLine=false)
-                        Text("${state.draft.customQuestion.length}/200 · A fresh photo, short video and on-site answer are required.",style=NowType.BodyS,color=NowColors.Ink600)
+                            supportingText="Example: Is there a long queue at the main entrance right now?",singleLine=false)
+                        Text("${state.draft.customQuestion.length}/200",style=NowType.BodyS,color=NowColors.Ink600)
+                    }
+                }
+                item {
+                    NowGlassCard {
+                        NowSectionTitle("Proof requirements", "Locked for this demo so every answer has the same minimum evidence.")
+                        ExperienceRow("Fresh photo + 3–15s video","Captured inside NOW at the requested place",Icons.Outlined.PhotoCamera)
+                        ExperienceRow("Precise on-site location","Bound to the fresh capture",Icons.Outlined.LocationOn)
+                        ExperienceRow("Direct answer","The contributor must answer your question before submitting",Icons.Outlined.Assignment)
                     }
                 }
                 item { NowPrimaryButton("Preview request",{ focus.clearFocus(); onStage(AskStage.PREVIEW) },Modifier.fillMaxWidth(),enabled=state.draft.needReady) }
@@ -162,7 +171,11 @@ fun AskComposerScreen(
                             "NO_COVERAGE" -> "No eligible contributors available right now"
                             else -> "Coverage hasn't been checked"
                         },style=NowType.BodyM,color=NowColors.Ink950)
-                        Text("Contributors within 100 m of you are excluded in every direction. Only a recent, opted-in location counts. Coverage can change.",style=NowType.BodyS,color=NowColors.Ink600)
+                        Text(when(coverage?.text("status")) {
+                            "AVAILABLE" -> "Coverage is live near the target. It can change before funding."
+                            "NO_COVERAGE" -> "Ask can still continue. On the contributor phone, open EARN and tap Go available near me while within about 2 km of this pin."
+                            else -> "Coverage uses a recent opted-in contributor location. Contributors very close to the requester are excluded."
+                        },style=NowType.BodyS,color=NowColors.Ink600)
                         NowSecondaryButton(if(state.checking) "Checking coverage…" else "Check coverage",{
                             permission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.ACCESS_COARSE_LOCATION))
                         },Modifier.fillMaxWidth(),enabled=!state.checking && !state.busy)
@@ -190,16 +203,24 @@ fun ContributorAvailabilityCard(state: AvailabilityUiState,onEnable: ()->Unit,on
             Column(Modifier.weight(1f)) {
                 Text("Available nearby",style=NowType.TitleS,color=NowColors.Ink950)
                 Text(when(state.status) {
-                    AvailabilityStatus.OFF -> "Off · choose when you're ready"
+                    AvailabilityStatus.OFF -> "Off · turn this on to receive nearby ASK tasks"
                     AvailabilityStatus.LOCATING -> "Getting your current location…"
-                    AvailabilityStatus.AVAILABLE -> "On · covering places within 2 km"
-                    AvailabilityStatus.LOW_ACCURACY -> "Location needs better accuracy"
+                    AvailabilityStatus.AVAILABLE -> "LIVE · covering request pins within 2 km"
+                    AvailabilityStatus.LOW_ACCURACY -> "Location needs better accuracy · move into open sky"
                     AvailabilityStatus.PERMISSION_REQUIRED -> "Precise location permission needed"
-                    AvailabilityStatus.OFFLINE -> "Connection or location unavailable"
+                    AvailabilityStatus.OFFLINE -> "Connection or location unavailable · retry"
                 },style=NowType.BodyS,color=NowColors.Ink600)
             }
             Switch(state.enabled,{ enabled -> if(enabled) permission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.ACCESS_COARSE_LOCATION)) else onDisable() })
         }
-        Text("Share temporary coverage while the app is open. Turns off in the background. Your exact position is never shown to requesters.",style=NowType.BodyS,color=NowColors.Ink600)
+        Text("Your exact position is never shown to requesters. Brief app switches keep the last presence for a short grace period; returning to NOW refreshes it.",style=NowType.BodyS,color=NowColors.Ink600)
+        if(state.status != AvailabilityStatus.AVAILABLE && !state.enabled) {
+            NowPrimaryButton("Go available near me",{
+                permission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.ACCESS_COARSE_LOCATION))
+            },Modifier.fillMaxWidth())
+        }
+        if(state.status == AvailabilityStatus.AVAILABLE) {
+            NowNotice("You are visible to nearby ASK coverage now.",tone=NowNoticeTone.SUCCESS)
+        }
     }
 }
