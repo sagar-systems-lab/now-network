@@ -9,10 +9,12 @@ import com.sagarsystemslab.nownetwork.repository.VerificationRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonElement
 
 enum class VerificationStage {
@@ -68,11 +70,16 @@ class VerificationViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                val outcome = repository.verify(refreshId)
+                val outcome = withTimeout(OPERATION_WAIT_MS) { repository.verify(refreshId) }
                 if (outcome.result == "VERIFIED") {
                     paymentRepository.prime(outcome.refreshId)
                 }
                 apply(outcome)
+            } catch (_: TimeoutCancellationException) {
+                mutableState.value = mutableState.value.copy(
+                    stage = VerificationStage.ERROR,
+                    message = "Verification check timed out after 30 seconds. Tap Check verification to retry; no duplicate proof is submitted.",
+                )
             } catch (error: CancellationException) {
                 throw error
             } catch (_: VerificationFailure.Expired) {
@@ -92,6 +99,10 @@ class VerificationViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    private companion object {
+        const val OPERATION_WAIT_MS = 30_000L
     }
 
     private fun apply(outcome: VerificationOutcome) {

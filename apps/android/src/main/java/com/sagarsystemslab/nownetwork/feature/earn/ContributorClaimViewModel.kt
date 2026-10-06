@@ -13,6 +13,8 @@ import com.sagarsystemslab.nownetwork.wallet.WalletInteractionHost
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -26,9 +28,11 @@ enum class ContributorClaimStage {
     READY_FOR_WALLET,
     SUBMITTING,
     CONFIRMING,
+    WALLET_OUTCOME_UNKNOWN,
     CLAIMED,
     EVIDENCE_COMMITTED,
     ERROR,
+    UNAVAILABLE,
 }
 
 data class ContributorClaimUiState(
@@ -54,10 +58,6 @@ class ContributorClaimViewModel @Inject constructor(
     private var openJob: kotlinx.coroutines.Job? = null
 
     fun open(refreshId: String) {
-        if (mutableState.value.refreshId == refreshId && mutableState.value.opportunity != null) {
-            return
-        }
-
         prepared = null
         mutableState.value = ContributorClaimUiState(
             refreshId = refreshId,
@@ -67,7 +67,7 @@ class ContributorClaimViewModel @Inject constructor(
         openJob?.cancel()
         openJob = viewModelScope.launch {
             try {
-                val entry = recoverClaimEntry(repository, refreshId)
+                val entry = withTimeout(OPERATION_WAIT_MS) { recoverClaimEntry(repository, refreshId) }
                 if (mutableState.value.refreshId != refreshId) return@launch
                 if (entry.recovery != ClaimReconciliation.None) {
                     applyReconciliation(entry.recovery)
@@ -75,12 +75,13 @@ class ContributorClaimViewModel @Inject constructor(
                     val opportunity = requireNotNull(entry.opportunity)
                     mutableState.update { it.copy(
                         opportunity = opportunity,
-                        stage = if (opportunity.availability.claimable) ContributorClaimStage.REVIEW else ContributorClaimStage.ERROR,
+                        stage = if (opportunity.availability.claimable) ContributorClaimStage.REVIEW else ContributorClaimStage.UNAVAILABLE,
                         message = if (opportunity.availability.claimable) null else "This opportunity is no longer available.",
                         canPrepare = opportunity.availability.claimable,
                     ) }
                 }
-            } catch (error: CancellationException) { throw error }
+            } catch (error: TimeoutCancellationException) { showError(ContributorClaimFailure.Network(error)) }
+            catch (error: CancellationException) { throw error }
             catch (error: Exception) {
                 if (mutableState.value.refreshId == refreshId) showError(error)
             }
@@ -107,7 +108,7 @@ class ContributorClaimViewModel @Inject constructor(
             }
 
             try {
-                val result = repository.prepareNew(host, refreshId)
+                val result = withTimeout(OPERATION_WAIT_MS) { repository.prepareNew(host, refreshId) }
                 prepared = result
                 mutableState.update {
                     it.copy(
@@ -118,6 +119,8 @@ class ContributorClaimViewModel @Inject constructor(
                         canPrepare = false,
                     )
                 }
+            } catch (error: TimeoutCancellationException) {
+                showError(ContributorClaimFailure.Network(error))
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
@@ -139,7 +142,9 @@ class ContributorClaimViewModel @Inject constructor(
             }
 
             try {
-                applyReconciliation(repository.submit(host, current))
+                applyReconciliation(withTimeout(OPERATION_WAIT_MS) { repository.submit(host, current) })
+            } catch (error: TimeoutCancellationException) {
+                showError(ContributorClaimFailure.Network(error))
             } catch (error: CancellationException) {
                 throw error
             } catch (error: ContributorClaimFailure.WalletRejected) {
@@ -159,6 +164,7 @@ class ContributorClaimViewModel @Inject constructor(
         val refreshId = mutableState.value.refreshId ?: return
         if (mutableState.value.stage !in setOf(
                 ContributorClaimStage.CONFIRMING,
+                ContributorClaimStage.WALLET_OUTCOME_UNKNOWN,
                 ContributorClaimStage.ERROR,
             )
         ) {
@@ -173,7 +179,9 @@ class ContributorClaimViewModel @Inject constructor(
                 )
             }
             try {
-                applyReconciliation(repository.recover(refreshId))
+                applyReconciliation(withTimeout(OPERATION_WAIT_MS) { repository.recover(refreshId) })
+            } catch (error: TimeoutCancellationException) {
+                showError(ContributorClaimFailure.Network(error))
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
@@ -227,6 +235,13 @@ class ContributorClaimViewModel @Inject constructor(
                 }
             }
 
+            ClaimReconciliation.WalletOutcomeUnknown -> {
+                mutableState.update { it.copy(
+                    stage = ContributorClaimStage.WALLET_OUTCOME_UNKNOWN,
+                    message = "Wallet result is unclear. No transaction signature was received. Check its status; if still pending after 30 seconds, you can retry in the wallet.",
+                ) }
+            }
+
             is ClaimReconciliation.ReadyForWallet -> {
                 prepared = result.prepared
                 mutableState.update {
@@ -234,7 +249,9 @@ class ContributorClaimViewModel @Inject constructor(
                         stage = ContributorClaimStage.READY_FOR_WALLET,
                         walletAddress = result.prepared.wallet.address,
                         claimDurationSeconds = result.prepared.intent.claimDurationSeconds,
-                        message = null,
+                        message = if (result.afterUncertainWallet)
+                            "No claim signature was found on the server. Check wallet activity before retrying."
+                        else null,
                     )
                 }
             }
@@ -280,10 +297,17 @@ class ContributorClaimViewModel @Inject constructor(
 
         mutableState.update {
             it.copy(
-                stage = ContributorClaimStage.ERROR,
+                stage = if (error is ContributorClaimFailure.Expired ||
+                    error is ContributorClaimFailure.Unavailable ||
+                    error is ContributorClaimFailure.Rejected
+                ) ContributorClaimStage.UNAVAILABLE else ContributorClaimStage.ERROR,
                 message = message,
                 canPrepare = canPrepareAgain,
             )
         }
+    }
+
+    private companion object {
+        const val OPERATION_WAIT_MS = 30_000L
     }
 }

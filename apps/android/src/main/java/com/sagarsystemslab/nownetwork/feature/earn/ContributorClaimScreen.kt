@@ -32,12 +32,14 @@ fun ContributorClaimScreen(uiState:ContributorClaimUiState,rewardText:String,onB
             ContributorClaimStage.CLAIMED -> NowPrimaryButton("Start proof capture",onCaptureEvidence,Modifier.fillMaxWidth().testTag("capture-evidence"))
             ContributorClaimStage.EVIDENCE_COMMITTED -> NowPrimaryButton("View verification",onViewVerification,Modifier.fillMaxWidth())
             ContributorClaimStage.CONFIRMING -> NowPrimaryButton("Check existing claim",onCheck,Modifier.fillMaxWidth())
+            ContributorClaimStage.WALLET_OUTCOME_UNKNOWN -> NowPrimaryButton("Check wallet result",onCheck,Modifier.fillMaxWidth())
+            ContributorClaimStage.UNAVAILABLE -> NowPrimaryButton("Return to EARN",onBack,Modifier.fillMaxWidth())
             ContributorClaimStage.ERROR -> NowPrimaryButton(if(uiState.canPrepare) "Try preparing again" else "Check claim status",if(uiState.canPrepare) onPrepare else onCheck,Modifier.fillMaxWidth())
             else -> NowPrimaryButton(if(stage==ContributorClaimStage.SUBMITTING) "Waiting for wallet…" else "Checking availability…",{},Modifier.fillMaxWidth(),enabled=false)
         }
         NowSecondaryButton("Review requirements",{requirements=true},Modifier.fillMaxWidth(),enabled=opportunity!=null)
     }) {
-        if (opportunity == null && stage in setOf(ContributorClaimStage.CLAIMED, ContributorClaimStage.EVIDENCE_COMMITTED, ContributorClaimStage.CONFIRMING, ContributorClaimStage.READY_FOR_WALLET)) {
+        if (opportunity == null && stage in setOf(ContributorClaimStage.CLAIMED, ContributorClaimStage.EVIDENCE_COMMITTED, ContributorClaimStage.CONFIRMING, ContributorClaimStage.WALLET_OUTCOME_UNKNOWN, ContributorClaimStage.READY_FOR_WALLET)) {
             NowGlassCard {
                 Text("Your saved claim", style = NowType.TitleM, color = NowColors.Ink950)
                 Text(if (stage == ContributorClaimStage.EVIDENCE_COMMITTED) "Your proof was submitted. Continue to its authoritative verification status." else "Continue your existing operation. Availability for new claims does not affect recovery.", style = NowType.BodyM, color = NowColors.Ink600)

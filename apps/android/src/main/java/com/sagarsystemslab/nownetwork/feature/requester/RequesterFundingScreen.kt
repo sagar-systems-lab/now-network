@@ -25,6 +25,7 @@ fun RequesterFundingScreen(uiState:RequesterFundingUiState,onBack:()->Unit,onAmo
             RequesterFundingStage.SETUP -> NowPrimaryButton("Review request",onPrepare,Modifier.fillMaxWidth().testTag("review-refresh-funding"),enabled=uiState.rewardConfigured)
             RequesterFundingStage.REVIEW -> NowPrimaryButton("Fund this request",onSubmit,Modifier.fillMaxWidth().testTag("fund-refresh"))
             RequesterFundingStage.CONFIRMING -> NowPrimaryButton("Check existing funding",onCheck,Modifier.fillMaxWidth())
+            RequesterFundingStage.WALLET_OUTCOME_UNKNOWN -> NowPrimaryButton("Check wallet result",onCheck,Modifier.fillMaxWidth())
             RequesterFundingStage.COMPLETE -> NowPrimaryButton("Done",onBack,Modifier.fillMaxWidth())
             else -> NowPrimaryButton(if(stage==RequesterFundingStage.SUBMITTING) "Waiting for wallet…" else "Preparing…",{},Modifier.fillMaxWidth(),enabled=false)
         }

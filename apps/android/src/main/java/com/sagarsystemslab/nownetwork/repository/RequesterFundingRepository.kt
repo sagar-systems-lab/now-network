@@ -22,9 +22,11 @@ import com.sagarsystemslab.nownetwork.wallet.WalletInteractionHost
 import com.sagarsystemslab.nownetwork.wallet.WalletRequestCoordinator
 import com.sagarsystemslab.nownetwork.wallet.WalletResult
 import java.util.UUID
+import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.withTimeoutOrNull
 
 data class PreparedRequesterFunding(
     val operation: ActiveOperationEntity,
@@ -47,6 +49,8 @@ sealed interface FundingReconciliation {
     data class ReadyForWallet(
         val prepared: PreparedRequesterFunding,
     ) : FundingReconciliation
+
+    data class WalletOutcomeUnknown(val operation: ActiveOperationEntity) : FundingReconciliation
 
     data object None : FundingReconciliation
 }
@@ -172,11 +176,18 @@ class DefaultRequesterFundingRepository @Inject constructor(
         host: WalletInteractionHost,
         prepared: PreparedRequesterFunding,
     ): FundingReconciliation {
-        val result = wallet.signAndSend(host, prepared.transaction.bytes)
+        val result = withTimeoutOrNull(WALLET_SIGN_MS) {
+            wallet.signAndSend(host, prepared.transaction.bytes)
+        } ?: WalletResult.UnknownFailure("Wallet did not respond in time.")
 
         when (result) {
             is WalletResult.Success -> {
                 if (result.value.account.address != prepared.wallet.address) {
+                    operationDao.upsert(prepared.operation.copy(
+                        localState = STATE_RECONCILING,
+                        chainSignature = result.value.signatureBase58,
+                        updatedAtMs = serverClock.nowMillis(),
+                    ))
                     throw RequesterFundingFailure.WalletMismatch()
                 }
 
@@ -232,7 +243,10 @@ class DefaultRequesterFundingRepository @Inject constructor(
                 if (recovered !is FundingReconciliation.None) {
                     return recovered
                 }
-                return FundingReconciliation.Confirming(reconciling)
+                if (operationDao.get(reconciling.operationId)?.localState in TERMINAL_STATES) {
+                    return FundingReconciliation.None
+                }
+                return FundingReconciliation.WalletOutcomeUnknown(reconciling)
             }
         }
     }
@@ -252,6 +266,9 @@ class DefaultRequesterFundingRepository @Inject constructor(
         if (operation.localState == STATE_RECONCILING) {
             val recovered = reconcileUnknownSubmission(operation)
             if (recovered !is FundingReconciliation.None) return recovered
+            if (serverClock.nowMillis() - operation.updatedAtMs < WALLET_WAIT_MS) {
+                return FundingReconciliation.WalletOutcomeUnknown(operation)
+            }
         }
 
         return prepareExisting(operation.operationId)
@@ -277,6 +294,14 @@ class DefaultRequesterFundingRepository @Inject constructor(
                 updatedAtMs = serverClock.nowMillis(),
             )
             operationDao.upsert(done)
+            return null
+        }
+        if (refresh.status in setOf("EXPIRED", "CANCELLED", "FAILED") ||
+            runCatching { Instant.parse(refresh.refreshExpiresAt).toEpochMilli() <= serverClock.nowMillis() }
+                .getOrDefault(false)
+        ) {
+            operationDao.upsert(operation.copy(localState = "EXPIRED", remoteState = refresh.status,
+                updatedAtMs = serverClock.nowMillis()))
             return null
         }
 
@@ -440,6 +465,11 @@ class DefaultRequesterFundingRepository @Inject constructor(
             val refresh = withAuthRetry { token ->
                 api.refreshDetail(operation.entityId, token)
             }
+            if (refresh.status in setOf("EXPIRED", "CANCELLED", "FAILED")) {
+                operationDao.upsert(operation.copy(localState = "EXPIRED", remoteState = refresh.status,
+                    updatedAtMs = serverClock.nowMillis()))
+                return FundingReconciliation.None
+            }
             if (refresh.status == "AVAILABLE" || refresh.status == "FUNDED") {
                 val done = operation.copy(
                     localState = STATE_ACKNOWLEDGED,
@@ -542,6 +572,8 @@ class DefaultRequesterFundingRepository @Inject constructor(
         "funding-observe:$operationId:${signature.take(24)}"
 
     private companion object {
+        const val WALLET_SIGN_MS = 30_000L
+        const val WALLET_WAIT_MS = 30_000L
         const val PROFILE_KEY = "default"
         const val OPERATION_TYPE = "REFRESH_FUNDING"
 

@@ -31,7 +31,9 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.selects.select
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 
 class AndroidWalletInteractionHost(
     internal val activity: ComponentActivity,
@@ -86,11 +88,15 @@ class MwaWalletGateway @Inject constructor(
             )
 
         return try {
-            associate(androidHost) { client, _ ->
-                await(client.deauthorize(authToken))
+            withTimeout(WALLET_PROCESS_TIMEOUT_MS) {
+                associate(androidHost) { client, _ ->
+                    await(client.deauthorize(authToken))
+                }
             }
             secrets.remove(authTokenKey())
             WalletResult.Success(Unit)
+        } catch (error: TimeoutCancellationException) {
+            WalletResult.AssociationFailure("Wallet request timed out after 30 seconds.")
         } catch (error: CancellationException) {
             throw error
         } catch (error: ActivityNotFoundException) {
@@ -158,16 +164,22 @@ class MwaWalletGateway @Inject constructor(
             )
 
         return try {
-            val payload = associate(androidHost) { client, sessionProperties ->
-                val auth = authorize(
-                    client = client,
-                    protocolVersion = sessionProperties.protocolVersion,
-                )
-                secrets.write(authTokenKey(), auth.authToken)
-                secrets.remove(LEGACY_AUTH_TOKEN_KEY)
-                operation(client, auth)
+            val payload = withTimeout(WALLET_PROCESS_TIMEOUT_MS) {
+                associate(androidHost) { client, sessionProperties ->
+                    val auth = authorize(
+                        client = client,
+                        protocolVersion = sessionProperties.protocolVersion,
+                    )
+                    secrets.write(authTokenKey(), auth.authToken)
+                    secrets.remove(LEGACY_AUTH_TOKEN_KEY)
+                    operation(client, auth)
+                }
             }
             WalletResult.Success(payload)
+        } catch (error: TimeoutCancellationException) {
+            WalletResult.AssociationFailure(
+                "Wallet request timed out after 30 seconds. Return to NOW and retry.",
+            )
         } catch (error: CancellationException) {
             throw error
         } catch (error: ActivityNotFoundException) {
@@ -427,8 +439,9 @@ class MwaWalletGateway @Inject constructor(
 
     private companion object {
         const val LEGACY_AUTH_TOKEN_KEY = "mwa.auth.token.v1"
-        const val ASSOCIATION_START_TIMEOUT_SECONDS = 60L
+        const val ASSOCIATION_START_TIMEOUT_SECONDS = 30L
         const val ASSOCIATION_CLOSE_TIMEOUT_SECONDS = 3L
+        const val WALLET_PROCESS_TIMEOUT_MS = 30_000L
         const val BASE58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
     }
 }

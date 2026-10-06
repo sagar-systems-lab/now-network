@@ -17,6 +17,7 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
 
 data class EvidenceLocationSample(
     val latitude: Double,
@@ -57,7 +58,7 @@ class FusedEvidenceLocationProvider @Inject constructor(
         }
 
         val fresh = try {
-            currentLocation()
+            withTimeoutOrNull(LOCATION_WAIT_MS) { currentLocation() }
         } catch (error: CancellationException) {
             throw error
         } catch (_: Exception) {
@@ -65,7 +66,7 @@ class FusedEvidenceLocationProvider @Inject constructor(
         }
 
         val location = fresh ?: try {
-            lastLocation()
+            withTimeoutOrNull(LOCATION_WAIT_MS) { lastLocation() }
         } catch (error: CancellationException) {
             throw error
         } catch (error: Exception) {
@@ -126,6 +127,7 @@ class FusedEvidenceLocationProvider @Inject constructor(
             }
         }
     private companion object {
+        const val LOCATION_WAIT_MS = 30_000L
         const val MAX_LAST_LOCATION_AGE_MS = 30_000L
     }
 }
