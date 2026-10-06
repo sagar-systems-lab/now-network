@@ -92,6 +92,7 @@ class EarnViewModel @Inject constructor(
     private var sessionReady = false
     private var initialRefreshStarted = false
     private var knownOpportunityIds: Set<String>? = null
+    private var liveAlertsEnabled = false
 
     init {
         viewModelScope.launch {
@@ -129,7 +130,7 @@ class EarnViewModel @Inject constructor(
         viewModelScope.launch {
             while (true) {
                 delay(LIVE_POLL_INTERVAL_MS)
-                if (sessionReady && browseArea.configured && !mutableState.value.refreshing && !mutableState.value.loadingMore) {
+                if (liveAlertsEnabled && sessionReady && browseArea.configured && !mutableState.value.refreshing && !mutableState.value.loadingMore) {
                     refresh()
                 }
             }
@@ -194,6 +195,13 @@ class EarnViewModel @Inject constructor(
 
     fun refresh() = refreshQuery(mutableState.value.sort, mutableState.value.category)
 
+    fun liveAlerts(enabled: Boolean) {
+        if (enabled == liveAlertsEnabled) return
+        liveAlertsEnabled = enabled
+        knownOpportunityIds = null
+        if (enabled && sessionReady && browseArea.configured) refresh()
+    }
+
     fun selectSort(sort: EarnSort) = refreshQuery(sort, mutableState.value.category)
 
     fun selectCategory(category: String?) = refreshQuery(mutableState.value.sort, category)
@@ -238,7 +246,7 @@ class EarnViewModel @Inject constructor(
                 if (requestedVersion != areaVersion) return@launch
                 val liveItems = page.items.filter { it.claimable && !it.cachedOnly }
                 val previousIds = knownOpportunityIds
-                if (previousIds != null) {
+                if (liveAlertsEnabled && previousIds != null) {
                     liveItems
                         .filter { it.refreshId !in previousIds }
                         .take(MAX_ALERTS_PER_REFRESH)
