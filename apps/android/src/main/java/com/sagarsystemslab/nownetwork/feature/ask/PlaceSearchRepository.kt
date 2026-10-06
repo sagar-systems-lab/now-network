@@ -79,11 +79,14 @@ class PlaceSearchRepository @Inject constructor(@ApplicationContext private val 
                 address.countryName,
             ).distinct().joinToString(", ")
         }
-        val name = address.featureName?.takeUnless { it.isBlank() || it.all(Char::isDigit) }
-            ?: address.subLocality?.takeUnless(String::isBlank)
-            ?: address.locality?.takeUnless(String::isBlank)
-            ?: line.substringBefore(',').takeUnless(String::isBlank)
-            ?: fallback
+        val feature = address.featureName?.takeUnless { it.isBlank() || it.all(Char::isDigit) }
+        val contextualName = listOfNotNull(
+            address.thoroughfare?.takeUnless { it.isBlank() || it.all(Char::isDigit) },
+            address.subLocality?.takeUnless { it.isBlank() },
+            address.locality?.takeUnless { it.isBlank() },
+        ).distinct().joinToString(", ")
+        val name = feature
+            ?: contextualName.ifBlank { line.substringBefore(',').ifBlank { fallback } }
         return PlaceSuggestion(name.take(120), line.ifBlank { fallback }.take(250), center)
     }
 }
