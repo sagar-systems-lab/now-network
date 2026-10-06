@@ -154,9 +154,9 @@ export class PostgresAskService implements AskApi {
             and extensions.st_dwithin(center,extensions.st_setsrid(extensions.st_makepoint(${input.location.lng},${input.location.lat}),4326)::extensions.geography,2)
             order by location_id limit 1 for update`;
           if (matches[0]) {
-            await tx`update app.locations set ask_fingerprint=${fingerprint},
-              display_address=coalesce(display_address,${input.location.display_address})
-              where location_id=${matches[0].location_id}::uuid`;
+            await tx`update app.locations set ask_fingerprint=${fingerprint} where location_id=${
+              matches[0].location_id
+            }::uuid`;
           }
         }
         let locationId: string;
