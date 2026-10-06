@@ -58,7 +58,7 @@ data class LiveMapPin(val id: String, val title: String, val center: GeoCenter, 
 /** Native hybrid map; only server coordinates become markers. No synthetic location or map image. */
 @Composable
 fun LiveMapCard(
-    center: GeoCenter?, pins: List<LiveMapPin>, onPin: (String) -> Unit,
+    center: GeoCenter?, pins: List<LiveMapPin>, onPin: ((String) -> Unit)?,
     modifier: Modifier = Modifier,
     onSearchArea: ((GeoCenter) -> Unit)? = null,
     onLocateArea: ((GeoCenter) -> Unit)? = onSearchArea,
@@ -317,7 +317,8 @@ fun LiveMapCard(
                         },style=NowType.BodyS,color=NowColors.Ink600)
                     }
                     TextButton({ openExternalMaps(selected.center, selected.title) }) { Text("Directions") }
-                    TextButton({latestOnPin(selected.id)}) {Text("Open")}
+                    if (latestOnPin != null) TextButton({ latestOnPin?.invoke(selected.id) }) { Text("Open") }
+                    TextButton({ selectedPin = null }) { Text("Close") }
                 }
             } else if (pendingCenter != null && onSearchArea != null && !failed && mapRendered) {
                 Button({ pendingCenter?.let(onSearchArea); pendingCenter=null },Modifier.align(Alignment.BottomCenter).padding(bottom=28.dp)) {Text(searchAreaLabel)}
