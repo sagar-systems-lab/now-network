@@ -255,8 +255,16 @@ class DefaultContributorClaimRepository @Inject constructor(
                 throw ContributorClaimFailure.WalletBusy()
             }
 
+            is WalletResult.ProtocolFailure -> {
+                val ready = walletPending.copy(
+                    localState = STATE_READY_FOR_WALLET,
+                    updatedAtMs = serverClock.nowMillis(),
+                )
+                operationDao.upsert(ready)
+                throw ContributorClaimFailure.Wallet(result.reason)
+            }
+
             is WalletResult.AssociationFailure,
-            is WalletResult.ProtocolFailure,
             is WalletResult.UnknownFailure -> {
                 val reconciling = walletPending.copy(
                     localState = STATE_RECONCILING,
