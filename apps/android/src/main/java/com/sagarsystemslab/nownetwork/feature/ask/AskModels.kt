@@ -9,7 +9,7 @@ enum class AskNeed(val key: String, val locationType: String, val title: String,
     PARKING("parking.available_spaces.v1", "PARKING", "Parking availability", "How many parking spaces are available?"),
     GATE("gate.open_closed.v1", "GATE", "Gate access", "Is this gate open or closed?"),
     VISUAL("visual.current_condition.v1", "PLACE", "Current condition", "What does this place look like now?"),
-    OTHER("visual.current_condition.v1", "PLACE", "Other question", "Ask for a fresh photo and on-site update"),
+    OTHER("visual.current_condition.v1", "PLACE", "Ask your own question", "Type exactly what you want someone there to verify"),
 }
 
 data class AskDraft(
