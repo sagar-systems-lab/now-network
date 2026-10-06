@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sagarsystemslab.nownetwork.evidence.EvidenceLocationFailure
 import com.sagarsystemslab.nownetwork.evidence.EvidenceLocationProvider
+import com.sagarsystemslab.nownetwork.experience.BrowseContextStore
 import com.sagarsystemslab.nownetwork.experience.number
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -22,6 +23,7 @@ data class AvailabilityUiState(val enabled: Boolean=false, val status: Availabil
 class ContributorAvailabilityViewModel @Inject constructor(
     private val repository: AskRepository,
     private val locations: EvidenceLocationProvider,
+    private val browse: BrowseContextStore,
 ) : ViewModel() {
     private val mutable=MutableStateFlow(AvailabilityUiState())
     val state=mutable.asStateFlow()
@@ -29,6 +31,7 @@ class ContributorAvailabilityViewModel @Inject constructor(
     private var heartbeat: Job?=null
     private var foreground=false
     private var actorId: String?=null
+    private var alignBrowseOnNextFix=false
     fun actorChanged(value: String?) {
         if(actorId!=null && actorId!=value) disable()
         actorId=value
@@ -41,6 +44,7 @@ class ContributorAvailabilityViewModel @Inject constructor(
     }
     fun enable() {
         if(!foreground) return
+        alignBrowseOnNextFix=true
         mutable.value=AvailabilityUiState(true,AvailabilityStatus.LOCATING)
         start()
     }
@@ -53,6 +57,7 @@ class ContributorAvailabilityViewModel @Inject constructor(
     }
     fun disable() {
         pause()
+        alignBrowseOnNextFix=false
         val wasEnabled=mutable.value.enabled
         mutable.value=AvailabilityUiState()
         if(wasEnabled) viewModelScope.launch {
@@ -79,6 +84,10 @@ class ContributorAvailabilityViewModel @Inject constructor(
                                 put("accuracy_m",accuracy)
                             })
                             interval=response.number("heartbeat_seconds").coerceIn(30,120).toLong()
+                        }
+                        if(alignBrowseOnNextFix) {
+                            browse.select("Near my location",sample.latitude,sample.longitude,3000)
+                            alignBrowseOnNextFix=false
                         }
                         mutable.value=AvailabilityUiState(true,AvailabilityStatus.AVAILABLE)
                     }
