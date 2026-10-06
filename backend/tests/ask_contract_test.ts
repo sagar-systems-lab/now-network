@@ -51,7 +51,10 @@ Deno.test("ASK preserves a bounded human-readable display address", () => {
       display_address: "  Sector 7, Faridabad, Haryana  ",
     },
   }, now);
-  assert(parsed.location.display_address === "Sector 7, Faridabad, Haryana", "address normalization failed");
+  assert(
+    parsed.location.display_address === "Sector 7, Faridabad, Haryana",
+    "address normalization failed",
+  );
   rejects(() =>
     parseAsk({
       ...input(),
