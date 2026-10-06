@@ -18,11 +18,12 @@ data class AskDraft(
     val need: AskNeed? = null,
     val key: String = UUID.randomUUID().toString(),
     val customQuestion: String = "",
+    val displayAddress: String = "",
 ) {
     val targetReady: Boolean get() = name.trim().length in 1..120 && target?.valid == true
     val question: String get() = if (need == AskNeed.OTHER) customQuestion.trim() else need?.question.orEmpty()
     val needReady: Boolean get() = need != null && (need != AskNeed.OTHER || question.length in 8..200)
-    fun searching(): AskDraft = copy(name = "", target = null)
+    fun searching(): AskDraft = copy(name = "", target = null, displayAddress = "")
     fun payload(): JsonObject {
         check(targetReady && needReady)
         val selectedTarget = requireNotNull(target)
