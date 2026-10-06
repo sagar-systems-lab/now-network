@@ -13,6 +13,7 @@ import com.sagarsystemslab.nownetwork.wallet.WalletInteractionHost
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -52,6 +53,7 @@ class ContributorClaimViewModel @Inject constructor(
 
     private var prepared: PreparedContributorClaim? = null
     private var openJob: kotlinx.coroutines.Job? = null
+    private var recoveryJob: kotlinx.coroutines.Job? = null
 
     fun open(refreshId: String) {
         if (mutableState.value.refreshId == refreshId && mutableState.value.opportunity != null) {
@@ -59,6 +61,7 @@ class ContributorClaimViewModel @Inject constructor(
         }
 
         prepared = null
+        recoveryJob?.cancel()
         mutableState.value = ContributorClaimUiState(
             refreshId = refreshId,
             stage = ContributorClaimStage.LOADING,
@@ -222,9 +225,10 @@ class ContributorClaimViewModel @Inject constructor(
                 mutableState.update {
                     it.copy(
                         stage = ContributorClaimStage.CONFIRMING,
-                        message = "Transaction submitted. Waiting for authoritative confirmation.",
+                        message = "Waiting for wallet/chain confirmation. This clears automatically after 30 seconds if no transaction was submitted.",
                     )
                 }
+                scheduleRecovery()
             }
 
             is ClaimReconciliation.ReadyForWallet -> {
@@ -251,7 +255,28 @@ class ContributorClaimViewModel @Inject constructor(
         }
     }
 
+    private fun scheduleRecovery() {
+        recoveryJob?.cancel()
+        val refreshId = mutableState.value.refreshId ?: return
+        recoveryJob = viewModelScope.launch {
+            delay(WALLET_RECOVERY_DELAY_MS)
+            if (
+                mutableState.value.refreshId == refreshId &&
+                mutableState.value.stage == ContributorClaimStage.CONFIRMING
+            ) {
+                try {
+                    applyReconciliation(repository.recover(refreshId))
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Exception) {
+                    showError(error)
+                }
+            }
+        }
+    }
+
     private fun showError(error: Exception) {
+        recoveryJob?.cancel()
         val failedStage = mutableState.value.stage
         val canPrepareAgain = failedStage == ContributorClaimStage.PREPARING &&
             error is ContributorClaimFailure &&
@@ -285,5 +310,9 @@ class ContributorClaimViewModel @Inject constructor(
                 canPrepare = canPrepareAgain,
             )
         }
+    }
+
+    private companion object {
+        const val WALLET_RECOVERY_DELAY_MS = 30_000L
     }
 }
