@@ -572,7 +572,7 @@ class DefaultRequesterFundingRepository @Inject constructor(
         "funding-observe:$operationId:${signature.take(24)}"
 
     private companion object {
-        const val WALLET_SIGN_MS = 25_000L
+        const val WALLET_SIGN_MS = 30_000L
         const val WALLET_WAIT_MS = 30_000L
         const val PROFILE_KEY = "default"
         const val OPERATION_TYPE = "REFRESH_FUNDING"
