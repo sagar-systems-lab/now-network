@@ -13,6 +13,17 @@ class AskDraftTest {
         assertFalse(payload.containsKey("requester_location"))
         assertEquals(28.6,payload.getValue("location").jsonObject.getValue("lat").jsonPrimitive.double,0.0)
     }
+    @Test fun selectedAddressTravelsWithAskPayloadAndClearsOnNewSearch() {
+        val draft = AskDraft(
+            "Main gate",
+            GeoCenter(28.6, 77.2),
+            AskNeed.GATE,
+            displayAddress = "Main Road, Faridabad, Haryana",
+        )
+        val location = draft.payload().getValue("location").jsonObject
+        assertEquals("Main Road, Faridabad, Haryana", location.getValue("display_address").jsonPrimitive.content)
+        assertEquals("", draft.searching().displayAddress)
+    }
     @Test fun retryKeepsPayloadAndIdempotencyIdentity() {
         val draft=AskDraft("Gate",GeoCenter(28.6,77.2),AskNeed.GATE)
         val restored=draft.copy()
