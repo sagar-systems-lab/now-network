@@ -97,6 +97,44 @@ class ContributorClaimRepositoryTest {
     }
 
     @Test
+    fun unsignedWalletPendingClaimUnlocksForRetryAfterThirtySeconds() = runBlocking {
+        val fixture = fixture(
+            walletSubmission = WalletResult.UnknownFailure("wallet callback lost"),
+            observeUnknown = false,
+        )
+
+        val prepared = fixture.repository.prepareNew(HOST, REFRESH_ID)
+        assertTrue(fixture.repository.submit(HOST, prepared) is ClaimReconciliation.Confirming)
+
+        val saved = requireNotNull(fixture.operationDao.get(prepared.operation.operationId))
+        fixture.operationDao.upsert(
+            saved.copy(updatedAtMs = System.currentTimeMillis() - 31_000L),
+        )
+
+        val recovered = fixture.repository.recover(REFRESH_ID)
+        assertTrue(recovered is ClaimReconciliation.ReadyForWallet)
+        assertEquals(1, fixture.wallet.signCalls)
+        assertTrue(fixture.api.prepareCalls >= 2)
+    }
+
+    @Test
+    fun expiredRefreshStopsUnsignedWalletPendingRecovery() = runBlocking {
+        val fixture = fixture(
+            walletSubmission = WalletResult.UnknownFailure("wallet callback lost"),
+            observeUnknown = false,
+        )
+
+        val prepared = fixture.repository.prepareNew(HOST, REFRESH_ID)
+        assertTrue(fixture.repository.submit(HOST, prepared) is ClaimReconciliation.Confirming)
+        fixture.api.detailRefreshStatus = "EXPIRED"
+
+        val failure = runCatching { fixture.repository.recover(REFRESH_ID) }.exceptionOrNull()
+        assertTrue(failure is ContributorClaimFailure.Expired)
+        assertEquals("REJECTED", fixture.operationDao.listAll().single().localState)
+        assertEquals(1, fixture.wallet.signCalls)
+    }
+
+    @Test
     fun differentDefaultPayoutWalletStopsBeforePreparingOrSigningAClaim() = runBlocking {
         val fixture = fixture(WalletResult.UnknownFailure("unused"), observeUnknown = false)
         fixture.api.preferredWallet = "55555555-5555-4555-8555-555555555555"
@@ -275,6 +313,7 @@ private class ClaimApi(
 ) : NowApiClient {
     var observeCalls = 0
     var detailStatus = "WALLET_PENDING"
+    var detailRefreshStatus = intent.refreshStatus
     var detailCalls = 0
     var prepareCalls = 0
     var preferredWallet: String? = null
@@ -342,7 +381,7 @@ private class ClaimApi(
             claimDeadline = if (status == "CLAIMED") "2035-01-01T00:05:00Z" else null,
             chainSignature = signature,
             chainStatus = if (status == "CLAIMED") "confirmed" else null,
-            refreshStatus = intent.refreshStatus,
+            refreshStatus = detailRefreshStatus,
             refreshExpiresAt = intent.refreshExpiresAt,
             evidenceDeadline = intent.evidenceDeadline,
             revision = 1,
