@@ -20,10 +20,10 @@ fun RequesterFundingScreen(uiState:RequesterFundingUiState,onBack:()->Unit,onAmo
     val busy=stage in setOf(RequesterFundingStage.LOADING,RequesterFundingStage.PREPARING,RequesterFundingStage.SUBMITTING)
     val review=stage==RequesterFundingStage.REVIEW
     val amount=listOf(uiState.amountInput,uiState.rewardSymbol).filter { it.isNotBlank() }.joinToString(" ")
-    TransactionPage(if(review) "Review refresh" else "Refresh this state","Fund fresh, verified information","screen-requester-funding",onBack,footer={
+    TransactionPage(if(review) "Review request" else "Choose the reward","Pay for fresh, verified proof","screen-requester-funding",onBack,footer={
         when(stage) {
-            RequesterFundingStage.SETUP -> NowPrimaryButton("Review refresh",onPrepare,Modifier.fillMaxWidth().testTag("review-refresh-funding"),enabled=uiState.rewardConfigured)
-            RequesterFundingStage.REVIEW -> NowPrimaryButton("Fund refresh",onSubmit,Modifier.fillMaxWidth().testTag("fund-refresh"))
+            RequesterFundingStage.SETUP -> NowPrimaryButton("Review request",onPrepare,Modifier.fillMaxWidth().testTag("review-refresh-funding"),enabled=uiState.rewardConfigured)
+            RequesterFundingStage.REVIEW -> NowPrimaryButton("Fund this request",onSubmit,Modifier.fillMaxWidth().testTag("fund-refresh"))
             RequesterFundingStage.CONFIRMING -> NowPrimaryButton("Check existing funding",onCheck,Modifier.fillMaxWidth())
             RequesterFundingStage.COMPLETE -> NowPrimaryButton("Done",onBack,Modifier.fillMaxWidth())
             else -> NowPrimaryButton(if(stage==RequesterFundingStage.SUBMITTING) "Waiting for wallet…" else "Preparing…",{},Modifier.fillMaxWidth(),enabled=false)
@@ -35,7 +35,7 @@ fun RequesterFundingScreen(uiState:RequesterFundingUiState,onBack:()->Unit,onAmo
         if(busy) LinearProgressIndicator(Modifier.fillMaxWidth(),color=NowColors.Blue600)
         uiState.notice?.let { NowNotice(it,tone=if(stage==RequesterFundingStage.COMPLETE) NowNoticeTone.SUCCESS else NowNoticeTone.INFO) }
         if(stage==RequesterFundingStage.SETUP) {
-            NowSectionTitle("Select a reward amount","The pool pays contributors whose proof is accepted.")
+            NowSectionTitle("Choose what to pay","This reward pool is paid only to contributors whose proof is accepted.")
             Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                 listOf("0.10","0.25","0.50").forEachIndexed { index,value ->
                     val selected=uiState.amountInput.toBigDecimalOrNull()==value.toBigDecimal()
@@ -56,7 +56,7 @@ fun RequesterFundingScreen(uiState:RequesterFundingUiState,onBack:()->Unit,onAmo
             )
         }
         NowGlassCard(emphasized=true,modifier=Modifier.testTag(if(review) "funding-review" else if(stage==RequesterFundingStage.COMPLETE) "funding-confirmed" else "funding-policy")) {
-            ExperienceRow(if(stage==RequesterFundingStage.COMPLETE) "Refresh funded" else "Reward is paid only after verification",if(stage==RequesterFundingStage.COMPLETE) "Funding is confirmed. Contributors can find this refresh once it becomes available." else "Fresh photo, location and answer requirements stay locked to this refresh.",if(stage==RequesterFundingStage.COMPLETE) Icons.Outlined.Verified else Icons.Outlined.Shield)
+            ExperienceRow(if(stage==RequesterFundingStage.COMPLETE) "Request funded" else "Reward is paid only after verification",if(stage==RequesterFundingStage.COMPLETE) "Funding is confirmed. Nearby contributors can now find this task when it becomes available." else "The place, question, photo/video, location and answer requirements stay locked for this request.",if(stage==RequesterFundingStage.COMPLETE) Icons.Outlined.Verified else Icons.Outlined.Shield)
         }
         NowSectionTitle("Payment method")
         NowGlassCard {
@@ -68,7 +68,7 @@ fun RequesterFundingScreen(uiState:RequesterFundingUiState,onBack:()->Unit,onAmo
             ExperienceRow("Network",uiState.network.ifBlank { "Not configured" },Icons.Outlined.Hub)
             ExperienceRow("Solana costs","Network and account-creation costs are shown by your wallet before approval",Icons.Outlined.Info)
             if(stage==RequesterFundingStage.CONFIRMING) NowNotice("The submitted operation is being reconciled. Do not submit another funding transaction.",tone=NowNoticeTone.WARNING)
-            if(!uiState.rewardConfigured) NowNotice("Configure the reward token before funding a refresh.",tone=NowNoticeTone.WARNING)
+            if(!uiState.rewardConfigured) NowNotice("The reward token is not configured for this build, so this request cannot be funded yet.",tone=NowNoticeTone.WARNING)
         }
     }
 }
