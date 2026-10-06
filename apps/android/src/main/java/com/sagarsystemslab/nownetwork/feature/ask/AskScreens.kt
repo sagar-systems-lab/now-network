@@ -147,7 +147,7 @@ fun AskComposerScreen(
                         color = NowColors.Ink600,
                     )
                 }
-                AskNeed.entries.forEach { need -> item {
+                listOf(AskNeed.OTHER, AskNeed.PARKING, AskNeed.GATE, AskNeed.VISUAL).forEach { need -> item {
                     NowGlassCard(emphasized=state.draft.need==need) {
                         Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                             LuminousIcon(when(need) { AskNeed.PARKING -> Icons.Outlined.LocalParking; AskNeed.GATE -> Icons.Outlined.MeetingRoom; AskNeed.VISUAL -> Icons.Outlined.PhotoCamera; AskNeed.OTHER -> Icons.Outlined.QuestionAnswer },Modifier.size(44.dp))
@@ -162,6 +162,7 @@ fun AskComposerScreen(
                 } }
                 if(state.draft.need==AskNeed.OTHER) item {
                     NowGlassCard(emphasized=true) {
+                        NowSectionTitle("Write the exact question", "The contributor sees this wording on site.")
                         NowTextField(state.draft.customQuestion,onQuestion,"Your question",Modifier.testTag("ask-custom-question"),
                             supportingText="Example: How long is the queue at the main entrance right now?",singleLine=false)
                         Text("${state.draft.customQuestion.length}/200 · Keep it specific and answerable from this exact place.",style=NowType.BodyS,color=NowColors.Ink600)
@@ -197,7 +198,11 @@ fun AskComposerScreen(
                             "NO_COVERAGE" -> "No eligible contributors available right now"
                             else -> "Coverage hasn't been checked"
                         },style=NowType.BodyM,color=NowColors.Ink950)
-                        Text("This is only an availability check. Your exact location is not shown to contributors, and coverage can change before you fund.",style=NowType.BodyS,color=NowColors.Ink600)
+                        Text(when(coverage?.text("status")) {
+                            "AVAILABLE" -> "Coverage is live near the target. It can change before funding."
+                            "NO_COVERAGE" -> "You can still continue. On the contributor phone, open EARN and tap Go available near me while within about 2 km of this pin."
+                            else -> "Coverage uses a recent opted-in contributor location. Contributors very close to the requester are excluded."
+                        },style=NowType.BodyS,color=NowColors.Ink600)
                         NowSecondaryButton(if(state.checking) "Checking coverage…" else "Check coverage",{
                             permission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.ACCESS_COARSE_LOCATION))
                         },Modifier.fillMaxWidth(),enabled=!state.checking && !state.busy)
@@ -235,6 +240,14 @@ fun ContributorAvailabilityCard(state: AvailabilityUiState,onEnable: ()->Unit,on
             }
             Switch(state.enabled,{ enabled -> if(enabled) permission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.ACCESS_COARSE_LOCATION)) else onDisable() })
         }
-        Text("Turn this on only when you are ready to take work. It stays active while NOW is open, turns off in the background, and never shows your exact position to requesters.",style=NowType.BodyS,color=NowColors.Ink600)
+        Text("Turn this on only when you are ready to take work. Brief switches to Maps or your wallet keep the last presence for a short grace period; returning to NOW refreshes it. Your exact position is never shown to requesters.",style=NowType.BodyS,color=NowColors.Ink600)
+        if(state.status != AvailabilityStatus.AVAILABLE && !state.enabled) {
+            NowPrimaryButton("Go available near me",{
+                permission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.ACCESS_COARSE_LOCATION))
+            },Modifier.fillMaxWidth())
+        }
+        if(state.status == AvailabilityStatus.AVAILABLE) {
+            NowNotice("You are visible to nearby ASK coverage now.",tone=NowNoticeTone.SUCCESS)
+        }
     }
 }
