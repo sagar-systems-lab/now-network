@@ -229,6 +229,11 @@ fun NowNavHost(
             val uiState by earnViewModel.state.collectAsStateWithLifecycle()
             val localActivity = activityViewModelProvider()
             val localWork by localActivity.state.collectAsStateWithLifecycle()
+            LaunchedEffect(availabilityState?.status) {
+                earnViewModel.liveAlerts(
+                    availabilityState?.status == com.sagarsystemslab.nownetwork.feature.ask.AvailabilityStatus.AVAILABLE,
+                )
+            }
             LaunchedEffect(experience, experienceState?.me?.actorId) { experience?.activeWork() }
 
             EarnScreen(

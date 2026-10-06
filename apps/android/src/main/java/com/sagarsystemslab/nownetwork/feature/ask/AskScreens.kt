@@ -1,6 +1,7 @@
 package com.sagarsystemslab.nownetwork.feature.ask
 
 import android.Manifest
+import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -232,6 +233,11 @@ fun ContributorAvailabilityCard(state: AvailabilityUiState,onEnable: ()->Unit,on
     val permission=rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
         if(grants[Manifest.permission.ACCESS_FINE_LOCATION]==true) onEnable() else onPermissionDenied()
     }
+    fun availabilityPermissions(): Array<String> = buildList {
+        add(Manifest.permission.ACCESS_FINE_LOCATION)
+        add(Manifest.permission.ACCESS_COARSE_LOCATION)
+        if(Build.VERSION.SDK_INT >= 33) add(Manifest.permission.POST_NOTIFICATIONS)
+    }.toTypedArray()
     NowGlassCard(Modifier.testTag("contributor-availability"),emphasized=state.status==AvailabilityStatus.AVAILABLE) {
         Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
             LuminousIcon(Icons.Outlined.Radar,Modifier.size(42.dp))
@@ -246,12 +252,12 @@ fun ContributorAvailabilityCard(state: AvailabilityUiState,onEnable: ()->Unit,on
                     AvailabilityStatus.OFFLINE -> "Internet or location is unavailable"
                 },style=NowType.BodyS,color=NowColors.Ink600)
             }
-            Switch(state.enabled,{ enabled -> if(enabled) permission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.ACCESS_COARSE_LOCATION)) else onDisable() })
+            Switch(state.enabled,{ enabled -> if(enabled) permission.launch(availabilityPermissions()) else onDisable() })
         }
         Text("Turn this on only when you are ready to take work. Brief switches to Maps or your wallet keep the last presence for a short grace period; returning to NOW refreshes it. Your exact position is never shown to requesters.",style=NowType.BodyS,color=NowColors.Ink600)
         if(state.status != AvailabilityStatus.AVAILABLE && !state.enabled) {
             NowPrimaryButton("Go available near me",{
-                permission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.ACCESS_COARSE_LOCATION))
+                permission.launch(availabilityPermissions())
             },Modifier.fillMaxWidth())
         }
         if(state.status == AvailabilityStatus.AVAILABLE) {

@@ -391,11 +391,16 @@ private fun NotificationPreferencesContent(state: ExperienceUiState, viewModel: 
     val context = LocalContext.current
     val requestNotifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { viewModel.devices() }
     NowGlassCard {
-        ExperienceRow("Device notifications", if (NowPush.configured) "Android controls delivery on this device" else "Push is not configured for this build", Icons.Outlined.NotificationsActive)
+        ExperienceRow(
+            "Device notifications",
+            if (NowPush.configured) "Push and live task alerts are available on this device"
+            else "Live task alerts work while NOW is running; remote push is not configured",
+            Icons.Outlined.NotificationsActive,
+        )
         NowSecondaryButton("Enable device alerts", {
             if (Build.VERSION.SDK_INT >= 33) requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
             else { context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)) }
-        }, Modifier.fillMaxWidth(), enabled = NowPush.configured)
+        }, Modifier.fillMaxWidth())
     }
     val source = state.preferences.objectAt("notifications")
     var draft by remember(source) { mutableStateOf(source) }
@@ -428,7 +433,7 @@ private fun NotificationPreferencesContent(state: ExperienceUiState, viewModel: 
         NowTextField(draft.text("timezone", "UTC"), { set("timezone", JsonPrimitive(it)) }, "Timezone", supportingText = "For example: Asia/Kolkata")
         NowSecondaryButton("Use device timezone", { set("timezone", JsonPrimitive(ZoneId.systemDefault().id)) }, Modifier.fillMaxWidth())
     }
-    if (!state.preferences.flag("push_available")) NowNotice("Push delivery is not configured for this build. Your in-app inbox continues to show real account events.", title = "In-app updates available")
+    if (!state.preferences.flag("push_available")) NowNotice("Remote push is not configured, but live nearby-task alerts can still appear while NOW is running. Your in-app inbox remains available.", title = "Live device alerts available")
     NowPrimaryButton("Save notification preferences", { viewModel.savePreferences(draft) }, Modifier.fillMaxWidth(), enabled = source.isNotEmpty() && !state.saving)
 }
 

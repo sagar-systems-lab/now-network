@@ -19,16 +19,56 @@ import com.sagarsystemslab.nownetwork.security.AndroidKeystoreSecretStore
 
 object NowPush {
     const val CHANNEL = "now_account_updates"
+    const val EARNING_CHANNEL = "now_earning_alerts"
     const val OPEN_INBOX = "com.sagarsystemslab.nownetwork.OPEN_INBOX"
     val configured get() = listOf(BuildConfig.FIREBASE_APP_ID, BuildConfig.FIREBASE_PROJECT_ID, BuildConfig.FIREBASE_API_KEY, BuildConfig.FIREBASE_SENDER_ID).all { it.isNotBlank() }
+
     fun initialize(context: Context) {
+        val manager = context.getSystemService(NotificationManager::class.java)
+        manager.createNotificationChannel(
+            NotificationChannel(CHANNEL, "Proof & account updates", NotificationManager.IMPORTANCE_DEFAULT).apply {
+                description = "Updates from your NOW account"
+            },
+        )
+        manager.createNotificationChannel(
+            NotificationChannel(EARNING_CHANNEL, "Nearby paid tasks", NotificationManager.IMPORTANCE_HIGH).apply {
+                description = "Live paid-task alerts while NOW is running"
+            },
+        )
         if (!configured) return
         if (FirebaseApp.getApps(context).isEmpty()) FirebaseApp.initializeApp(context, FirebaseOptions.Builder()
             .setApplicationId(BuildConfig.FIREBASE_APP_ID).setProjectId(BuildConfig.FIREBASE_PROJECT_ID)
             .setApiKey(BuildConfig.FIREBASE_API_KEY).setGcmSenderId(BuildConfig.FIREBASE_SENDER_ID).build())
-        val manager = context.getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(NotificationChannel(CHANNEL, "Proof & account updates", NotificationManager.IMPORTANCE_DEFAULT).apply { description = "Updates from your NOW account" })
         FirebaseMessaging.getInstance().token.addOnSuccessListener { token -> AndroidKeystoreSecretStore(context).write("push_token", token) }
+    }
+
+    fun notifyNearbyTask(context: Context, refreshId: String, title: String) {
+        if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
+        val intent = Intent(context, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        val pending = PendingIntent.getActivity(
+            context,
+            refreshId.hashCode(),
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val notification = NotificationCompat.Builder(context, EARNING_CHANNEL)
+            .setSmallIcon(R.drawable.ic_now_notification)
+            .setContentTitle("Nearby paid task")
+            .setContentText(title.take(120))
+            .setStyle(NotificationCompat.BigTextStyle().bigText("$title\nOpen NOW to review the reward and claim this task."))
+            .setContentIntent(pending)
+            .setAutoCancel(true)
+            .setOnlyAlertOnce(true)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .build()
+        try {
+            NotificationManagerCompat.from(context).notify("opportunity-$refreshId", 1, notification)
+        } catch (_: SecurityException) {
+            // Notification permission can change after the enabled check.
+        }
     }
 }
 
