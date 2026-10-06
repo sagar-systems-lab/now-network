@@ -32,7 +32,8 @@ class AskComposerViewModel @Inject constructor(
     private val initial = AskDraft(saved["ask_name"] ?: "",
         if (saved.get<Boolean>("ask_target_confirmed") == true) saved.get<Double>("ask_lat")?.let { lat -> saved.get<Double>("ask_lng")?.let { GeoCenter(lat,it) } } else null,
         saved.get<String>("ask_need")?.let { name -> AskNeed.entries.find { it.name == name } },
-        saved["ask_key"] ?: UUID.randomUUID().toString(), saved["ask_question"] ?: "")
+        saved["ask_key"] ?: UUID.randomUUID().toString(), saved["ask_question"] ?: "",
+        saved["ask_address"] ?: "")
     private val mutable = MutableStateFlow(AskUiState(initial,
         if (!initial.targetReady) AskStage.TARGET else
             saved.get<String>("ask_stage")?.let { value -> AskStage.entries.find { it.name == value && (it != AskStage.PREVIEW || initial.needReady) } } ?: AskStage.TARGET,
@@ -55,7 +56,8 @@ class AskComposerViewModel @Inject constructor(
         val next = draft.copy(key=UUID.randomUUID().toString())
         saved["ask_name"]=next.name; saved["ask_lat"]=next.target?.latitude; saved["ask_lng"]=next.target?.longitude
         saved["ask_need"]=next.need?.name; saved["ask_key"]=next.key; saved["ask_payload"]=null
-        saved["ask_question"]=next.customQuestion; saved["ask_target_confirmed"]=next.targetReady
+        saved["ask_question"]=next.customQuestion; saved["ask_address"]=next.displayAddress
+        saved["ask_target_confirmed"]=next.targetReady
         mutable.value=mutable.value.copy(draft=next,coverage=null,notice=null,resolvedStateId=null)
     }
     fun name(value: String) {
@@ -95,8 +97,8 @@ class AskComposerViewModel @Inject constructor(
         if (mutable.value.busy || !place.center.valid) return
         searchRevision++
         searchJob?.cancel()
-        edit(mutable.value.draft.copy(name = place.name, target = place.center))
         val address = place.address.ifBlank { place.name }
+        edit(mutable.value.draft.copy(name = place.name, target = place.center, displayAddress = address))
         saved["ask_query"] = address
         mutable.value = mutable.value.copy(query = address, mapCenter = place.center,
             suggestions = emptyList(), searching = false, searchMessage = null)
@@ -105,9 +107,30 @@ class AskComposerViewModel @Inject constructor(
         if (!value.valid || mutable.value.busy) return
         searchRevision++
         searchJob?.cancel()
-        edit(mutable.value.draft.copy(name = "Selected map pin", target = value))
+        edit(mutable.value.draft.copy(
+            name = "Exact map pin",
+            target = value,
+            displayAddress = "Exact spot selected on the map",
+        ))
         saved["ask_query"] = ""
-        mutable.value = mutable.value.copy(query = "", mapCenter = value, suggestions = emptyList(), searching = false, searchMessage = null)
+        mutable.value = mutable.value.copy(
+            query = "",
+            mapCenter = value,
+            suggestions = emptyList(),
+            searching = false,
+            searchMessage = null,
+        )
+        viewModelScope.launch {
+            val place = runCatching { withTimeout(8_000) { places.reverse(value) } }.getOrNull() ?: return@launch
+            val current = mutable.value.draft
+            if (current.target != value || mutable.value.busy) return@launch
+            val address = place.address.ifBlank { place.name }
+            val next = current.copy(name = place.name, displayAddress = address)
+            saved["ask_name"] = next.name
+            saved["ask_address"] = next.displayAddress
+            saved["ask_query"] = address
+            mutable.value = mutable.value.copy(draft = next, query = address)
+        }
     }
     fun need(value: AskNeed) { edit(mutable.value.draft.copy(need=value)) }
     fun question(value: String) { edit(mutable.value.draft.copy(customQuestion = value.take(200))) }
