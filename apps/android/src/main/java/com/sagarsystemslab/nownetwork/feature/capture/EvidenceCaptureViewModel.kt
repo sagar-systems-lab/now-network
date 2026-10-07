@@ -527,6 +527,7 @@ class EvidenceCaptureViewModel @Inject constructor(
         val current = mutableState.value
         val stage = when {
             error is EvidenceCaptureFailure.Expired -> EvidenceCaptureStage.EXPIRED
+            error is EvidenceCaptureFailure.Stale -> EvidenceCaptureStage.ERROR
             preferReview && current.evidenceId != null -> EvidenceCaptureStage.REVIEW
             else -> EvidenceCaptureStage.ERROR
         }
