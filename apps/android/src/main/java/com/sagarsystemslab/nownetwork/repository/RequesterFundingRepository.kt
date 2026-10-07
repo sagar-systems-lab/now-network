@@ -284,9 +284,7 @@ class DefaultRequesterFundingRepository @Inject constructor(
             return null
         }
 
-        val refresh = withAuthRetry { token ->
-            api.refreshDetail(operation.entityId, token)
-        }
+        val refresh = refreshDetailOrTerminateMissing(operation) ?: return null
         if (refresh.status == "AVAILABLE" || refresh.status == "FUNDED") {
             val done = operation.copy(
                 localState = STATE_ACKNOWLEDGED,
@@ -462,9 +460,8 @@ class DefaultRequesterFundingRepository @Inject constructor(
         operation: ActiveOperationEntity,
     ): FundingReconciliation {
         val intent = try {
-            val refresh = withAuthRetry { token ->
-                api.refreshDetail(operation.entityId, token)
-            }
+            val refresh = refreshDetailOrTerminateMissing(operation)
+                ?: return FundingReconciliation.None
             if (refresh.status in setOf("EXPIRED", "CANCELLED", "FAILED")) {
                 operationDao.upsert(operation.copy(localState = "EXPIRED", remoteState = refresh.status,
                     updatedAtMs = serverClock.nowMillis()))
@@ -505,6 +502,29 @@ class DefaultRequesterFundingRepository @Inject constructor(
 
         return FundingReconciliation.None
     }
+
+    private suspend fun refreshDetailOrTerminateMissing(
+        operation: ActiveOperationEntity,
+    ): RefreshDto? =
+        try {
+            withAuthRetryApi { token ->
+                api.refreshDetail(operation.entityId, token)
+            }
+        } catch (error: ApiFailure.BusinessError) {
+            if (error.code != "REFRESH_NOT_FOUND") {
+                throw error.toRequesterFailure()
+            }
+            operationDao.upsert(
+                operation.copy(
+                    localState = "CANCELLED",
+                    remoteState = "NOT_FOUND",
+                    updatedAtMs = serverClock.nowMillis(),
+                ),
+            )
+            null
+        } catch (error: ApiFailure) {
+            throw error.toRequesterFailure()
+        }
 
     private suspend fun <T> withAuthRetry(
         block: suspend (String) -> T,
