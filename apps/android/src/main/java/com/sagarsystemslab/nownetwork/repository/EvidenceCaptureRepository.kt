@@ -81,6 +81,7 @@ sealed class EvidenceCaptureFailure(
     cause: Throwable? = null,
 ) : Exception(message, cause) {
     class Unavailable(message: String) : EvidenceCaptureFailure(message)
+    class Stale(message: String) : EvidenceCaptureFailure(message)
     class Expired : EvidenceCaptureFailure("The evidence capture window expired.")
     class MissingFile : EvidenceCaptureFailure("Captured evidence is missing from this device.")
     class MediaTooLarge :
@@ -205,6 +206,20 @@ class DefaultEvidenceCaptureRepository @Inject constructor(
                 )
             ) {
                 return EvidenceCaptureRecovery.Submitted(pending.evidenceId)
+            }
+            if (pending.uploadState == PendingEvidenceStatus.EXPIRED) {
+                throw EvidenceCaptureFailure.Expired()
+            }
+            if (
+                pending.uploadState in setOf(
+                    PendingEvidenceStatus.REJECTED,
+                    PendingEvidenceStatus.CONFLICT,
+                    PendingEvidenceStatus.FAILED,
+                )
+            ) {
+                throw EvidenceCaptureFailure.Stale(
+                    "This saved proof is no longer active. Return to EARN for current tasks.",
+                )
             }
 
             readSecret(acceptanceId)?.let { secret ->
@@ -470,7 +485,7 @@ class DefaultEvidenceCaptureRepository @Inject constructor(
 
     override suspend fun submit(evidenceId: String): EvidenceSubmissionResult =
         submissionMutex.withLock {
-            submitLocked(evidenceId)
+            submitWithTerminalCleanup(evidenceId)
         }
 
     override suspend fun resumeSubmission(evidenceId: String): EvidenceSubmissionResult? =
@@ -481,6 +496,10 @@ class DefaultEvidenceCaptureRepository @Inject constructor(
                     PendingEvidenceStatus.COMMITTED,
                     PendingEvidenceStatus.VERIFYING,
                     PendingEvidenceStatus.VERIFIED,
+                    PendingEvidenceStatus.REJECTED,
+                    PendingEvidenceStatus.CONFLICT,
+                    PendingEvidenceStatus.EXPIRED,
+                    PendingEvidenceStatus.FAILED,
                 )
             ) {
                 return@withLock null
@@ -488,7 +507,30 @@ class DefaultEvidenceCaptureRepository @Inject constructor(
 
             val secret = readSecret(pending.acceptanceId) ?: return@withLock null
             if (!secret.submissionRequested) return@withLock null
+            submitWithTerminalCleanup(evidenceId)
+        }
+
+    private suspend fun submitWithTerminalCleanup(
+        evidenceId: String,
+    ): EvidenceSubmissionResult =
+        try {
             submitLocked(evidenceId)
+        } catch (error: EvidenceCaptureFailure.Expired) {
+            pendingEvidenceDao.get(evidenceId)?.let { pending ->
+                markExpired(pending)
+            }
+            throw error
+        } catch (error: EvidenceCaptureFailure.Stale) {
+            pendingEvidenceDao.get(evidenceId)?.let { pending ->
+                pendingEvidenceDao.upsert(
+                    pending.copy(
+                        uploadState = PendingEvidenceStatus.REJECTED,
+                        lastError = "REMOTE_CONTEXT_NOT_FOUND",
+                        updatedAtMs = serverClock.nowMillis(),
+                    ),
+                )
+            }
+            throw error
         }
 
     private suspend fun submitLocked(evidenceId: String): EvidenceSubmissionResult {
@@ -972,10 +1014,16 @@ class DefaultEvidenceCaptureRepository @Inject constructor(
                         EvidenceCaptureFailure.Unavailable("Evidence is already submitted.")
                     "EVIDENCE_UPLOAD_UNAVAILABLE" ->
                         EvidenceCaptureFailure.UploadNotReady(this)
-                    "EVIDENCE_MEDIA_INVALID",
-                    "EVIDENCE_REPLAY",
+                    "CLAIM_NOT_FOUND",
+                    "NOT_FOUND",
+                    "EVIDENCE_CHALLENGE_INVALID",
                     "CLAIM_NOT_AVAILABLE",
                     "VERIFICATION_NOT_ELIGIBLE" ->
+                        EvidenceCaptureFailure.Stale(
+                            message ?: "This saved proof is no longer active.",
+                        )
+                    "EVIDENCE_MEDIA_INVALID",
+                    "EVIDENCE_REPLAY" ->
                         EvidenceCaptureFailure.Unavailable(message ?: "Evidence is not eligible.")
                     else -> EvidenceCaptureFailure.Server(message ?: code)
                 }
