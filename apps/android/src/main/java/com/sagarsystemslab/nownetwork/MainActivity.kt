@@ -180,6 +180,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         browseViewModel.onForeground()
+        contributorClaimViewModel.onForeground()
         if (runtimeConfig.apiConfigured && runtimeConfig.authConfigured) experienceViewModel.refresh()
     }
 }

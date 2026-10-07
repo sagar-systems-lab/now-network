@@ -27,6 +27,7 @@ import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runInterruptible
@@ -39,12 +40,14 @@ class AndroidWalletInteractionHost(
     internal val activity: ComponentActivity,
 ) : WalletInteractionHost {
     private var pendingResult: CompletableDeferred<Int>? = null
+    private val activityResults = ArrayDeque<CompletableDeferred<Int>>()
 
     private val launcher = activity.registerForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
     ) { result ->
-        pendingResult?.complete(result.resultCode)
-        pendingResult = null
+        val completed = activityResults.removeFirstOrNull()
+        completed?.complete(result.resultCode)
+        if (pendingResult === completed) pendingResult = null
     }
 
     suspend fun launch(intent: Intent): CompletableDeferred<Int> =
@@ -55,14 +58,27 @@ class AndroidWalletInteractionHost(
 
             val deferred = CompletableDeferred<Int>()
             pendingResult = deferred
+            activityResults.addLast(deferred)
             try {
                 launcher.launch(intent)
             } catch (error: ActivityNotFoundException) {
                 pendingResult = null
+                activityResults.remove(deferred)
                 deferred.cancel()
                 throw error
             }
             deferred
+        }
+
+    suspend fun finishAssociation(result: CompletableDeferred<Int>) =
+        withContext(NonCancellable + Dispatchers.Main.immediate) {
+            if (pendingResult === result) pendingResult = null
+            result.cancel()
+            if (!activity.isFinishing && !activity.isDestroyed) {
+                runCatching { activity.startActivity(Intent(activity, activity.javaClass).addFlags(
+                    Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP,
+                )) }
+            }
         }
 }
 
@@ -308,6 +324,7 @@ class MwaWalletGateway @Inject constructor(
         } catch (error: Exception) {
             clientDeferred.cancel()
             closeScenario(scenario)
+            host.finishAssociation(activityResult)
             throw error
         }
 
@@ -318,13 +335,14 @@ class MwaWalletGateway @Inject constructor(
             )
         } finally {
             closeScenario(scenario)
+            host.finishAssociation(activityResult)
         }
     }
 
     private suspend fun closeScenario(
         scenario: LocalAssociationScenario,
     ) {
-        withContext(Dispatchers.IO) {
+        withContext(NonCancellable + Dispatchers.IO) {
             runCatching {
                 scenario.close().get(
                     ASSOCIATION_CLOSE_TIMEOUT_SECONDS,

@@ -221,6 +221,42 @@ export class ClaimCoordinator {
     if (record === null || record.claim.actorId !== actor.actorId) {
       throw new ApiFault(404, "CLAIM_NOT_FOUND", "Claim was not found.");
     }
+    if (
+      record.claim.status === "WALLET_PENDING" && record.claim.chainSignature === null &&
+      record.claim.claimDurationSeconds !== null && record.refresh.chainRefreshAddress !== null &&
+      this.chainObserver.findClaimSignature
+    ) {
+      // A wallet may broadcast successfully without delivering its callback to the app.
+      // Bind a discovered signature only after the exact claim and on-chain state validate.
+      const addresses = await deriveClaimChainAddresses({
+        programId: this.programId,
+        rewardMint: record.refresh.rewardMint,
+        claimantWallet: record.claim.walletAddress,
+        chainRefreshId: record.refresh.chainRefreshId,
+      });
+      let signature: string | null = null;
+      try {
+        signature = await this.chainObserver.findClaimSignature({
+          refreshAddress: record.refresh.chainRefreshAddress,
+          configAddress: addresses.configAddress,
+          claimantWallet: record.claim.walletAddress,
+          claimantRewardTokenAccount: addresses.claimantRewardTokenAccount,
+          expectedRewardMint: record.refresh.rewardMint,
+          expectedCreatorWallet: record.refresh.creatorWalletAddress,
+          expectedChainRefreshId: record.refresh.chainRefreshId,
+          expectedStateIdDigest: record.refresh.stateIdDigest,
+          expectedIntentCoreHash: record.refresh.intentCoreHash,
+          expectedRefreshExpiresAt: record.refresh.refreshExpiresAt,
+          expectedMaxWitnesses: record.refresh.maxWitnesses,
+          claimDurationSeconds: record.claim.claimDurationSeconds,
+        });
+      } catch {
+        // Keep an unsigned reservation retryable during an RPC outage.
+      }
+      if (signature !== null) {
+        return await this.observe({ actor, acceptanceId, signature });
+      }
+    }
     return privatePayload(record);
   }
 

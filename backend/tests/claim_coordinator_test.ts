@@ -144,7 +144,11 @@ class MemoryClaimRepository implements ClaimRepository {
 }
 
 class MemoryObserver implements ClaimChainObserver {
+  discoveredSignature: string | null = null;
   constructor(public result: ChainClaimInspection) {}
+  findClaimSignature(): Promise<string | null> {
+    return Promise.resolve(this.discoveredSignature);
+  }
   inspectClaim(): Promise<ChainClaimInspection> {
     return Promise.resolve(this.result);
   }
@@ -171,6 +175,58 @@ function identity(bindings = true): IdentityRepository {
 function faultCode(error: unknown): string {
   return error instanceof ApiFault ? error.code : "";
 }
+
+Deno.test("claim detail recovers a confirmed wallet broadcast without a callback", async () => {
+  const repository = new MemoryClaimRepository();
+  repository.record = await baseRecord();
+  const observer = new MemoryObserver({
+    kind: "confirmed",
+    commitment: "finalized",
+    claimSlot: 0,
+    claimedAt: NOW,
+    claimDeadline: DEADLINE,
+    totalFundedAtomic: 1_000_000n,
+    lockedRewardAtomic: 1_000_000n,
+    observedAt: NOW,
+  });
+  observer.discoveredSignature = SIGNATURE;
+  const coordinator = new ClaimCoordinator(repository, identity(), observer, {
+    cluster: "devnet",
+    claimDurationSeconds: 180,
+  }, () => NOW);
+  const result = await coordinator.get(actor(), ACCEPTANCE_ID);
+  if (
+    result.status !== "CLAIMED" || result.chain_signature !== SIGNATURE ||
+    result.next_step !== "EVIDENCE_CHALLENGE"
+  ) {
+    throw new Error("lost callback did not recover to evidence capture");
+  }
+  const revision = repository.record.claim.revision;
+  await coordinator.get(actor(), ACCEPTANCE_ID);
+  if (repository.record.claim.revision !== revision) throw new Error("recovery was not idempotent");
+});
+
+Deno.test("claim detail leaves an absent broadcast unsigned and enforces ownership", async () => {
+  const repository = new MemoryClaimRepository();
+  repository.record = await baseRecord();
+  const coordinator = new ClaimCoordinator(
+    repository,
+    identity(),
+    new MemoryObserver({ kind: "pending" }),
+    { cluster: "devnet", claimDurationSeconds: 180 },
+    () => NOW,
+  );
+  const result = await coordinator.get(actor(), ACCEPTANCE_ID);
+  if (result.status !== "WALLET_PENDING" || result.chain_signature !== null) {
+    throw new Error("absent broadcast was guessed as submitted");
+  }
+  try {
+    await coordinator.get({ ...actor(), actorId: "other-actor" }, ACCEPTANCE_ID);
+    throw new Error("claim ownership was bypassed");
+  } catch (error) {
+    if (faultCode(error) !== "CLAIM_NOT_FOUND") throw error;
+  }
+});
 
 Deno.test("claim prepare returns the exact wallet instruction and confirmed observation advances to claimed", async () => {
   const repository = new MemoryClaimRepository();
