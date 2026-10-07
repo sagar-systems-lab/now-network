@@ -1,4 +1,9 @@
 import { PostgresAskService } from "./ask-service.ts";
+import { PostgresVerificationRepository } from "./postgres-verification-repository.ts";
+import { PostgresStateProjectionRepository } from "./postgres-state-projection-repository.ts";
+import { VerificationService } from "./verification-service.ts";
+import { StateProjectionService } from "./state-projection-service.ts";
+import { VerificationWorker } from "./verification-worker.ts";
 import { FcmSender, PostgresNotificationRunner } from "./notification-delivery.ts";
 import { NowWorkerCoordinator } from "./now-worker-coordinator.ts";
 import { PostgresReceiptRepository } from "./postgres-receipt-repository.ts";
@@ -68,6 +73,7 @@ export function createProductionSettlementWorkerHandler(): (
     ),
   );
   const discovery = new PostgresAskService(connectionString);
+  const verificationRepository = new PostgresVerificationRepository(connectionString);
   const coordinator = new NowWorkerCoordinator(
     settlementCoordinator,
     new ReceiptCoordinator(receiptRepository),
@@ -79,6 +85,11 @@ export function createProductionSettlementWorkerHandler(): (
       )
       : undefined,
     () => discovery.pruneExpired(),
+    new VerificationWorker(
+      verificationRepository,
+      new VerificationService(verificationRepository),
+      new StateProjectionService(new PostgresStateProjectionRepository(connectionString)),
+    ),
   );
 
   const handler = createSettlementWorkerHandler(

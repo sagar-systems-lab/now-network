@@ -64,6 +64,7 @@ data class EvidenceCaptureDraft(
     val locationSampleCount: Int,
     val videoRequired: Boolean = false,
     val video: EvidenceVideoDto? = null,
+    val submissionRequested: Boolean = false,
 )
 
 sealed interface EvidenceCaptureRecovery {
@@ -224,6 +225,13 @@ class DefaultEvidenceCaptureRepository @Inject constructor(
 
             readSecret(acceptanceId)?.let { secret ->
                 if (isExpired(secret.expiresAt)) {
+                    if (secret.submissionRequested && pending.uploadState in setOf(
+                            PendingEvidenceStatus.UPLOADING, PendingEvidenceStatus.UPLOADED,
+                            PendingEvidenceStatus.COMMITTING)) {
+                        resumeSubmission(pending.evidenceId)?.let {
+                            return EvidenceCaptureRecovery.Submitted(pending.evidenceId)
+                        }
+                    }
                     markExpired(pending)
                     throw EvidenceCaptureFailure.Expired()
                 }
@@ -299,22 +307,24 @@ class DefaultEvidenceCaptureRepository @Inject constructor(
         return reserveAndPersist(secret)
     }
 
-    override suspend fun markCapturing(evidenceId: String): EvidenceCaptureDraft {
+    override suspend fun markCapturing(evidenceId: String): EvidenceCaptureDraft = submissionMutex.withLock {
         val (pending, secret) = loadDraft(evidenceId)
+        checkEditable(pending, secret)
         val updated = pending.copy(
             uploadState = PendingEvidenceStatus.CAPTURING,
             lastError = null,
             updatedAtMs = serverClock.nowMillis(),
         )
         pendingEvidenceDao.upsert(updated)
-        return toDraft(updated, secret)
+        toDraft(updated, secret)
     }
 
     override suspend fun addLocationSample(
         evidenceId: String,
         sample: EvidenceLocationSample,
-    ): EvidenceCaptureDraft {
+    ): EvidenceCaptureDraft = submissionMutex.withLock {
         val (pending, secret) = loadDraft(evidenceId)
+        checkEditable(pending, secret)
         val nextLocations = (
             secret.locations +
                 EvidenceLocationSecret(
@@ -331,18 +341,19 @@ class DefaultEvidenceCaptureRepository @Inject constructor(
 
         val updatedSecret = secret.copy(locations = nextLocations)
         writeSecret(updatedSecret)
-        return toDraft(pending, updatedSecret)
+        toDraft(pending, updatedSecret)
     }
 
     override suspend fun completeCapture(
         evidenceId: String,
         captureStartedMonotonicMs: Long,
         captureCompletedMonotonicMs: Long,
-    ): EvidenceCaptureDraft {
+    ): EvidenceCaptureDraft = submissionMutex.withLock {
         require(captureStartedMonotonicMs >= 0L)
         require(captureCompletedMonotonicMs >= captureStartedMonotonicMs)
 
         val (pending, secret) = loadDraft(evidenceId)
+        checkEditable(pending, secret)
         val file = File(pending.localFilePath)
         if (!file.isFile || file.length() <= 0L) {
             failMissingFile(pending)
@@ -384,10 +395,10 @@ class DefaultEvidenceCaptureRepository @Inject constructor(
         )
         pendingEvidenceDao.upsert(updated)
 
-        return toDraft(updated, updatedSecret)
+        toDraft(updated, updatedSecret)
     }
 
-    override suspend fun completeVideo(evidenceId: String, startedMs: Long, completedMs: Long, durationMs: Long): EvidenceCaptureDraft {
+    override suspend fun completeVideo(evidenceId: String, startedMs: Long, completedMs: Long, durationMs: Long): EvidenceCaptureDraft = submissionMutex.withLock {
         val (pending, secret) = loadDraft(evidenceId)
         checkEditable(pending, secret)
         val photoCompleted = secret.captureCompletedMonotonicMs ?: throw EvidenceCaptureFailure.MissingFile()
@@ -410,16 +421,16 @@ class DefaultEvidenceCaptureRepository @Inject constructor(
         val digest = hashMedia(file)
         val next = secret.copy(video = EvidenceVideoDto(digest.sha256Hex,digest.sizeBytes,actualDuration,startedMs,completedMs),videoUploaded=false)
         writeSecret(next)
-        return toDraft(pending,next)
+        toDraft(pending,next)
     }
 
-    override suspend fun resetVideo(evidenceId: String): EvidenceCaptureDraft {
+    override suspend fun resetVideo(evidenceId: String): EvidenceCaptureDraft = submissionMutex.withLock {
         val (pending, secret) = loadDraft(evidenceId)
         checkEditable(pending,secret)
         fileStore.delete(File(pending.localFilePath + ".mp4"))
         val next = secret.copy(video=null,videoUploaded=false)
         writeSecret(next)
-        return toDraft(pending,next)
+        toDraft(pending,next)
     }
 
     private fun checkEditable(pending: PendingEvidenceEntity, secret: EvidenceDraftSecret) {
@@ -433,15 +444,16 @@ class DefaultEvidenceCaptureRepository @Inject constructor(
     override suspend fun updateAnswer(
         evidenceId: String,
         answer: String?,
-    ): EvidenceCaptureDraft {
+    ): EvidenceCaptureDraft = submissionMutex.withLock {
         val (pending, secret) = loadDraft(evidenceId)
+        checkEditable(pending, secret)
         val normalized = answer?.trim()?.takeIf { it.isNotEmpty() }
         val updated = secret.copy(answer = normalized)
         writeSecret(updated)
-        return toDraft(pending, updated)
+        toDraft(pending, updated)
     }
 
-    override suspend fun resetCapture(evidenceId: String): EvidenceCaptureDraft {
+    override suspend fun resetCapture(evidenceId: String): EvidenceCaptureDraft = submissionMutex.withLock {
         val (pending, secret) = loadDraft(evidenceId)
         if (isExpired(secret.expiresAt)) {
             markExpired(pending)
@@ -472,11 +484,18 @@ class DefaultEvidenceCaptureRepository @Inject constructor(
             updatedAtMs = serverClock.nowMillis(),
         )
         pendingEvidenceDao.upsert(updated)
-        return toDraft(updated, updatedSecret)
+        toDraft(updated, updatedSecret)
     }
 
-    override suspend fun requestSubmission(evidenceId: String) {
-        val (_, secret) = loadDraft(evidenceId)
+    override suspend fun requestSubmission(evidenceId: String) = submissionMutex.withLock {
+        val (pending, secret) = loadDraft(evidenceId)
+        if (isExpired(secret.expiresAt)) throw EvidenceCaptureFailure.Expired()
+        answerValue(secret)
+        if (secret.locationRequired && secret.locations.isEmpty()) throw EvidenceCaptureFailure.LocationRequired()
+        if (secret.captureStartedMonotonicMs == null || secret.captureCompletedMonotonicMs == null) {
+            throw EvidenceCaptureFailure.Unavailable("Capture the photo before submitting.")
+        }
+        if (!File(pending.localFilePath).isFile) throw EvidenceCaptureFailure.MissingFile()
         if (secret.videoRequired && secret.video == null) {
             throw EvidenceCaptureFailure.Unavailable("Record the short video before submitting.")
         }
@@ -535,6 +554,17 @@ class DefaultEvidenceCaptureRepository @Inject constructor(
 
     private suspend fun submitLocked(evidenceId: String): EvidenceSubmissionResult {
         var (pending, secret) = loadDraft(evidenceId)
+
+        // A lost commit response can be recovered after the capture deadline.
+        // The server permits only an identical replay, never a new expired proof.
+        if (isExpired(secret.expiresAt) && secret.submissionRequested &&
+            pending.uploadState in setOf(PendingEvidenceStatus.UPLOADING,
+                PendingEvidenceStatus.UPLOADED, PendingEvidenceStatus.COMMITTING) &&
+            pending.sha256Hex != null && pending.mediaSizeBytes != null) {
+            return commitPrepared(pending, secret, answerValue(secret),
+                secret.captureStartedMonotonicMs ?: throw EvidenceCaptureFailure.MissingFile(),
+                secret.captureCompletedMonotonicMs ?: throw EvidenceCaptureFailure.MissingFile())
+        }
 
         if (isExpired(secret.expiresAt)) {
             markExpired(pending)
@@ -921,6 +951,7 @@ class DefaultEvidenceCaptureRepository @Inject constructor(
             locationSampleCount = secret.locations.size,
             videoRequired = secret.videoRequired,
             video = secret.video,
+            submissionRequested = secret.submissionRequested,
         )
 
     private suspend fun markExpired(pending: PendingEvidenceEntity) {

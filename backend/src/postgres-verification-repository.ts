@@ -1,4 +1,5 @@
 import postgres from "npm:postgres@3.4.7";
+import type { VerificationCandidate } from "./verification-worker.ts";
 import type {
   ExistingVerification,
   PersistVerificationResult,
@@ -186,6 +187,36 @@ export class PostgresVerificationRepository implements VerificationRepository {
       idle_timeout: 20,
       connect_timeout: 10,
     });
+  }
+
+  async listPending(limit: number): Promise<VerificationCandidate[]> {
+    const rows = await this.sql`
+      select rr.refresh_id, a.actor_id, a.status, a.revision
+      from app.refresh_requests rr
+      join app.actors a on a.actor_id = rr.requester_actor_id
+      where a.status = 'ACTIVE' and (
+        (rr.status = 'EVIDENCE_SUBMITTED' and rr.refresh_expires_at > now())
+        or (rr.status in ('VERIFIED', 'SETTLEMENT_PENDING', 'SETTLEMENT_VERIFYING', 'COMPLETED')
+          and exists (
+            select 1 from app.verification_results vr
+            where vr.refresh_id = rr.refresh_id and vr.status = 'VERIFIED'
+              and not exists (
+                select 1 from app.state_history sh
+                where sh.verification_result_id = vr.verification_result_id
+              )
+          ))
+      )
+      order by rr.updated_at, rr.refresh_id
+      limit ${Math.max(1, Math.min(32, Math.trunc(limit)))}
+    `;
+    return rows.map((row) => ({
+      refreshId: row.refresh_id as string,
+      actor: {
+        actorId: row.actor_id as string,
+        status: "ACTIVE" as const,
+        revision: Number(row.revision),
+      },
+    }));
   }
 
   async getContext(refreshId: string): Promise<VerificationContext | null> {

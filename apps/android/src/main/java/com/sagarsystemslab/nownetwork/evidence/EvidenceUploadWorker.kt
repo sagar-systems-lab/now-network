@@ -1,6 +1,9 @@
 package com.sagarsystemslab.nownetwork.evidence
 
 import android.content.Context
+import androidx.work.BackoffPolicy
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.withTimeout
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.Data
@@ -41,24 +44,28 @@ class EvidenceUploadWorker(
         ).evidenceCaptureRepository()
 
         return try {
-            repository.resumeSubmission(evidenceId)
+            withTimeout(30_000L) { repository.resumeSubmission(evidenceId) }
             Result.success()
+        } catch (_: TimeoutCancellationException) {
+            retryOrStop()
         } catch (error: CancellationException) {
             throw error
         } catch (_: EvidenceCaptureFailure.Network) {
-            Result.retry()
+            retryOrStop()
         } catch (_: EvidenceCaptureFailure.Server) {
-            Result.retry()
+            retryOrStop()
         } catch (_: EvidenceCaptureFailure.UploadNotReady) {
-            Result.retry()
+            retryOrStop()
         } catch (_: EvidenceCaptureFailure.Storage) {
-            Result.retry()
+            retryOrStop()
         } catch (_: EvidenceCaptureFailure) {
             Result.failure()
         } catch (_: Exception) {
-            Result.retry()
+            retryOrStop()
         }
     }
+
+    private fun retryOrStop(): Result = if (runAttemptCount < 4) Result.retry() else Result.failure()
 
     companion object {
         const val KEY_EVIDENCE_ID = "evidence_id"
@@ -83,6 +90,7 @@ class EvidenceWorkScheduler @Inject constructor(
                     .setRequiredNetworkType(NetworkType.CONNECTED)
                     .build(),
             )
+            .setBackoffCriteria(BackoffPolicy.LINEAR, 10, TimeUnit.SECONDS)
             .setInitialDelay(15, TimeUnit.SECONDS)
             .build()
 

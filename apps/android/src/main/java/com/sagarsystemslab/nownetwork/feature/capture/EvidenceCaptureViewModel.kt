@@ -1,5 +1,8 @@
 package com.sagarsystemslab.nownetwork.feature.capture
 
+import com.sagarsystemslab.nownetwork.data.local.PendingEvidenceDao
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.collect
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sagarsystemslab.nownetwork.data.local.PendingEvidenceStatus
@@ -74,20 +77,33 @@ class EvidenceCaptureViewModel @Inject constructor(
     private val repository: EvidenceCaptureRepository,
     private val location: EvidenceLocationProvider,
     private val workScheduler: EvidenceWorkScheduler,
+    private val pendingEvidenceDao: PendingEvidenceDao,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(EvidenceCaptureUiState())
     val state: StateFlow<EvidenceCaptureUiState> = mutableState.asStateFlow()
+
+    private var observationJob: Job? = null
 
     fun open(
         acceptanceId: String,
         refreshId: String,
     ) {
+        observationJob?.cancel()
         mutableState.value = EvidenceCaptureUiState(
             stage = EvidenceCaptureStage.LOADING,
             acceptanceId = acceptanceId,
             refreshId = refreshId,
         )
-
+        observationJob = viewModelScope.launch {
+            pendingEvidenceDao.observePending().collect { rows ->
+                val current = mutableState.value
+                val saved = rows.firstOrNull { it.evidenceId == current.evidenceId && it.acceptanceId == acceptanceId }
+                if (current.stage in setOf(EvidenceCaptureStage.QUEUED, EvidenceCaptureStage.SUBMITTING) &&
+                    saved?.uploadState in setOf(PendingEvidenceStatus.COMMITTED, PendingEvidenceStatus.VERIFYING, PendingEvidenceStatus.VERIFIED)) {
+                    mutableState.update { it.copy(stage = EvidenceCaptureStage.SUBMITTED, message = "Evidence committed successfully.") }
+                }
+            }
+        }
         viewModelScope.launch {
             try {
                 applyRecovery(withTimeout(OPERATION_WAIT_MS) { repository.load(acceptanceId, refreshId) })
@@ -118,8 +134,7 @@ class EvidenceCaptureViewModel @Inject constructor(
                 )
             }
             try {
-                val draft = withTimeout(OPERATION_WAIT_MS) { repository.begin(acceptanceId, refreshId) }
-                enterCamera(draft)
+                withTimeout(OPERATION_WAIT_MS) { enterCamera(repository.begin(acceptanceId, refreshId)) }
             } catch (_: TimeoutCancellationException) {
                 mutableState.update {
                     it.copy(
@@ -173,7 +188,8 @@ class EvidenceCaptureViewModel @Inject constructor(
                 )
             }
             try {
-                var draft = repository.completeCapture(
+                withTimeout(OPERATION_WAIT_MS) {
+                    var draft = repository.completeCapture(
                     evidenceId = evidenceId,
                     captureStartedMonotonicMs = photo.captureStartedElapsedMs,
                     captureCompletedMonotonicMs = photo.captureCompletedElapsedMs,
@@ -201,6 +217,9 @@ class EvidenceCaptureViewModel @Inject constructor(
                         null
                     },
                 )
+                }
+            } catch (_: TimeoutCancellationException) {
+                mutableState.update { it.copy(stage = EvidenceCaptureStage.ERROR, message = "Photo processing timed out. Your photo is saved; check the task to continue.") }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
@@ -216,10 +235,14 @@ class EvidenceCaptureViewModel @Inject constructor(
         viewModelScope.launch {
             mutableState.update { it.copy(stage=EvidenceCaptureStage.PROCESSING,message="Securing your video…") }
             try {
-                var draft = repository.completeVideo(id,video.startedMs,video.completedMs,video.durationMs)
+                withTimeout(OPERATION_WAIT_MS) {
+                    var draft = repository.completeVideo(id,video.startedMs,video.completedMs,video.durationMs)
                 if (draft.locationRequired) try { draft=repository.addLocationSample(id,location.currentSample()) }
                     catch (cancel: CancellationException) { throw cancel } catch (_: Exception) { }
                 applyDraft(draft,EvidenceCaptureStage.REVIEW,null)
+                }
+            } catch (_: TimeoutCancellationException) {
+                mutableState.update { it.copy(stage = EvidenceCaptureStage.ERROR, message = "Video processing timed out. Check the saved task to continue.") }
             } catch (cancel: CancellationException) { throw cancel }
             catch (error: Exception) { if(error is EvidenceCaptureFailure.Expired) showFailure(error) else mutableState.update { it.copy(stage=EvidenceCaptureStage.VIDEO,message=error.message) } }
         }
@@ -235,6 +258,7 @@ class EvidenceCaptureViewModel @Inject constructor(
     }
 
     fun updateAnswer(value: String) {
+        if (mutableState.value.stage != EvidenceCaptureStage.REVIEW) return
         val evidenceId = mutableState.value.evidenceId ?: return
         val stateType = mutableState.value.stateType
 
@@ -259,6 +283,7 @@ class EvidenceCaptureViewModel @Inject constructor(
     }
 
     fun refreshLocation() {
+        if (mutableState.value.stage != EvidenceCaptureStage.REVIEW) return
         val evidenceId = mutableState.value.evidenceId ?: return
         viewModelScope.launch {
             try {
@@ -289,8 +314,9 @@ class EvidenceCaptureViewModel @Inject constructor(
         val evidenceId = mutableState.value.evidenceId ?: return
         viewModelScope.launch {
             try {
-                val draft = repository.resetCapture(evidenceId)
-                enterCamera(draft)
+                withTimeout(OPERATION_WAIT_MS) { enterCamera(repository.resetCapture(evidenceId)) }
+            } catch (_: TimeoutCancellationException) {
+                mutableState.update { it.copy(stage = EvidenceCaptureStage.ERROR, message = "Camera setup timed out. Check the task to retry.") }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
@@ -302,6 +328,7 @@ class EvidenceCaptureViewModel @Inject constructor(
     fun submit() {
         val evidenceId = mutableState.value.evidenceId ?: return
         if (!mutableState.value.canSubmit) return
+        mutableState.update { it.copy(stage = EvidenceCaptureStage.SUBMITTING) }
 
         viewModelScope.launch {
             try {
@@ -443,7 +470,9 @@ class EvidenceCaptureViewModel @Inject constructor(
 
             is EvidenceCaptureRecovery.Draft -> {
                 val status = recovery.draft.status
-                val stage = when (status) {
+                val stage = if (recovery.draft.submissionRequested && status in setOf(
+                        PendingEvidenceStatus.CAPTURED_LOCAL, PendingEvidenceStatus.HASHING,
+                        PendingEvidenceStatus.UPLOAD_READY)) EvidenceCaptureStage.QUEUED else when (status) {
                     PendingEvidenceStatus.CHALLENGE_ISSUED,
                     PendingEvidenceStatus.CAPTURING ->
                         EvidenceCaptureStage.CAMERA

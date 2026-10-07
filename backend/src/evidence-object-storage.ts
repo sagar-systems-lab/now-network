@@ -79,6 +79,7 @@ export class SupabaseEvidenceObjectStorage implements EvidenceObjectStorage {
       `${this.storageBaseUrl}/object/upload/sign/${pathForUrl(this.bucket, objectKey)}`,
       {
         method: "POST",
+        signal: AbortSignal.timeout(5_000),
         headers: {
           apikey: this.serviceRoleKey,
           authorization: `Bearer ${this.serviceRoleKey}`,
@@ -129,6 +130,7 @@ export class SupabaseEvidenceObjectStorage implements EvidenceObjectStorage {
       `${this.storageBaseUrl}/object/${pathForUrl(this.bucket, objectKey)}`,
       {
         method: "GET",
+        signal: AbortSignal.timeout(5_000),
         headers: {
           apikey: this.serviceRoleKey,
           authorization: `Bearer ${this.serviceRoleKey}`,

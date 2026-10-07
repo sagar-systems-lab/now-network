@@ -139,6 +139,7 @@ export class SolanaSettlementClient implements SettlementChainClient {
     try {
       response = await this.fetchImpl(this.rpcUrl, {
         method: "POST",
+        signal: AbortSignal.timeout(5_000),
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           jsonrpc: "2.0",
