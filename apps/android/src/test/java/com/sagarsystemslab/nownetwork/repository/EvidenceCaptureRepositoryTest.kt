@@ -173,6 +173,49 @@ class EvidenceCaptureRepositoryTest {
         assertTrue(editable.video == null)
     }
 
+    @Test
+    fun queuedPayloadCannotBeChangedDuringAnAmbiguousSubmission() = runBlocking {
+        val fixture = Fixture()
+        val evidenceId = fixture.prepareCapturedEvidence()
+        val before = fixture.repository.load(ACCEPTANCE_ID, REFRESH_ID) as EvidenceCaptureRecovery.Draft
+        assertTrue(before.draft.submissionRequested)
+        assertTrue(runCatching { fixture.repository.updateAnswer(evidenceId, "99") }.exceptionOrNull() is EvidenceCaptureFailure.Unavailable)
+        assertTrue(runCatching { fixture.repository.resetCapture(evidenceId) }.exceptionOrNull() is EvidenceCaptureFailure.Unavailable)
+        assertTrue(runCatching { fixture.repository.markCapturing(evidenceId) }.exceptionOrNull() is EvidenceCaptureFailure.Unavailable)
+        val after = fixture.repository.load(ACCEPTANCE_ID, REFRESH_ID) as EvidenceCaptureRecovery.Draft
+        assertEquals("2", after.draft.answer)
+        assertTrue(after.draft.localFile.isFile)
+    }
+
+    @Test
+    fun invalidAnswerDoesNotFreezeTheDraftOrQueueAnImpossibleUpload() = runBlocking {
+        val fixture = Fixture()
+        val evidenceId = fixture.prepareCapturedEvidence(requestSubmission = false)
+        fixture.repository.updateAnswer(evidenceId, null)
+        assertTrue(runCatching { fixture.repository.requestSubmission(evidenceId) }.exceptionOrNull() is EvidenceCaptureFailure.AnswerRequired)
+        val restored = fixture.repository.load(ACCEPTANCE_ID, REFRESH_ID) as EvidenceCaptureRecovery.Draft
+        assertTrue(!restored.draft.submissionRequested)
+        fixture.repository.updateAnswer(evidenceId, "3")
+        fixture.repository.requestSubmission(evidenceId)
+        assertEquals(0, fixture.uploader.calls)
+    }
+
+    @Test
+    fun lostCommitResponseRecoversAfterDeadlineWithoutReadingOrUploadingExpiredMedia() = runBlocking {
+        val fixture = Fixture()
+        val evidenceId = fixture.prepareCapturedEvidence()
+        fixture.api.ambiguousCommitOnce = true
+        assertTrue(runCatching { fixture.repository.submit(evidenceId) }.exceptionOrNull() is EvidenceCaptureFailure.Network)
+        assertTrue(fixture.remote.committed)
+        val saved = fixture.repository.load(ACCEPTANCE_ID, REFRESH_ID) as EvidenceCaptureRecovery.Draft
+        saved.draft.localFile.delete()
+        fixture.clock.update("2100-01-01T00:00:00Z")
+        val result = fixture.recreatedRepository().load(ACCEPTANCE_ID, REFRESH_ID)
+        assertTrue(result is EvidenceCaptureRecovery.Submitted)
+        assertEquals(1, fixture.uploader.calls)
+        assertEquals(PendingEvidenceStatus.COMMITTED, fixture.dao.get(evidenceId)?.uploadState)
+    }
+
     private class Fixture {
         val dao = MemoryPendingEvidenceDao()
         val secrets = MemorySecretStore()
@@ -182,7 +225,7 @@ class EvidenceCaptureRepositoryTest {
         private val fileStore = TempEvidenceFileStore()
         private val auth = FakeAuthGateway()
         private val readApi = FakeEvidenceReadApi()
-        private val clock = ServerClock()
+        val clock = ServerClock()
         private val json = Json { ignoreUnknownKeys = true }
 
         var repository = newRepository()

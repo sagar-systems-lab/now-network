@@ -58,7 +58,7 @@ class FusedEvidenceLocationProvider @Inject constructor(
         }
 
         val fresh = try {
-            withTimeoutOrNull(LOCATION_WAIT_MS) { currentLocation() }
+            withTimeoutOrNull(20_000L) { currentLocation() }
         } catch (error: CancellationException) {
             throw error
         } catch (_: Exception) {
@@ -66,7 +66,7 @@ class FusedEvidenceLocationProvider @Inject constructor(
         }
 
         val location = fresh ?: try {
-            withTimeoutOrNull(LOCATION_WAIT_MS) { lastLocation() }
+            withTimeoutOrNull(5_000L) { lastLocation() }
         } catch (error: CancellationException) {
             throw error
         } catch (error: Exception) {
@@ -127,7 +127,6 @@ class FusedEvidenceLocationProvider @Inject constructor(
             }
         }
     private companion object {
-        const val LOCATION_WAIT_MS = 30_000L
         const val MAX_LAST_LOCATION_AGE_MS = 30_000L
     }
 }
