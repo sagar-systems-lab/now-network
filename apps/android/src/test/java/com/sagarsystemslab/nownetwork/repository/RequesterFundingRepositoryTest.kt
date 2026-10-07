@@ -244,6 +244,52 @@ class RequesterFundingRepositoryTest {
         assertEquals("signature-a", persisted.chainSignature)
     }
 
+    @Test
+    fun missingServerRefreshIsTerminalAndDoesNotBlockNewFunding() = runBlocking {
+        val operationDao = FundingOperationDao()
+        val api = FundingApi().apply { missingRefresh = true }
+        val config = SolanaRuntimeConfig(
+            cluster = "devnet",
+            rpcUrl = "https://api.devnet.solana.com",
+            programId = "program-a",
+            walletIdentityUri = "https://example.test",
+            walletIconUri = "icon.png",
+        )
+        val repository = DefaultRequesterFundingRepository(
+            auth = FundingAuth(),
+            api = api,
+            wallet = WalletRequestCoordinator(object : WalletGateway {
+                override suspend fun connect(host: WalletInteractionHost): WalletResult<WalletAccount> =
+                    WalletResult.Success(WalletAccount("wallet-a", "Requester"))
+                override suspend fun disconnect(host: WalletInteractionHost): WalletResult<Unit> =
+                    WalletResult.Success(Unit)
+                override suspend fun signWalletProof(host: WalletInteractionHost, message: String): WalletResult<WalletProof> =
+                    error("not used")
+                override suspend fun signAndSend(host: WalletInteractionHost, transaction: ByteArray): WalletResult<WalletSubmission> =
+                    error("not used")
+            }),
+            walletMetadataDao = FundingWalletMetadataDao(),
+            operationDao = operationDao,
+            rpc = FundingRpc(),
+            transactionBuilder = SolanaTransactionBuilder(
+                config = config,
+                rewardConfig = RewardDisplayConfig("mint-a", "USDC", 6),
+            ),
+            serverClock = ServerClock(),
+            solanaConfig = config,
+        )
+
+        val stale = prepared("wallet-a").operation
+        operationDao.upsert(stale)
+
+        val result = repository.recoverLatest()
+
+        assertTrue(result is FundingReconciliation.None)
+        val persisted = requireNotNull(operationDao.get(stale.operationId))
+        assertEquals("CANCELLED", persisted.localState)
+        assertEquals("NOT_FOUND", persisted.remoteState)
+    }
+
     private fun prepared(walletAddress: String): PreparedRequesterFunding {
         val operation = ActiveOperationEntity(
             operationId = "11111111-1111-4111-8111-111111111111",
@@ -353,6 +399,7 @@ private class FundingAuth : AuthGateway {
 
 private class FundingApi : NowApiClient {
     var observeCalls = 0
+    var missingRefresh = false
 
     override suspend fun observeFunding(
         refreshId: String,
@@ -393,7 +440,18 @@ private class FundingApi : NowApiClient {
     override suspend fun refreshDetail(
         refreshId: String,
         accessToken: String,
-    ): RefreshDto = error("not used")
+    ): RefreshDto {
+        if (missingRefresh) {
+            throw ApiFailure.BusinessError(
+                statusCode = 404,
+                code = "REFRESH_NOT_FOUND",
+                safeToRetry = false,
+                retryAfterMs = null,
+                message = "Refresh was not found.",
+            )
+        }
+        error("not used")
+    }
     override suspend fun fundingIntent(
         refreshId: String,
         idempotencyKey: String,
