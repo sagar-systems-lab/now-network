@@ -31,7 +31,10 @@ function request(
   return new Request(`https://now.invalid${path}`, { ...init, headers });
 }
 
-async function expectStatus(response: Response, expected: number): Promise<Record<string, unknown>> {
+async function expectStatus(
+  response: Response,
+  expected: number,
+): Promise<Record<string, unknown>> {
   const body = await response.json() as Record<string, unknown>;
   if (response.status !== expected) {
     throw new Error(
