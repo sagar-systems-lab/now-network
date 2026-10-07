@@ -297,6 +297,10 @@ class DefaultContributorClaimRepository @Inject constructor(
             .maxByOrNull { it.updatedAtMs }
             ?: return ClaimReconciliation.None
 
+        if (operation.localState == STATE_CANCELLED) {
+            return ClaimReconciliation.None
+        }
+
         if (operation.localState == STATE_REJECTED) {
             throw ContributorClaimFailure.Expired()
         }
@@ -327,7 +331,8 @@ class DefaultContributorClaimRepository @Inject constructor(
             STATE_PREPARING_TRANSACTION,
             STATE_READY_FOR_WALLET -> {
                 if (operation.localState != STATE_PREPARING_REMOTE) {
-                    val claim = withAuthRetry { api.claimDetail(operation.operationId, it) }
+                    val claim = claimDetailOrTerminateMissing(operation)
+                        ?: return ClaimReconciliation.None
                     resolvedClaim(claim, operation)?.let { return it }
                     requireLiveOpportunity(operation, claim.refreshStatus, claim.refreshExpiresAt)
                     if (claim.chainSignature != null) {
@@ -450,6 +455,17 @@ class DefaultContributorClaimRepository @Inject constructor(
             ClaimReconciliation.Claimed(claim, completed)
         } catch (error: ApiFailure.BusinessError) {
             when {
+                error.code == "CLAIM_NOT_FOUND" -> {
+                    val cancelled = operation.copy(
+                        localState = STATE_CANCELLED,
+                        remoteState = "NOT_FOUND",
+                        chainSignature = signature,
+                        updatedAtMs = serverClock.nowMillis(),
+                    )
+                    operationDao.upsert(cancelled)
+                    ClaimReconciliation.None
+                }
+
                 error.code == "CLAIM_UNKNOWN" && error.safeToRetry -> {
                     val confirming = operation.copy(
                         localState = STATE_CONFIRMING,
@@ -483,9 +499,8 @@ class DefaultContributorClaimRepository @Inject constructor(
         operation: ActiveOperationEntity,
     ): ClaimReconciliation {
         val claim = try {
-            withAuthRetry { token ->
-                api.claimDetail(operation.operationId, token)
-            }
+            claimDetailOrTerminateMissing(operation)
+                ?: return ClaimReconciliation.None
         } catch (error: CancellationException) {
             throw error
         } catch (error: Exception) {
@@ -535,9 +550,8 @@ class DefaultContributorClaimRepository @Inject constructor(
     private suspend fun claimDetailResult(
         operation: ActiveOperationEntity,
     ): ClaimReconciliation {
-        val claim = withAuthRetry { token ->
-            api.claimDetail(operation.operationId, token)
-        }
+        val claim = claimDetailOrTerminateMissing(operation)
+            ?: return ClaimReconciliation.None
         resolvedClaim(claim, operation)?.let { return it }
 
         requireLiveOpportunity(operation, claim.refreshStatus, claim.refreshExpiresAt)
@@ -588,6 +602,29 @@ class DefaultContributorClaimRepository @Inject constructor(
             throw ContributorClaimFailure.Expired()
         }
     }
+
+    private suspend fun claimDetailOrTerminateMissing(
+        operation: ActiveOperationEntity,
+    ): ClaimStatusDto? =
+        try {
+            withAuthRetryApi { token ->
+                api.claimDetail(operation.operationId, token)
+            }
+        } catch (error: ApiFailure.BusinessError) {
+            if (error.code != "CLAIM_NOT_FOUND") {
+                throw error.toClaimFailure()
+            }
+            operationDao.upsert(
+                operation.copy(
+                    localState = STATE_CANCELLED,
+                    remoteState = "NOT_FOUND",
+                    updatedAtMs = serverClock.nowMillis(),
+                ),
+            )
+            null
+        } catch (error: ApiFailure) {
+            throw error.toClaimFailure()
+        }
 
     private suspend fun ensureBinding(
         host: WalletInteractionHost,
@@ -791,5 +828,6 @@ class DefaultContributorClaimRepository @Inject constructor(
         const val STATE_CONFIRMING = "CONFIRMING"
         const val STATE_ACKNOWLEDGED = "ACKNOWLEDGED"
         const val STATE_REJECTED = "REJECTED"
+        const val STATE_CANCELLED = "CANCELLED"
     }
 }
