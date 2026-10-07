@@ -271,6 +271,20 @@ fun NowNavHost(
                 contributorClaimViewModel.open(route.refreshId)
             }
 
+            LaunchedEffect(uiState.stage, uiState.claim?.acceptanceId) {
+                if (uiState.stage == com.sagarsystemslab.nownetwork.feature.earn.ContributorClaimStage.CLAIMED) {
+                    uiState.claim?.let { claim ->
+                        appState.navController.navigate(EvidenceCaptureRoute(
+                            acceptanceId = claim.acceptanceId,
+                            refreshId = claim.refreshId,
+                        )) {
+                            popUpTo<OpportunityRoute> { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
+                }
+            }
+
             ContributorClaimScreen(
                 uiState = uiState,
                 rewardText = contributorClaimViewModel.rewardText(),

@@ -9,6 +9,7 @@ import com.sagarsystemslab.nownetwork.repository.ClaimReconciliation
 import com.sagarsystemslab.nownetwork.repository.ContributorClaimFailure
 import com.sagarsystemslab.nownetwork.repository.ContributorClaimRepository
 import com.sagarsystemslab.nownetwork.repository.PreparedContributorClaim
+import com.sagarsystemslab.nownetwork.repository.ServerClock
 import com.sagarsystemslab.nownetwork.wallet.WalletInteractionHost
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -50,14 +51,17 @@ data class ContributorClaimUiState(
 class ContributorClaimViewModel @Inject constructor(
     private val repository: ContributorClaimRepository,
     private val rewardConfig: RewardDisplayConfig,
+    private val serverClock: ServerClock,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(ContributorClaimUiState())
     val state: StateFlow<ContributorClaimUiState> = mutableState.asStateFlow()
 
     private var prepared: PreparedContributorClaim? = null
     private var openJob: kotlinx.coroutines.Job? = null
+    private var recoveryJob: kotlinx.coroutines.Job? = null
 
     fun open(refreshId: String) {
+        recoveryJob?.cancel()
         prepared = null
         mutableState.value = ContributorClaimUiState(
             refreshId = refreshId,
@@ -145,6 +149,7 @@ class ContributorClaimViewModel @Inject constructor(
                 applyReconciliation(withTimeout(OPERATION_WAIT_MS) { repository.submit(host, current) })
             } catch (error: TimeoutCancellationException) {
                 showError(ContributorClaimFailure.Network(error))
+                checkConfirmation()
             } catch (error: CancellationException) {
                 throw error
             } catch (error: ContributorClaimFailure.WalletRejected) {
@@ -160,18 +165,29 @@ class ContributorClaimViewModel @Inject constructor(
         }
     }
 
+    fun onForeground() {
+        if (mutableState.value.stage in setOf(
+                ContributorClaimStage.READY_FOR_WALLET,
+                ContributorClaimStage.CONFIRMING,
+                ContributorClaimStage.WALLET_OUTCOME_UNKNOWN,
+                ContributorClaimStage.ERROR,
+            )) checkConfirmation()
+    }
+
     fun checkConfirmation() {
+        if (recoveryJob?.isActive == true || openJob?.isActive == true) return
         val refreshId = mutableState.value.refreshId ?: return
         if (mutableState.value.stage !in setOf(
                 ContributorClaimStage.CONFIRMING,
                 ContributorClaimStage.WALLET_OUTCOME_UNKNOWN,
                 ContributorClaimStage.ERROR,
+                ContributorClaimStage.READY_FOR_WALLET,
             )
         ) {
             return
         }
 
-        viewModelScope.launch {
+        recoveryJob = viewModelScope.launch {
             mutableState.update {
                 it.copy(
                     stage = ContributorClaimStage.CONFIRMING,
@@ -217,6 +233,15 @@ class ContributorClaimViewModel @Inject constructor(
 
             is ClaimReconciliation.Claimed -> {
                 prepared = null
+                val deadline = result.claim.claimDeadline?.let {
+                    runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrNull()
+                }
+                if (deadline != null && deadline <= serverClock.nowMillis()) {
+                    showError(ContributorClaimFailure.Rejected(
+                        "This claim's capture window has ended. Return to EARN for a new task.",
+                    ))
+                    return
+                }
                 mutableState.update {
                     it.copy(
                         stage = ContributorClaimStage.CLAIMED,

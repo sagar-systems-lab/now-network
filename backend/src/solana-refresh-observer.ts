@@ -168,6 +168,9 @@ export type ChainClaimInspection =
   };
 
 export interface ClaimChainObserver {
+  findClaimSignature?(
+    input: Omit<Parameters<ClaimChainObserver["inspectClaim"]>[0], "signature">,
+  ): Promise<string | null>;
   inspectClaim(input: {
     signature: string;
     refreshAddress: string;
@@ -182,6 +185,7 @@ export interface ClaimChainObserver {
     expectedRefreshExpiresAt: Date;
     expectedMaxWitnesses: number;
     claimDurationSeconds: number;
+    signal?: AbortSignal;
   }): Promise<ChainClaimInspection>;
 }
 
@@ -276,9 +280,12 @@ export class SolanaRpcRefreshChainObserver implements RefreshChainObserver, Clai
     private readonly fetchImpl: FetchLike = fetch,
   ) {}
 
-  private async rpc(method: string, params: unknown[]): Promise<unknown> {
+  private async rpc(method: string, params: unknown[], signal?: AbortSignal): Promise<unknown> {
     const response = await this.fetchImpl(this.rpcUrl, {
       method: "POST",
+      signal: signal
+        ? AbortSignal.any([signal, AbortSignal.timeout(5_000)])
+        : AbortSignal.timeout(5_000),
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         jsonrpc: "2.0",
@@ -437,6 +444,31 @@ export class SolanaRpcRefreshChainObserver implements RefreshChainObserver, Clai
     };
   }
 
+  async findClaimSignature(
+    input: Omit<Parameters<ClaimChainObserver["inspectClaim"]>[0], "signature">,
+  ): Promise<string | null> {
+    const signal = AbortSignal.timeout(10_000);
+    const candidates = await this.rpc("getSignaturesForAddress", [
+      input.refreshAddress,
+      { limit: 6, commitment: "confirmed" },
+    ], signal);
+    if (!Array.isArray(candidates)) return null;
+    const deadline = Date.now() + 10_000;
+    for (const candidate of candidates) {
+      if (Date.now() >= deadline) break;
+      if (!candidate || typeof candidate !== "object") continue;
+      const row = candidate as Record<string, unknown>;
+      if (row.err !== null || typeof row.signature !== "string") continue;
+      if (
+        (await this.inspectClaim({ ...input, signature: row.signature, signal })).kind ===
+          "confirmed"
+      ) {
+        return row.signature;
+      }
+    }
+    return null;
+  }
+
   async inspectClaim(
     input: Parameters<ClaimChainObserver["inspectClaim"]>[0],
   ): Promise<ChainClaimInspection> {
@@ -454,7 +486,7 @@ export class SolanaRpcRefreshChainObserver implements RefreshChainObserver, Clai
     const statusResult = await this.rpc("getSignatureStatuses", [
       [input.signature],
       { searchTransactionHistory: true },
-    ]) as Record<string, unknown>;
+    ], input.signal) as Record<string, unknown>;
     const statusValues = statusResult.value;
     const status = Array.isArray(statusValues) ? statusValues[0] : null;
     if (!status || typeof status !== "object") return { kind: "pending" };
@@ -473,7 +505,7 @@ export class SolanaRpcRefreshChainObserver implements RefreshChainObserver, Clai
         commitment: confirmation,
         maxSupportedTransactionVersion: 0,
       },
-    ]);
+    ], input.signal);
     if (!transaction || typeof transaction !== "object") return { kind: "pending" };
     const transactionRecord = transaction as Record<string, unknown>;
     const meta = transactionRecord.meta as Record<string, unknown> | undefined;
@@ -485,7 +517,7 @@ export class SolanaRpcRefreshChainObserver implements RefreshChainObserver, Clai
     const accountResult = await this.rpc("getAccountInfo", [
       input.refreshAddress,
       { encoding: "base64", commitment: confirmation },
-    ]) as Record<string, unknown>;
+    ], input.signal) as Record<string, unknown>;
     const value = accountResult.value;
     if (!value || typeof value !== "object") return { kind: "pending" };
     const account = value as Record<string, unknown>;

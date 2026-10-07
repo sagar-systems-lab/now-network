@@ -86,7 +86,13 @@ type Fixture = {
 
 function fakeFetch(fixture: Fixture): typeof fetch {
   return (async (_input: string | URL | Request, init?: RequestInit) => {
-    const body = JSON.parse(String(init?.body)) as { method: string };
+    const body = JSON.parse(String(init?.body)) as { method: string; params: unknown[] };
+    if (body.method === "getSignaturesForAddress") {
+      return Response.json({jsonrpc: "2.0", id: 1, result: [
+        {signature: "funding-signature", err: null},
+        {signature: SIGNATURE, err: fixture.signatureError ?? null},
+      ]});
+    }
     if (body.method === "getSignatureStatuses") {
       return Response.json({
         jsonrpc: "2.0",
@@ -110,7 +116,7 @@ function fakeFetch(fixture: Fixture): typeof fetch {
           transaction: {
             message: {
               accountKeys: fixture.accounts,
-              instructions: [{
+              instructions: body.params[0] === "funding-signature" ? [] : [{
                 programId: NOW_SETTLEMENT_PROGRAM_ID,
                 accounts: fixture.accounts,
                 data: await instructionData(fixture.duration),
@@ -209,6 +215,21 @@ Deno.test("Solana observer confirms only the exact witness claim", async () => {
     result.claimDeadline.getTime() - result.claimedAt.getTime() !== CLAIM_DURATION * 1000
   ) {
     throw new Error("valid witness claim was not confirmed exactly");
+  }
+});
+
+Deno.test("callback recovery skips funding signatures and requires the exact claimant", async () => {
+  const valid = await fixture();
+  if (await valid.observer.findClaimSignature(valid.input) !== SIGNATURE) {
+    throw new Error("confirmed claim signature was not recovered");
+  }
+  const wrongWallet = await fixture({claimant: CREATOR});
+  if (await wrongWallet.observer.findClaimSignature(wrongWallet.input) !== null) {
+    throw new Error("a different claimant was recovered");
+  }
+  const failed = await fixture({signatureError: "failed"});
+  if (await failed.observer.findClaimSignature(failed.input) !== null) {
+    throw new Error("a failed signature was recovered");
   }
 });
 
