@@ -33,6 +33,8 @@ sealed class PaymentFailure(
 
     class Unavailable(message: String) : PaymentFailure(message)
 
+    class NotFound : PaymentFailure("Payment status was not found.")
+
     class Protocol(message: String, cause: Throwable? = null) :
         PaymentFailure(message, cause)
 }
@@ -75,11 +77,24 @@ class DefaultPaymentRepository @Inject constructor(
     override suspend fun check(refreshId: String): PaymentOutcome {
         prime(refreshId)
 
-        val dto = withAuthRetry { token ->
-            api.paymentStatus(
-                refreshId = refreshId,
-                accessToken = token,
-            )
+        val dto = try {
+            withAuthRetry { token ->
+                api.paymentStatus(
+                    refreshId = refreshId,
+                    accessToken = token,
+                )
+            }
+        } catch (error: PaymentFailure.NotFound) {
+            operationDao.get(operationId(refreshId))?.let { current ->
+                operationDao.upsert(
+                    current.copy(
+                        localState = "CANCELLED",
+                        remoteState = "NOT_FOUND",
+                        updatedAtMs = serverClock.nowMillis(),
+                    ),
+                )
+            }
+            throw error
         }
         validate(dto, refreshId)
 
@@ -205,8 +220,7 @@ class DefaultPaymentRepository @Inject constructor(
 
             is ApiFailure.BusinessError ->
                 when (code) {
-                    "PAYMENT_NOT_FOUND" ->
-                        PaymentFailure.Unavailable("Payment status was not found.")
+                    "PAYMENT_NOT_FOUND" -> PaymentFailure.NotFound()
                     else -> PaymentFailure.Unavailable(message ?: code)
                 }
 
