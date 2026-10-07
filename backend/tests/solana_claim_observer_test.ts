@@ -88,10 +88,14 @@ function fakeFetch(fixture: Fixture): typeof fetch {
   return (async (_input: string | URL | Request, init?: RequestInit) => {
     const body = JSON.parse(String(init?.body)) as { method: string; params: unknown[] };
     if (body.method === "getSignaturesForAddress") {
-      return Response.json({jsonrpc: "2.0", id: 1, result: [
-        {signature: "funding-signature", err: null},
-        {signature: SIGNATURE, err: fixture.signatureError ?? null},
-      ]});
+      return Response.json({
+        jsonrpc: "2.0",
+        id: 1,
+        result: [
+          { signature: "funding-signature", err: null },
+          { signature: SIGNATURE, err: fixture.signatureError ?? null },
+        ],
+      });
     }
     if (body.method === "getSignatureStatuses") {
       return Response.json({
@@ -223,11 +227,11 @@ Deno.test("callback recovery skips funding signatures and requires the exact cla
   if (await valid.observer.findClaimSignature(valid.input) !== SIGNATURE) {
     throw new Error("confirmed claim signature was not recovered");
   }
-  const wrongWallet = await fixture({claimant: CREATOR});
+  const wrongWallet = await fixture({ claimant: CREATOR });
   if (await wrongWallet.observer.findClaimSignature(wrongWallet.input) !== null) {
     throw new Error("a different claimant was recovered");
   }
-  const failed = await fixture({signatureError: "failed"});
+  const failed = await fixture({ signatureError: "failed" });
   if (await failed.observer.findClaimSignature(failed.input) !== null) {
     throw new Error("a failed signature was recovered");
   }
