@@ -125,6 +125,22 @@ class ContributorClaimRepositoryTest {
     }
 
     @Test
+    fun missingServerClaimIsTerminalAndDoesNotStayInRecovery() = runBlocking {
+        val fixture = fixture(WalletResult.ProtocolFailure("Wallet declined transaction"), false)
+        val prepared = fixture.repository.prepareNew(HOST, REFRESH_ID)
+        runCatching { fixture.repository.submit(HOST, prepared) }
+        fixture.api.missingClaim = true
+
+        val recovered = fixture.repository.recover(REFRESH_ID)
+
+        assertTrue(recovered is ClaimReconciliation.None)
+        val saved = fixture.operationDao.listAll().single()
+        assertEquals("CANCELLED", saved.localState)
+        assertEquals("NOT_FOUND", saved.remoteState)
+        assertEquals(1, fixture.wallet.signCalls)
+    }
+
+    @Test
     fun differentDefaultPayoutWalletStopsBeforePreparingOrSigningAClaim() = runBlocking {
         val fixture = fixture(WalletResult.UnknownFailure("unused"), observeUnknown = false)
         fixture.api.preferredWallet = "55555555-5555-4555-8555-555555555555"
@@ -307,6 +323,7 @@ private class ClaimApi(
     var detailCalls = 0
     var prepareCalls = 0
     var preferredWallet: String? = null
+    var missingClaim = false
 
     override suspend fun payoutWalletBindingId(accessToken: String): String? = preferredWallet
 
@@ -337,6 +354,15 @@ private class ClaimApi(
         accessToken: String,
     ): ClaimStatusDto {
         detailCalls += 1
+        if (missingClaim) {
+            throw ApiFailure.BusinessError(
+                statusCode = 404,
+                code = "CLAIM_NOT_FOUND",
+                safeToRetry = false,
+                retryAfterMs = null,
+                message = "Claim was not found.",
+            )
+        }
         return claimStatus(status = detailStatus)
     }
 

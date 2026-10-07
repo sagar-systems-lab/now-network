@@ -129,6 +129,27 @@ class EvidenceCaptureRepositoryTest {
     }
 
     @Test
+    fun missingRemoteEvidenceContextStopsRetryAndMarksDraftRejected() = runBlocking {
+        val fixture = Fixture()
+        val evidenceId = fixture.prepareCapturedEvidence()
+        fixture.api.staleOnAuthorize = true
+
+        val error = runCatching {
+            fixture.repository.submit(evidenceId)
+        }.exceptionOrNull()
+
+        assertTrue(error is EvidenceCaptureFailure.Stale)
+        assertEquals(PendingEvidenceStatus.REJECTED, fixture.dao.get(evidenceId)?.uploadState)
+        assertEquals("REMOTE_CONTEXT_NOT_FOUND", fixture.dao.get(evidenceId)?.lastError)
+        assertEquals(null, fixture.recreatedRepository().resumeSubmission(evidenceId))
+        val reopenError = runCatching {
+            fixture.repository.load(ACCEPTANCE_ID, REFRESH_ID)
+        }.exceptionOrNull()
+        assertTrue(reopenError is EvidenceCaptureFailure.Stale)
+        assertEquals(0, fixture.uploader.calls)
+    }
+
+    @Test
     fun missingRequiredVideoNeverQueuesOrLocksTheDraft() = runBlocking {
         val fixture = Fixture()
         fixture.api.videoRequired = true
@@ -298,6 +319,7 @@ class EvidenceCaptureRepositoryTest {
         var authorizeCalls = 0
         var commitCalls = 0
         var ambiguousCommitOnce = false
+        var staleOnAuthorize = false
         var lastAuthorizedEvidenceId: String? = null
 
         override suspend fun issueEvidenceChallenge(
@@ -329,6 +351,15 @@ class EvidenceCaptureRepositoryTest {
             accessToken: String,
         ): EvidenceUploadAuthorizationDto {
             authorizeCalls += 1
+            if (staleOnAuthorize) {
+                throw ApiFailure.BusinessError(
+                    statusCode = 404,
+                    code = "EVIDENCE_CHALLENGE_INVALID",
+                    safeToRetry = false,
+                    retryAfterMs = null,
+                    message = "Evidence challenge was not found.",
+                )
+            }
             lastAuthorizedEvidenceId = EVIDENCE_ID
             return EvidenceUploadAuthorizationDto(
                 evidenceId = EVIDENCE_ID,

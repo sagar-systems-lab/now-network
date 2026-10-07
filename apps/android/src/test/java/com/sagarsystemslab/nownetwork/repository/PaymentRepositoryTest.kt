@@ -65,6 +65,27 @@ class PaymentRepositoryTest {
     }
 
     @Test
+    fun missingPaymentStatusIsTerminalLocally() = runBlocking {
+        val fixture = Fixture()
+        fixture.api.failure = ApiFailure.BusinessError(
+            statusCode = 404,
+            code = "PAYMENT_NOT_FOUND",
+            safeToRetry = false,
+            retryAfterMs = null,
+            message = "Payment status was not found.",
+        )
+
+        val error = runCatching {
+            fixture.repository.check(REFRESH_ID)
+        }.exceptionOrNull()
+
+        assertTrue(error is PaymentFailure.NotFound)
+        val operation = fixture.dao.get("payment:$REFRESH_ID")
+        assertEquals("CANCELLED", operation?.localState)
+        assertEquals("NOT_FOUND", operation?.remoteState)
+    }
+
+    @Test
     fun paidStateWithoutConfirmedAuthorityFailsClosedBeforePersistence() = runBlocking {
         val fixture = Fixture(
             response = paymentDto(
