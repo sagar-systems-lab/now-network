@@ -11,12 +11,15 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import java.io.IOException
 import java.net.SocketTimeoutException
+import java.math.BigDecimal
+import java.util.Base64
 import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
@@ -43,6 +46,8 @@ sealed class SolanaRpcFailure(
 }
 
 interface SolanaRpcClient {
+    suspend fun preflightClaim(walletAddress: String, rewardAccount: String, transaction: ByteArray)
+
     suspend fun latestBlockhash(): LatestBlockhash
 
     suspend fun recentSignatures(
@@ -58,6 +63,72 @@ class KtorSolanaRpcClient @Inject constructor(
     private val config: SolanaRuntimeConfig,
 ) : SolanaRpcClient {
     private val requestIds = AtomicLong(1L)
+
+    override suspend fun preflightClaim(walletAddress: String, rewardAccount: String, transaction: ByteArray) {
+        val balance = request("getBalance", buildJsonArray {
+            add(kotlinx.serialization.json.JsonPrimitive(walletAddress))
+            add(buildJsonObject { put("commitment", "confirmed") })
+        }).jsonObject["value"]?.jsonPrimitive?.long
+            ?: throw SolanaRpcFailure.Protocol("Claim balance response is missing value")
+        val account = request("getAccountInfo", buildJsonArray {
+            add(kotlinx.serialization.json.JsonPrimitive(rewardAccount))
+            add(buildJsonObject { put("encoding", "base64"); put("commitment", "confirmed") })
+        }).jsonObject["value"]
+            ?: throw SolanaRpcFailure.Protocol("Reward account response is missing value")
+        val rent = if (account == JsonNull) request("getMinimumBalanceForRentExemption", buildJsonArray {
+            add(kotlinx.serialization.json.JsonPrimitive(165))
+            add(buildJsonObject { put("commitment", "confirmed") })
+        }).jsonPrimitive.long else 0L
+        val encodedMessage = Base64.getEncoder().encodeToString(unsignedMessage(transaction))
+        val feeValue = request("getFeeForMessage", buildJsonArray {
+            add(kotlinx.serialization.json.JsonPrimitive(encodedMessage))
+            add(buildJsonObject { put("commitment", "confirmed") })
+        }).jsonObject["value"]
+        if (feeValue == null || feeValue == JsonNull) {
+            throw SolanaRpcFailure.Rejected("Claim transaction expired before signing. Refresh the task and retry.")
+        }
+        val required = Math.addExact(rent, feeValue.jsonPrimitive.long)
+        if (balance < required) {
+            val have = BigDecimal.valueOf(balance, 9).stripTrailingZeros().toPlainString()
+            val need = BigDecimal.valueOf(required, 9).stripTrailingZeros().toPlainString()
+            val tokenSetup = if (rent > 0) " and one-time reward account rent" else ""
+            throw SolanaRpcFailure.Rejected("Your ${config.cluster} wallet has $have SOL; this claim needs at least $need SOL for the network fee$tokenSetup. Add SOL on ${config.cluster} to this payout wallet, then check the claim and retry. Nothing was submitted.")
+        }
+        val simulation = request("simulateTransaction", buildJsonArray {
+            add(kotlinx.serialization.json.JsonPrimitive(Base64.getEncoder().encodeToString(transaction)))
+            add(buildJsonObject { put("encoding", "base64"); put("commitment", "confirmed"); put("sigVerify", false) })
+        }).jsonObject["value"]?.jsonObject
+            ?: throw SolanaRpcFailure.Protocol("Claim simulation response is missing value")
+        val failure = simulation["err"]
+            ?: throw SolanaRpcFailure.Protocol("Claim simulation response is missing error field")
+        if (failure != JsonNull) {
+            val logs = simulation["logs"]?.toString().orEmpty()
+            val reason = when {
+                "RefreshExpired" in logs || "ClaimDeadlineAfterRefreshExpiry" in logs -> "This task's claim window has ended. Return to EARN for a current task."
+                "SelfClaimProhibited" in logs -> "The requester wallet cannot claim its own task. Use a separate contributor wallet."
+                "AlreadyClaimed" in logs -> "This wallet already claimed the task. Check the saved claim before retrying."
+                "insufficient lamports" in logs -> "Not enough ${config.cluster} SOL for this claim. Add SOL to the payout wallet and retry."
+                else -> "Claim simulation failed ($failure). Refresh the task before retrying."
+            }
+            throw SolanaRpcFailure.Rejected("$reason Nothing was submitted.")
+        }
+    }
+
+    private fun unsignedMessage(transaction: ByteArray): ByteArray {
+        var count = 0
+        var offset = 0
+        var shift = 0
+        while (true) {
+            if (offset >= transaction.size || shift > 14) throw SolanaRpcFailure.Protocol("Invalid transaction signature header")
+            val byte = transaction[offset++].toInt() and 255
+            count = count or ((byte and 127) shl shift)
+            if ((byte and 128) == 0) break
+            shift += 7
+        }
+        val messageStart = offset + count * 64
+        if (count !in 1..255 || messageStart >= transaction.size) throw SolanaRpcFailure.Protocol("Invalid transaction message")
+        return transaction.copyOfRange(messageStart, transaction.size)
+    }
 
     override suspend fun latestBlockhash(): LatestBlockhash {
         val result = request(

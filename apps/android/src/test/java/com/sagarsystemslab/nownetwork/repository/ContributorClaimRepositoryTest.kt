@@ -37,6 +37,7 @@ import com.sagarsystemslab.nownetwork.solana.LatestBlockhash
 import com.sagarsystemslab.nownetwork.solana.SolanaPrograms
 import com.sagarsystemslab.nownetwork.solana.SolanaPublicKey
 import com.sagarsystemslab.nownetwork.solana.SolanaRpcClient
+import com.sagarsystemslab.nownetwork.solana.SolanaRpcFailure
 import com.sagarsystemslab.nownetwork.solana.SolanaTransactionBuilder
 import com.sagarsystemslab.nownetwork.solana.findProgramAddress
 import com.sagarsystemslab.nownetwork.wallet.WalletAccount
@@ -54,6 +55,31 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ContributorClaimRepositoryTest {
+    @Test
+    fun unfundedContributorStopsBeforeWalletAndKeepsUnsignedClaimRetryable() = runBlocking {
+        val fixture = fixture(WalletResult.UserRejected, false)
+        val prepared = fixture.repository.prepareNew(HOST, REFRESH_ID)
+        fixture.rpc.preflightFailure = SolanaRpcFailure.Rejected("Add devnet SOL for fees and reward account rent.")
+        val error = runCatching { fixture.repository.submit(HOST, prepared) }.exceptionOrNull()
+        assertTrue(error is ContributorClaimFailure.Wallet)
+        assertTrue(error?.message.orEmpty().contains("devnet SOL"))
+        assertEquals(0, fixture.wallet.signCalls)
+        assertEquals("READY_FOR_WALLET", fixture.operationDao.listAll().single().localState)
+        assertEquals(null, fixture.operationDao.listAll().single().chainSignature)
+    }
+
+    @Test
+    fun signingRebuildsTransactionAndPreflightsBeforeCallingWallet() = runBlocking {
+        val fixture = fixture(WalletResult.UserRejected, false)
+        val prepared = fixture.repository.prepareNew(HOST, REFRESH_ID)
+        runCatching { fixture.repository.submit(HOST, prepared) }
+        assertEquals(2, fixture.rpc.blockhashCalls)
+        assertEquals(1, fixture.rpc.preflightCalls)
+        assertEquals(1, fixture.wallet.signCalls)
+        assertTrue(!prepared.transaction.bytes.contentEquals(fixture.wallet.lastTransaction))
+        assertTrue(fixture.rpc.preflightTransaction.contentEquals(fixture.wallet.lastTransaction))
+    }
+
     @Test
     fun submittedSignatureStaysDurableWhileClaimConfirmationIsUnknown() = runBlocking {
         val fixture = fixture(
@@ -250,6 +276,7 @@ class ContributorClaimRepositoryTest {
         val operationDao = ClaimOperationDao()
         val metadataDao = ClaimWalletMetadataDao()
         val walletGateway = ClaimWalletGateway(WALLET_ADDRESS, walletSubmission)
+        val rpc = ClaimRpc()
         val config = SolanaRuntimeConfig(
             cluster = "devnet",
             rpcUrl = "https://api.devnet.solana.com",
@@ -264,7 +291,7 @@ class ContributorClaimRepositoryTest {
             wallet = WalletRequestCoordinator(walletGateway),
             walletMetadataDao = metadataDao,
             operationDao = operationDao,
-            rpc = ClaimRpc(),
+            rpc = rpc,
             transactionBuilder = SolanaTransactionBuilder(
                 config = config,
                 rewardConfig = RewardDisplayConfig(
@@ -282,6 +309,7 @@ class ContributorClaimRepositoryTest {
             api = api,
             operationDao = operationDao,
             wallet = walletGateway,
+            rpc = rpc,
         )
     }
 
@@ -290,6 +318,7 @@ class ContributorClaimRepositoryTest {
         val api: ClaimApi,
         val operationDao: ClaimOperationDao,
         val wallet: ClaimWalletGateway,
+        val rpc: ClaimRpc,
     )
 
     private companion object {
@@ -482,11 +511,22 @@ private class ClaimWalletMetadataDao : WalletSessionMetadataDao {
 }
 
 private class ClaimRpc : SolanaRpcClient {
-    override suspend fun latestBlockhash(): LatestBlockhash =
-        LatestBlockhash(
-            blockhash = SolanaPublicKey.fromBytes(ByteArray(32) { 9 }).address,
+    var preflightFailure: SolanaRpcFailure? = null
+    var preflightCalls = 0
+    var blockhashCalls = 0
+    var preflightTransaction: ByteArray? = null
+    override suspend fun preflightClaim(walletAddress: String, rewardAccount: String, transaction: ByteArray) {
+        preflightCalls += 1
+        preflightTransaction = transaction.copyOf()
+        preflightFailure?.let { throw it }
+    }
+    override suspend fun latestBlockhash(): LatestBlockhash {
+        blockhashCalls += 1
+        return LatestBlockhash(
+            blockhash = SolanaPublicKey.fromBytes(ByteArray(32) { (8 + blockhashCalls).toByte() }).address,
             lastValidBlockHeight = 1_200L,
         )
+    }
 
     override suspend fun recentSignatures(address: String, limit: Int): List<String> =
         emptyList()
@@ -497,6 +537,7 @@ private class ClaimWalletGateway(
     private val submission: WalletResult<WalletSubmission>,
 ) : WalletGateway {
     var signCalls = 0
+    var lastTransaction: ByteArray? = null
 
     override suspend fun connect(host: WalletInteractionHost): WalletResult<WalletAccount> =
         WalletResult.Success(
@@ -519,6 +560,7 @@ private class ClaimWalletGateway(
         transaction: ByteArray,
     ): WalletResult<WalletSubmission> {
         signCalls += 1
+        lastTransaction = transaction.copyOf()
         return submission
     }
 }

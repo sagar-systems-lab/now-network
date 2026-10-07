@@ -517,6 +517,7 @@ private class FundingWalletMetadataDao : WalletSessionMetadataDao {
 }
 
 private class FundingRpc : SolanaRpcClient {
+    override suspend fun preflightClaim(walletAddress: String, rewardAccount: String, transaction: ByteArray) = error("not used by funding")
     override suspend fun latestBlockhash(): LatestBlockhash = error("not used")
     override suspend fun recentSignatures(address: String, limit: Int): List<String> = emptyList()
 }

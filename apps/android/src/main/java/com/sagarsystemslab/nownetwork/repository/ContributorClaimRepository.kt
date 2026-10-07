@@ -18,6 +18,7 @@ import com.sagarsystemslab.nownetwork.network.WalletBindingDto
 import com.sagarsystemslab.nownetwork.network.WalletBindingVerifyRequest
 import com.sagarsystemslab.nownetwork.solana.ClaimTransaction
 import com.sagarsystemslab.nownetwork.solana.SolanaRpcClient
+import com.sagarsystemslab.nownetwork.solana.SolanaRpcFailure
 import com.sagarsystemslab.nownetwork.solana.SolanaTransactionBuilder
 import com.sagarsystemslab.nownetwork.wallet.WalletAccount
 import com.sagarsystemslab.nownetwork.wallet.WalletInteractionHost
@@ -200,14 +201,35 @@ class DefaultContributorClaimRepository @Inject constructor(
         host: WalletInteractionHost,
         prepared: PreparedContributorClaim,
     ): ClaimReconciliation {
+        val claim = withAuthRetry { api.claimDetail(prepared.operation.operationId, it) }
+        resolvedClaim(claim, prepared.operation)?.let { return it }
+        requireLiveOpportunity(prepared.operation, claim.refreshStatus, claim.refreshExpiresAt)
+        claim.chainSignature?.let { signature ->
+            return observeSignature(prepared.operation.copy(chainSignature = signature), signature)
+        }
+        // Build at the signing boundary: the review screen may outlive a blockhash.
+        val transaction = try {
+            val latest = rpc.latestBlockhash()
+            val rebuilt = transactionBuilder.buildClaim(prepared.intent, prepared.wallet.address, latest)
+            rpc.preflightClaim(prepared.wallet.address, prepared.intent.accounts.claimantRewardTokenAccount,
+                rebuilt.bytes)
+            rebuilt
+        } catch (error: SolanaRpcFailure.Network) {
+            throw ContributorClaimFailure.Network(error)
+        } catch (error: SolanaRpcFailure.Rejected) {
+            throw ContributorClaimFailure.Wallet(error.message ?: "Claim could not be simulated.")
+        } catch (error: SolanaRpcFailure) {
+            throw ContributorClaimFailure.Protocol(error.message ?: "Claim preflight failed.", error)
+        }
         val walletPending = prepared.operation.copy(
             localState = STATE_WALLET_PENDING,
+            lastValidBlockHeight = transaction.lastValidBlockHeight,
             updatedAtMs = serverClock.nowMillis(),
         )
         operationDao.upsert(walletPending)
 
         return when (val result = withTimeoutOrNull(WALLET_SIGN_MS) {
-            wallet.signAndSend(host, prepared.transaction.bytes)
+            wallet.signAndSend(host, transaction.bytes)
         } ?: WalletResult.UnknownFailure("Wallet did not respond in time.")) {
             is WalletResult.Success -> {
                 if (result.value.account.address != prepared.wallet.address) {
