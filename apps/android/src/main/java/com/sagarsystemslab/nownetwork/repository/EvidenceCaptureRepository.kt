@@ -623,8 +623,6 @@ class DefaultEvidenceCaptureRepository @Inject constructor(
                     captureCompleted = captureCompleted,
                 )
             } catch (error: EvidenceCaptureFailure.UploadNotReady) {
-                secret = secret.copy(videoUploaded=false)
-                writeSecret(secret)
                 pending = pending.copy(
                     uploadState = PendingEvidenceStatus.UPLOAD_READY,
                     lastError = null,
@@ -634,20 +632,35 @@ class DefaultEvidenceCaptureRepository @Inject constructor(
             }
         }
 
-        if (secret.video != null && !secret.videoUploaded) {
-            val clip = secret.video!!
+        val needsPhotoUpload = pending.uploadState !in setOf(
+            PendingEvidenceStatus.UPLOADED, PendingEvidenceStatus.COMMITTING,
+        )
+        val needsVideoUpload = secret.video != null && !secret.videoUploaded
+        val authorization = if (needsPhotoUpload || needsVideoUpload) {
+            withAuthRetry { token ->
+                evidenceApi.authorizeEvidenceUpload(
+                    secret.challengeId,
+                    EvidenceUploadAuthorizeRequest(secret.nonce, MEDIA_MIME),
+                    token,
+                )
+            }.also { target ->
+                if (target.evidenceId != evidenceId || target.challengeId != secret.challengeId ||
+                    target.mediaMime != MEDIA_MIME || target.upload.contentType != MEDIA_MIME ||
+                    target.upload.method != "PUT") {
+                    throw EvidenceCaptureFailure.Protocol("Evidence upload reservation identity changed.")
+                }
+            }
+        } else null
+
+        if (needsVideoUpload) {
+            val clip = checkNotNull(secret.video)
             val clipFile = File(pending.localFilePath + ".mp4")
             if (!clipFile.isFile) throw EvidenceCaptureFailure.MissingFile()
             val digest = hashMedia(clipFile)
             if (digest.sha256Hex != clip.sha256 || digest.sizeBytes != clip.sizeBytes) {
                 throw EvidenceCaptureFailure.Unavailable("Saved video changed. This proof cannot be submitted.")
             }
-            val authorization = withAuthRetry { token -> evidenceApi.authorizeEvidenceUpload(secret.challengeId,
-                EvidenceUploadAuthorizeRequest(secret.nonce, MEDIA_MIME), token) }
-            if (authorization.evidenceId != evidenceId || authorization.challengeId != secret.challengeId) {
-                throw EvidenceCaptureFailure.Protocol("Video reservation identity changed.")
-            }
-            val target = authorization.videoUpload ?: throw EvidenceCaptureFailure.Protocol("The server has no video upload support for this claim.")
+            val target = checkNotNull(authorization).videoUpload ?: throw EvidenceCaptureFailure.Protocol("The server has no video upload support for this claim.")
             if (target.contentType != "video/mp4" || target.method != "PUT") throw EvidenceCaptureFailure.Protocol("Unexpected video upload target.")
             try { uploader.upload(target.signedUrl,target.method,target.contentType,clipFile) }
             catch (error: CancellationException) { throw error }
@@ -658,34 +671,8 @@ class DefaultEvidenceCaptureRepository @Inject constructor(
         }
 
 
-
-        if (
-            pending.uploadState !in setOf(
-                PendingEvidenceStatus.UPLOADED,
-                PendingEvidenceStatus.COMMITTING,
-            )
-        ) {
-            val authorization = withAuthRetry { token ->
-                evidenceApi.authorizeEvidenceUpload(
-                    challengeId = secret.challengeId,
-                    request = EvidenceUploadAuthorizeRequest(
-                        nonce = secret.nonce,
-                        mediaMime = MEDIA_MIME,
-                    ),
-                    accessToken = token,
-                )
-            }
-            if (
-                authorization.evidenceId != evidenceId ||
-                authorization.challengeId != secret.challengeId ||
-                authorization.mediaMime != MEDIA_MIME ||
-                authorization.upload.contentType != MEDIA_MIME
-            ) {
-                throw EvidenceCaptureFailure.Protocol(
-                    "Evidence upload reservation identity changed.",
-                )
-            }
-
+        if (needsPhotoUpload) {
+            val photoUpload = checkNotNull(authorization).upload
             pending = pending.copy(
                 uploadState = PendingEvidenceStatus.UPLOADING,
                 lastError = null,
@@ -695,9 +682,9 @@ class DefaultEvidenceCaptureRepository @Inject constructor(
 
             try {
                 uploader.upload(
-                    signedUrl = authorization.upload.signedUrl,
-                    method = authorization.upload.method,
-                    contentType = authorization.upload.contentType,
+                    signedUrl = photoUpload.signedUrl,
+                    method = photoUpload.method,
+                    contentType = photoUpload.contentType,
                     file = file,
                 )
             } catch (error: CancellationException) {
@@ -742,7 +729,7 @@ class DefaultEvidenceCaptureRepository @Inject constructor(
         )
         pendingEvidenceDao.upsert(committing)
 
-        val committed = try { withAuthRetry { token ->
+        val committed = withAuthRetry { token ->
             evidenceApi.commitEvidence(
                 evidenceId = pending.evidenceId,
                 request = EvidenceCommitRequest(
@@ -768,9 +755,6 @@ class DefaultEvidenceCaptureRepository @Inject constructor(
                 idempotencyKey = commitKey(pending.evidenceId),
                 accessToken = token,
             )
-        } } catch (error: EvidenceCaptureFailure.UploadNotReady) {
-            writeSecret(secret.copy(videoUploaded=false))
-            throw error
         }
 
         if (

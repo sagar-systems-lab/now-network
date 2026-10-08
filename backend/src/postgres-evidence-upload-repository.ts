@@ -1,5 +1,6 @@
 import postgres from "npm:postgres@3.4.7";
 import type {
+  EvidenceUploadAuthorization,
   EvidenceUploadContext,
   EvidenceUploadRepository,
   ReserveEvidenceUploadResult,
@@ -21,6 +22,7 @@ type UploadRow = {
   upload_object_key: string | null;
   upload_mime: string | null;
   video_required: boolean;
+  upload_authorization: EvidenceUploadAuthorization | null;
 };
 
 const SELECT_CONTEXT = String.raw`
@@ -37,6 +39,7 @@ const SELECT_CONTEXT = String.raw`
     ec.reserved_evidence_id,
     ec.upload_object_key,
     ec.upload_mime,
+    ec.upload_authorization,
     coalesce((rr.proof_policy_snapshot->'capture'->>'video_required')::boolean,false) as video_required
   from app.evidence_challenges ec
   join app.refresh_acceptances ra
@@ -65,6 +68,7 @@ function fromRow(row: UploadRow): EvidenceUploadContext {
     objectKey: row.upload_object_key,
     mediaMime: row.upload_mime,
     videoRequired: row.video_required,
+    authorization: row.upload_authorization,
   };
 }
 
@@ -156,6 +160,7 @@ export class PostgresEvidenceUploadRepository implements EvidenceUploadRepositor
           mediaMime: context.mediaMime,
           challengeExpiresAt: context.challengeExpiresAt,
           replayed: true,
+          authorization: context.authorization,
         } as const;
       }
 
@@ -211,5 +216,31 @@ export class PostgresEvidenceUploadRepository implements EvidenceUploadRepositor
         replayed: false,
       } as const;
     });
+  }
+
+  async saveAuthorization(
+    input: Parameters<EvidenceUploadRepository["saveAuthorization"]>[0],
+  ): Promise<EvidenceUploadAuthorization | null> {
+    // Save before replying: an upload can complete before the caller asks again.
+    // Keep the winning authorization when concurrent requests sign the same path.
+    const rows = await this.sql`
+      update app.evidence_challenges
+      set upload_authorization = case
+        when (upload_authorization->>'expiresAt')::timestamptz > ${input.observedAt}
+          then upload_authorization
+        else ${JSON.stringify(input.authorization)}::text::jsonb
+      end
+      where challenge_id = ${input.challengeId}::uuid
+        and actor_id = ${input.actorId}::uuid
+        and reserved_evidence_id = ${input.evidenceId}::uuid
+        and status = 'ISSUED'
+        and expires_at > ${input.observedAt}
+      returning upload_authorization
+    `;
+    return rows[0]?.upload_authorization as EvidenceUploadAuthorization | undefined ?? null;
+  }
+
+  async close(): Promise<void> {
+    await this.sql.end({ timeout: 1 });
   }
 }

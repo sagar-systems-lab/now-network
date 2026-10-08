@@ -48,6 +48,7 @@ const expectedMigrations = [
   "20261004164414_dynamic_ask_coverage.sql",
   "20261005090600_ask_custom_questions.sql",
   "20261005102427_evidence_short_video.sql",
+  "20261008105951_evidence_upload_authorization_replay.sql",
 ] as const;
 
 async function readMigration(name: string): Promise<string> {

@@ -34,12 +34,56 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonObject
+import java.security.MessageDigest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class EvidenceCaptureRepositoryTest {
+    @Test
+    fun photoAndVideoUseOneAuthorizationBeforeEitherUpload() = runBlocking {
+        val fixture = Fixture()
+        val evidenceId = fixture.prepareCapturedVideoEvidence()
+        fixture.api.rejectAuthorizationAfterVideo = true
+        val result = fixture.repository.submit(evidenceId)
+        assertEquals(evidenceId, result.evidence.evidenceId)
+        assertEquals(2, fixture.api.authorizeCalls) // Initial reservation, then one submission authorization.
+        assertEquals(1, fixture.uploader.videoCalls)
+        assertEquals(1, fixture.uploader.photoCalls)
+        assertEquals(PendingEvidenceStatus.COMMITTED, fixture.dao.get(evidenceId)?.uploadState)
+    }
+
+    @Test
+    fun photoUploadRetryAfterRestartPreservesTheCompletedVideo() = runBlocking {
+        val fixture = Fixture()
+        val evidenceId = fixture.prepareCapturedVideoEvidence()
+        fixture.uploader.failPhotoOnce = true
+        assertTrue(runCatching { fixture.repository.submit(evidenceId) }.exceptionOrNull() is EvidenceCaptureFailure.Network)
+        assertTrue(fixture.remote.videoUploaded)
+        assertTrue(!fixture.remote.uploaded)
+        val result = fixture.recreatedRepository().resumeSubmission(evidenceId)
+        assertNotNull(result)
+        assertEquals(1, fixture.uploader.videoCalls)
+        assertEquals(2, fixture.uploader.photoCalls)
+        assertEquals(PendingEvidenceStatus.COMMITTED, fixture.dao.get(evidenceId)?.uploadState)
+    }
+
+    @Test
+    fun storageInspectionRetryDoesNotEraseTheVideoUploadAcknowledgement() = runBlocking {
+        val fixture = Fixture()
+        val evidenceId = fixture.prepareCapturedVideoEvidence()
+        fixture.api.storageFailuresRemaining = 2
+        assertTrue(runCatching { fixture.repository.submit(evidenceId) }.exceptionOrNull() is EvidenceCaptureFailure.UploadNotReady)
+        assertNotNull(fixture.recreatedRepository().resumeSubmission(evidenceId))
+        assertEquals(1, fixture.uploader.videoCalls)
+        assertEquals(2, fixture.uploader.photoCalls)
+        assertEquals(PendingEvidenceStatus.COMMITTED, fixture.dao.get(evidenceId)?.uploadState)
+    }
+
     @Test
     fun ambiguousUploadThatReachedStorageCommitsBeforeAnyResend() = runBlocking {
         val fixture = Fixture()
@@ -259,6 +303,28 @@ class EvidenceCaptureRepositoryTest {
             return draft.evidenceId
         }
 
+        suspend fun prepareCapturedVideoEvidence(): String {
+            api.videoRequired = true
+            val evidenceId = prepareCapturedEvidence(requestSubmission = false)
+            val draft = repository.load(ACCEPTANCE_ID, REFRESH_ID) as EvidenceCaptureRecovery.Draft
+            val bytes = byteArrayOf(10, 20, 30, 40)
+            File(draft.draft.localFile.absolutePath + ".mp4").writeBytes(bytes)
+            val digest = MessageDigest.getInstance("SHA-256").digest(bytes)
+                .joinToString("") { "%02x".format(it.toInt() and 0xff) }
+            // Restore a persisted, completed capture without invoking the Android media decoder.
+            val key = "evidence.capture.$ACCEPTANCE_ID"
+            val saved = json.parseToJsonElement(checkNotNull(secrets.read(key))).jsonObject
+            val video = JsonObject(mapOf(
+                "sha256" to JsonPrimitive(digest), "size_bytes" to JsonPrimitive(bytes.size),
+                "duration_ms" to JsonPrimitive(3_000),
+                "capture_started_monotonic_ms" to JsonPrimitive(1_300),
+                "capture_completed_monotonic_ms" to JsonPrimitive(4_300),
+            ))
+            secrets.write(key, JsonObject(saved + ("video" to video)).toString())
+            repository.requestSubmission(evidenceId)
+            return evidenceId
+        }
+
         fun recreatedRepository(): DefaultEvidenceCaptureRepository {
             repository = newRepository()
             return repository
@@ -363,6 +429,8 @@ class EvidenceCaptureRepositoryTest {
         var commitCalls = 0
         var ambiguousCommitOnce = false
         var staleOnAuthorize = false
+        var rejectAuthorizationAfterVideo = false
+        var storageFailuresRemaining = 0
         var lastAuthorizedEvidenceId: String? = null
 
         override suspend fun issueEvidenceChallenge(
@@ -394,6 +462,9 @@ class EvidenceCaptureRepositoryTest {
             accessToken: String,
         ): EvidenceUploadAuthorizationDto {
             authorizeCalls += 1
+            if (rejectAuthorizationAfterVideo && remote.videoUploaded) {
+                throw ApiFailure.ServerFailure(statusCode = 503, message = "The resource already exists", code = "EVIDENCE_UPLOAD_UNAVAILABLE")
+            }
             if (staleOnAuthorize) {
                 throw ApiFailure.BusinessError(
                     statusCode = 404,
@@ -414,6 +485,9 @@ class EvidenceCaptureRepositoryTest {
                     signedUrl = "https://storage.example/upload?token=test",
                     contentType = "image/jpeg",
                 ),
+                videoUpload = if (videoRequired) EvidenceUploadTargetDto(
+                    method = "PUT", signedUrl = "https://storage.example/video?token=test", contentType = "video/mp4",
+                ) else null,
                 applicationDeadline = FUTURE,
                 replayed = authorizeCalls > 1,
             )
@@ -426,6 +500,13 @@ class EvidenceCaptureRepositoryTest {
             accessToken: String,
         ): EvidenceCommitDto {
             commitCalls += 1
+            if (storageFailuresRemaining > 0) {
+                storageFailuresRemaining--
+                throw ApiFailure.ServerFailure(statusCode = 503, message = "Storage is temporarily unavailable", code = "EVIDENCE_UPLOAD_UNAVAILABLE")
+            }
+            if (videoRequired && !remote.videoUploaded) {
+                throw ApiFailure.ServerFailure(statusCode = 503, message = "Video is missing", code = "EVIDENCE_UPLOAD_UNAVAILABLE")
+            }
             if (!remote.uploaded) {
                 throw ApiFailure.ServerFailure(
                     statusCode = 503,
@@ -474,6 +555,9 @@ class EvidenceCaptureRepositoryTest {
     ) : EvidenceObjectUploader {
         var mode: UploadMode = UploadMode.SUCCESS
         var calls = 0
+        var videoCalls = 0
+        var photoCalls = 0
+        var failPhotoOnce = false
 
         override suspend fun upload(
             signedUrl: String,
@@ -482,6 +566,16 @@ class EvidenceCaptureRepositoryTest {
             file: File,
         ) {
             calls += 1
+            if (contentType == "video/mp4") {
+                videoCalls++
+                remote.videoUploaded = true
+                return
+            }
+            photoCalls++
+            if (failPhotoOnce) {
+                failPhotoOnce = false
+                throw EvidenceObjectUploadFailure.Network(IOException("photo response lost"))
+            }
             when (mode) {
                 UploadMode.SUCCESS -> remote.uploaded = true
                 UploadMode.FAIL_BEFORE_WRITE ->
@@ -496,6 +590,7 @@ class EvidenceCaptureRepositoryTest {
 
     private class RemoteEvidenceState {
         var uploaded = false
+        var videoUploaded = false
         var committed = false
     }
 
