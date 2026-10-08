@@ -118,6 +118,7 @@ class MemoryUploadRepository implements EvidenceUploadRepository {
         mediaMime: this.value.mediaMime,
         challengeExpiresAt: this.value.challengeExpiresAt,
         replayed: true,
+        authorization: this.value.authorization,
       });
     }
 
@@ -132,6 +133,20 @@ class MemoryUploadRepository implements EvidenceUploadRepository {
       challengeExpiresAt: this.value.challengeExpiresAt,
       replayed: false,
     });
+  }
+
+  saveAuthorization(
+    input: Parameters<EvidenceUploadRepository["saveAuthorization"]>[0],
+  ) {
+    if (
+      !this.value || this.value.actorId !== input.actorId ||
+      this.value.evidenceId !== input.evidenceId || this.value.challengeStatus !== "ISSUED" ||
+      this.value.challengeExpiresAt.getTime() <= input.observedAt.getTime()
+    ) {
+      return Promise.resolve(null);
+    }
+    this.value.authorization ??= structuredClone(input.authorization);
+    return Promise.resolve(structuredClone(this.value.authorization));
   }
 }
 
@@ -212,7 +227,8 @@ Deno.test("signed upload retry reuses the same object key", async () => {
     first.evidence_id !== second.evidence_id ||
     first.object_key !== second.object_key ||
     second.replayed !== true ||
-    storage.calls[0] !== storage.calls[1]
+    storage.calls.length !== 1 ||
+    JSON.stringify(first.upload) !== JSON.stringify(second.upload)
   ) {
     throw new Error("signed upload retry changed the reserved object identity");
   }
@@ -358,14 +374,77 @@ Deno.test("video upload uses the same immutable challenge identity on retry", as
     mediaMime: "image/jpeg",
   };
   const first = await service.authorize(input);
-  const second = await service.authorize(input);
+  // Match production: video has uploaded, so Supabase refuses to sign that path again.
+  storage.fail = true;
+  const second = await new EvidenceUploadService(repository, storage, () => NOW).authorize(input);
   const clip = first.video_upload as Record<string, unknown>;
   if (
     clip.content_type !== "video/mp4" ||
     JSON.stringify(first.video_upload) !== JSON.stringify(second.video_upload) ||
     storage.calls[1] !== String(first.object_key) + ".mp4" ||
-    first.evidence_id !== second.evidence_id
+    first.evidence_id !== second.evidence_id || storage.calls.length !== 2
   ) {
     throw new Error("Video reservation drifted from the photo challenge");
+  }
+});
+
+Deno.test("cached photo/video links still reject wrong nonce, owner and expired challenge", async () => {
+  const repository = new MemoryUploadRepository(await context({ videoRequired: true }));
+  const storage = new MemoryStorage();
+  const service = new EvidenceUploadService(repository, storage, () => NOW);
+  const input = {
+    actor: actor(),
+    challengeId: CHALLENGE_ID,
+    nonce: base64Url(NONCE_BYTES),
+    mediaMime: "image/jpeg",
+  };
+  await service.authorize(input);
+  storage.fail = true;
+  for (
+    const [changed, expected] of [
+      [{ ...input, nonce: base64Url(new Uint8Array(32).fill(8)) }, "EVIDENCE_CHALLENGE_INVALID"],
+      [{ ...input, actor: { ...actor(), actorId: OTHER_ACTOR_ID } }, "EVIDENCE_CHALLENGE_INVALID"],
+    ] as const
+  ) {
+    try {
+      await service.authorize(changed);
+      throw new Error("cached upload credentials escaped challenge authorization");
+    } catch (error) {
+      if (faultCode(error) !== expected) throw error;
+    }
+  }
+  repository.value!.challengeExpiresAt = new Date(NOW.getTime() - 1);
+  try {
+    await service.authorize(input);
+    throw new Error("expired cached authorization was returned");
+  } catch (error) {
+    if (faultCode(error) !== "CHALLENGE_EXPIRED") throw error;
+  }
+  if (storage.calls.length !== 2) throw new Error("invalid replay reached storage");
+});
+
+Deno.test("concurrent authorization recovers the winning links after a duplicate sign failure", async () => {
+  const repository = new MemoryUploadRepository(await context({ videoRequired: true }));
+  const authorization = {
+    signedUrl: "https://storage.invalid/photo?token=winner",
+    videoSignedUrl: "https://storage.invalid/video?token=winner",
+    expiresAt: new Date(NOW.getTime() + 60_000).toISOString(),
+  };
+  const storage = new MemoryStorage();
+  storage.createSignedUpload = () => {
+    repository.value!.authorization = authorization;
+    return Promise.reject(new Error("The resource already exists"));
+  };
+  const result = await new EvidenceUploadService(repository, storage, () => NOW).authorize({
+    actor: actor(),
+    challengeId: CHALLENGE_ID,
+    nonce: base64Url(NONCE_BYTES),
+    mediaMime: "image/jpeg",
+  });
+  if (
+    (result.upload as Record<string, unknown>).signed_url !== authorization.signedUrl ||
+    (result.video_upload as Record<string, unknown>).signed_url !== authorization.videoSignedUrl
+  ) {
+    throw new Error("the concurrent winning upload links were lost");
   }
 });

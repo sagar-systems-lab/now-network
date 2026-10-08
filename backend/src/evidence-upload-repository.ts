@@ -4,6 +4,12 @@ export type EvidenceUploadChallengeStatus =
   | "EXPIRED"
   | "REVOKED";
 
+export type EvidenceUploadAuthorization = {
+  signedUrl: string;
+  videoSignedUrl?: string;
+  expiresAt: string;
+};
+
 export type EvidenceUploadContext = {
   challengeId: string;
   refreshId: string;
@@ -18,6 +24,7 @@ export type EvidenceUploadContext = {
   objectKey: string | null;
   mediaMime: string | null;
   videoRequired?: boolean;
+  authorization?: EvidenceUploadAuthorization | null;
 };
 
 export type ReserveEvidenceUploadResult =
@@ -28,6 +35,7 @@ export type ReserveEvidenceUploadResult =
     mediaMime: string;
     challengeExpiresAt: Date;
     replayed: boolean;
+    authorization?: EvidenceUploadAuthorization | null;
   }
   | { kind: "not_found" }
   | { kind: "actor_mismatch" }
@@ -49,4 +57,12 @@ export interface EvidenceUploadRepository {
     mediaMime: string;
     observedAt: Date;
   }): Promise<ReserveEvidenceUploadResult>;
+
+  saveAuthorization(input: {
+    challengeId: string;
+    actorId: string;
+    evidenceId: string;
+    authorization: EvidenceUploadAuthorization;
+    observedAt: Date;
+  }): Promise<EvidenceUploadAuthorization | null>;
 }

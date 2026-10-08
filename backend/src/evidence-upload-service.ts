@@ -1,6 +1,7 @@
 import { ApiFault } from "./errors.ts";
 import type { ActorRecord } from "./identity-repository.ts";
 import type {
+  EvidenceUploadAuthorization,
   EvidenceUploadContext,
   EvidenceUploadRepository,
   ReserveEvidenceUploadResult,
@@ -147,22 +148,54 @@ export class EvidenceUploadService {
     });
     if (reserved.kind !== "ready") throw reserveFault(reserved);
 
-    let signedUrl: string;
-    let videoUrl: string | undefined;
-    try {
-      signedUrl = (await this.storage.createSignedUpload(reserved.objectKey))
-        .signedUrl;
-      if (context.videoRequired) {
-        videoUrl = (await this.storage.createSignedUpload(`${reserved.objectKey}.mp4`)).signedUrl;
+    const validAuthorization = (value: EvidenceUploadAuthorization | null | undefined) =>
+      value && Date.parse(value.expiresAt) > this.now().getTime() &&
+        (!context.videoRequired || value.videoSignedUrl)
+        ? value
+        : null;
+    let authorization = validAuthorization(reserved.authorization);
+    if (!authorization) {
+      try {
+        const signedUrl = (await this.storage.createSignedUpload(reserved.objectKey)).signedUrl;
+        const videoSignedUrl = context.videoRequired
+          ? (await this.storage.createSignedUpload(`${reserved.objectKey}.mp4`)).signedUrl
+          : undefined;
+        authorization = await this.repository.saveAuthorization({
+          challengeId: input.challengeId,
+          actorId: input.actor.actorId,
+          evidenceId: reserved.evidenceId,
+          authorization: {
+            signedUrl,
+            ...(videoSignedUrl ? { videoSignedUrl } : {}),
+            // Supabase upload tokens live for two hours. Leave a clock margin.
+            expiresAt: new Date(observedAt.getTime() + 115 * 60_000).toISOString(),
+          },
+          observedAt: this.now(),
+        });
+        if (!authorization) {
+          throw new ApiFault(410, "CHALLENGE_EXPIRED", "Evidence challenge expired.");
+        }
+      } catch (error) {
+        if (error instanceof ApiFault) throw error;
+        // Another request may have saved its links and uploaded while we signed.
+        const latest = await this.repository.getContext(input.challengeId);
+        if (
+          latest?.actorId === input.actor.actorId &&
+          latest.evidenceId === reserved.evidenceId && latest.challengeStatus === "ISSUED" &&
+          latest.challengeExpiresAt.getTime() > this.now().getTime()
+        ) {
+          authorization = validAuthorization(latest.authorization);
+        }
+        if (!authorization) {
+          throw new ApiFault(
+            503,
+            "EVIDENCE_UPLOAD_UNAVAILABLE",
+            "Evidence upload authorization is temporarily unavailable.",
+            true,
+            1_000,
+          );
+        }
       }
-    } catch {
-      throw new ApiFault(
-        503,
-        "EVIDENCE_UPLOAD_UNAVAILABLE",
-        "Evidence upload authorization is temporarily unavailable.",
-        true,
-        1_000,
-      );
     }
 
     return {
@@ -172,11 +205,17 @@ export class EvidenceUploadService {
       media_mime: reserved.mediaMime,
       upload: {
         method: "PUT",
-        signed_url: signedUrl,
+        signed_url: authorization.signedUrl,
         content_type: reserved.mediaMime,
       },
-      ...(videoUrl
-        ? { video_upload: { method: "PUT", signed_url: videoUrl, content_type: "video/mp4" } }
+      ...(authorization.videoSignedUrl
+        ? {
+          video_upload: {
+            method: "PUT",
+            signed_url: authorization.videoSignedUrl,
+            content_type: "video/mp4",
+          },
+        }
         : {}),
       application_deadline: reserved.challengeExpiresAt.toISOString(),
       replayed: reserved.replayed,

@@ -400,23 +400,55 @@ class EvidenceCaptureViewModel @Inject constructor(
     }
 
     fun retry() {
-        val acceptanceId = mutableState.value.acceptanceId ?: return
-        val refreshId = mutableState.value.refreshId ?: return
+        val current = mutableState.value
+        if (current.stage in setOf(EvidenceCaptureStage.SUBMITTING, EvidenceCaptureStage.LOADING)) return
+        val acceptanceId = current.acceptanceId ?: return
+        val refreshId = current.refreshId ?: return
+        val queuedEvidenceId = current.evidenceId.takeIf { current.stage == EvidenceCaptureStage.QUEUED }
+        mutableState.update {
+            it.copy(
+                stage = if (queuedEvidenceId != null) EvidenceCaptureStage.SUBMITTING else EvidenceCaptureStage.LOADING,
+                message = "Checking the saved submission…",
+            )
+        }
 
         viewModelScope.launch {
             try {
-                applyRecovery(withTimeout(OPERATION_WAIT_MS) { repository.load(acceptanceId, refreshId) })
+                withTimeout(OPERATION_WAIT_MS) {
+                    val submitted = queuedEvidenceId?.let { evidenceId ->
+                        workScheduler.schedule(evidenceId)
+                        repository.resumeSubmission(evidenceId)
+                    }
+                    if (submitted != null) {
+                        workScheduler.cancel(checkNotNull(queuedEvidenceId))
+                        mutableState.update {
+                            it.copy(
+                                stage = EvidenceCaptureStage.SUBMITTED,
+                                message = "Evidence committed successfully.",
+                                nextStep = submitted.evidence.nextStep,
+                            )
+                        }
+                    } else {
+                        applyRecovery(repository.load(acceptanceId, refreshId))
+                    }
+                }
             } catch (_: TimeoutCancellationException) {
                 mutableState.update {
                     it.copy(
-                        stage = if (it.evidenceId != null) EvidenceCaptureStage.QUEUED else EvidenceCaptureStage.ERROR,
-                        message = "Submission check timed out after 30 seconds. Try again.",
+                        stage = if (queuedEvidenceId != null) EvidenceCaptureStage.QUEUED else EvidenceCaptureStage.ERROR,
+                        message = "Submission check timed out after 30 seconds. Your proof is saved; try again.",
                     )
                 }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
-                showFailure(error)
+                if (queuedEvidenceId != null && (error is EvidenceCaptureFailure.Network ||
+                    error is EvidenceCaptureFailure.Server || error is EvidenceCaptureFailure.UploadNotReady ||
+                    error is EvidenceCaptureFailure.Storage)) {
+                    mutableState.update { it.copy(stage = EvidenceCaptureStage.QUEUED, message = "Submission could not finish yet. Your proof is saved; tap Check submission to retry.") }
+                } else {
+                    showFailure(error)
+                }
             }
         }
     }
