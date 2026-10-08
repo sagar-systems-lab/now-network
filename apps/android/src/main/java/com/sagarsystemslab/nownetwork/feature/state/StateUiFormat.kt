@@ -85,13 +85,13 @@ fun formatStateValue(
     val rendered = runCatching {
         when (val value = Json.parseToJsonElement(valueJson)) {
             is JsonPrimitive -> value.contentOrNull ?: value.toString()
-            is JsonObject -> scaledNumericValue(value)
+            is JsonObject -> if ((value["kind"] as? JsonPrimitive)?.contentOrNull == "visual") "Visual proof received" else scaledNumericValue(value)
                 ?: primitiveObjectValue(value)
-                ?: value.toString()
-            else -> value.toString()
+                ?: "Verified observation"
+            else -> "Verified observation"
         }
     }.getOrElse {
-        valueJson
+        if (valueJson.trimStart().startsWith("{") || valueJson.trimStart().startsWith("[")) "Observation unavailable" else valueJson
     }
 
     return if (unitCode.isNullOrBlank() || rendered.endsWith(" $unitCode")) {

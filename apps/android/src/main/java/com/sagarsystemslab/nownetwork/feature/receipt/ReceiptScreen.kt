@@ -20,10 +20,13 @@ import com.sagarsystemslab.nownetwork.feature.state.formatStateValue
 import kotlinx.serialization.json.JsonObject
 
 @Composable
-fun ReceiptScreen(uiState: ReceiptUiState,onBack:()->Unit,onRetry:()->Unit,onDone:()->Unit,context:JsonObject?=null,personalAmount:String?=null,poolAmount:String?=null) {
+fun ReceiptScreen(uiState: ReceiptUiState,onBack:()->Unit,onRetry:()->Unit,onDone:()->Unit,context:JsonObject?=null,personalAmount:String?=null,poolAmount:String?=null,onViewProof:(String)->Unit={}) {
     val androidContext=LocalContext.current; val clipboard=LocalClipboardManager.current
     val receipt=uiState.receipt?.takeIf { uiState.stage==ReceiptStage.READY }
-    TransactionPage("Receipt","Proof of your contribution","screen-receipt",onBack,footer={
+    val contributor = context?.text("role") == "CONTRIBUTOR"
+    val evidenceId = context?.text("evidence_id")?.takeIf { it.isNotBlank() }
+        ?: (receipt?.finalValue as? JsonObject)?.text("evidence_id")?.takeIf { it.isNotBlank() }
+    TransactionPage("Receipt","Your verified result & settlement","screen-receipt",onBack,footer={
         if(receipt!=null) Row(horizontalArrangement=Arrangement.spacedBy(com.sagarsystemslab.nownetwork.designsystem.NowSpacing.Space2)) {
             NowSecondaryButton("Share receipt",{
                 val text="NOW Network · finalized receipt\nReceipt: ${receipt.receiptId}\nTransaction: ${receipt.settlementSignature}\nNetwork: ${com.sagarsystemslab.nownetwork.BuildConfig.SOLANA_CLUSTER}\nFinalized: ${receipt.finalizedAt}"
@@ -35,14 +38,17 @@ fun ReceiptScreen(uiState: ReceiptUiState,onBack:()->Unit,onRetry:()->Unit,onDon
     }) {
         Column(Modifier.fillMaxWidth().testTag(if(receipt!=null) "receipt-final" else "receipt-finalizing"),horizontalAlignment=Alignment.CenterHorizontally) {
             ResultEmblem(receipt!=null,uiState.stage==ReceiptStage.FINALIZING, eventKey = receipt?.receiptId?.let { "receipt:$it" })
-            Text(if(receipt!=null) "Verified & paid" else if(uiState.stage==ReceiptStage.ATTENTION) "Receipt unavailable" else "Finalizing your receipt",style=NowType.TitleXL,color=NowColors.Ink950,textAlign=TextAlign.Center)
+            Text(if(receipt!=null) if(contributor) "Reward received" else "Refresh completed" else if(uiState.stage==ReceiptStage.ATTENTION) "Receipt unavailable" else "Finalizing your receipt",style=NowType.TitleXL,color=NowColors.Ink950,textAlign=TextAlign.Center)
             Text(if(receipt!=null) "This contribution and settlement are finalized on Solana." else uiState.message,style=NowType.BodyS,color=NowColors.Ink600,textAlign=TextAlign.Center)
         }
         if(receipt!=null) {
+            if (evidenceId != null) NowGlassCard { ProofMediaCard(evidenceId, context?.flag("has_video") == true, { onViewProof(evidenceId) }) }
             RefreshContextCard(context?.text("title")?.ifBlank { null } ?: "Verified refresh", "${receipt.verificationClass.replace('_',' ')} · Final", formatStateValue(receipt.finalValue.toString(),null),stateId=receipt.stateId)
             NowGlassCard {
                 ExperienceRow("Date & time",displayEventTime(receipt.finalizedAt),Icons.Outlined.Schedule)
-                ExperienceRow("Your finalized payout",personalAmount ?: "Allocation unavailable",Icons.Outlined.Payments)
+                ExperienceRow(if(contributor) "Your finalized payout" else "Contributor reward",if(contributor) personalAmount ?: "Loading payout…" else poolAmount ?: "Loading reward…",Icons.Outlined.Payments)
+                if(context == null || (contributor && personalAmount == null)) NowSecondaryButton("Refresh payment details",onRetry,Modifier.fillMaxWidth())
+                if(com.sagarsystemslab.nownetwork.BuildConfig.SOLANA_CLUSTER == "devnet") Text("Devnet test tokens · no dollar value",style=NowType.BodyS,color=NowColors.Ink600)
                 ExperienceRow("Total reward pool",poolAmount ?: "${receipt.rewardAmountAtomic} atomic · ${receipt.rewardMint.take(6)}…",Icons.Outlined.AccountBalance)
                 ExperienceRow("Verified answer",formatStateValue(receipt.finalValue.toString(),null),Icons.Outlined.Verified)
                 ExperienceRow("Transaction signature",receipt.settlementSignature.take(10)+"…"+receipt.settlementSignature.takeLast(8),Icons.Outlined.Link)

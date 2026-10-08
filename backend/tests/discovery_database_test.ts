@@ -210,6 +210,10 @@ Deno.test({
           null,
         "expired refresh regained capture context",
       );
+      assert(
+        (await states.getState(stateIds[2]))?.activeRefresh === null,
+        "state detail still promoted an expired request as refreshing now",
+      );
     } finally {
       await opportunities.close();
       await states.close();

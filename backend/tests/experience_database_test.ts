@@ -45,6 +45,7 @@ Deno.test({
     const installations = [crypto.randomUUID(), crypto.randomUUID()];
     const walletIds = [crypto.randomUUID(), crypto.randomUUID()];
     const refreshes = [crypto.randomUUID(), crypto.randomUUID()];
+    const mediaIds: string[] = [], challengeIds: string[] = [];
     const principals: AuthPrincipal[] = actorIds.map(() => ({
       authUserId: crypto.randomUUID(),
       sessionId: crypto.randomUUID(),
@@ -158,6 +159,14 @@ Deno.test({
         history.find((row) => row.refresh_id === refreshes[0])?.claim_status === "EXPIRED",
         "elapsed capture history did not show expiry",
       );
+      assert(
+        history.find((row) => row.refresh_id === refreshes[0])?.status === "EXPIRED",
+        "expired capture still rendered as current activity",
+      );
+      assert(
+        history.every((row) => row.evidence_id == null),
+        "an empty request inherited another request's proof",
+      );
       await sql`update app.refresh_acceptances set status='EVIDENCE_COMMITTED' where refresh_id=${
         refreshes[0]
       }::uuid`;
@@ -167,6 +176,86 @@ Deno.test({
         committed.length === 1 && committed[0].claim_status === "EVIDENCE_COMMITTED",
         "committed evidence disappeared while payout was pending",
       );
+      await sql`update app.refresh_requests set created_at=now()-interval '5 minutes',refresh_expires_at=now()-interval '1 second',evidence_deadline=now()-interval '2 seconds' where refresh_id=${
+        refreshes[1]
+      }::uuid`;
+      const requesterHistory = (await request(1, "me/activity")).items as Record<string, unknown>[];
+      assert(
+        requesterHistory.find((row) => row.refresh_id === refreshes[1])?.status === "EXPIRED",
+        "requester saw an elapsed empty request as current",
+      );
+      const evidenceId = crypto.randomUUID(), challengeId = crypto.randomUUID();
+      mediaIds.push(evidenceId);
+      challengeIds.push(challengeId);
+      const acceptance =
+        (await sql`select acceptance_id from app.refresh_acceptances where refresh_id=${
+          refreshes[0]
+        }::uuid`)[0].acceptance_id;
+      await sql`insert into app.evidence_challenges(challenge_id,refresh_id,acceptance_id,actor_id,wallet_address,nonce_hash,status,issued_at,expires_at,policy_version,consumed_at)
+        values (${challengeId}::uuid,${refreshes[0]}::uuid,${acceptance}::uuid,${
+        actorIds[0]
+      }::uuid,'TestWallet',decode(repeat('11',32),'hex'),'CONSUMED',now()-interval '1 minute',now()+interval '5 minutes',1,now())`;
+      await sql`insert into app.evidence_packets(evidence_id,refresh_id,acceptance_id,challenge_id,actor_id,wallet_address,state_id,state_version,intent_core_hash,execution_hash,answer_type,answer_value,media_object_key,status,committed_at)
+        values (${evidenceId}::uuid,${
+        refreshes[0]
+      }::uuid,${acceptance}::uuid,${challengeId}::uuid,${actorIds[0]}::uuid,'TestWallet',${
+        states[0]
+      }::uuid,1,decode(repeat('11',32),'hex'),decode(repeat('22',32),'hex'),'NUMERIC','4',${
+        evidenceId + "/original"
+      },'VERIFIED',now())`;
+      // Two requests for one state must never share the request-specific evidence card.
+      await sql`update app.refresh_requests set state_id=${states[0]}::uuid where refresh_id=${
+        refreshes[1]
+      }::uuid`;
+      await sql`update app.refresh_requests set created_at=now()-interval '5 minutes',refresh_expires_at=now()-interval '1 second',evidence_deadline=now()-interval '2 seconds' where refresh_id=${
+        refreshes[0]
+      }::uuid`;
+      const withProof = (await request(0, "me/activity")).items as Record<string, unknown>[];
+      assert(
+        withProof.find((row) => row.refresh_id === refreshes[0])?.evidence_id === evidenceId,
+        "own verified media was missing from activity",
+      );
+      assert(
+        withProof.find((row) => row.refresh_id === refreshes[1])?.evidence_id == null,
+        "an old request inherited the latest state's evidence",
+      );
+      assert(
+        ((await request(0, "me/activity?active=true&role=contributor")).items as unknown[])
+          .length === 1,
+        "durable proof was hidden merely because the original request deadline elapsed",
+      );
+      const originalFetch = globalThis.fetch;
+      let signed = 0;
+      try {
+        globalThis.fetch = () => {
+          signed++;
+          return Promise.resolve(
+            Response.json({ signedURL: "/object/sign/private-proof?token=test-only" }),
+          );
+        };
+        const preview = await request(1, `evidence/${evidenceId}/preview`);
+        assert(
+          preview.available === true && preview.evidence_id === evidenceId &&
+            preview.refresh_id === refreshes[0],
+          "authorized exact-proof preview lost its request context",
+        );
+        await rejects(
+          () =>
+            service.privateRequest(
+              new Request(`https://now.test/v1/evidence/${evidenceId}/preview`),
+              { actorId: crypto.randomUUID(), status: "ACTIVE", revision: 1 },
+              principals[0],
+            ),
+          "EVIDENCE_UNAVAILABLE",
+        );
+        assert(signed === 1, "private proof was signed for an unrelated account");
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+      await sql`delete from app.evidence_packets where evidence_id=${evidenceId}::uuid`;
+      await sql`delete from app.evidence_challenges where challenge_id=${challengeId}::uuid`;
+      await sql`delete from app.evidence_packets where evidence_id=any(${mediaIds}::uuid[])`;
+      await sql`delete from app.evidence_challenges where challenge_id=any(${challengeIds}::uuid[])`;
       await sql`delete from app.refresh_acceptances where refresh_id=any(${refreshes}::uuid[])`;
       await sql`delete from app.refresh_requests where refresh_id=any(${refreshes}::uuid[])`;
       for (let i = 0; i < 2; i++) {
@@ -288,6 +377,8 @@ Deno.test({
       await sql`delete from app.installations where actor_id=any(${actorIds}::uuid[])`;
       await sql`delete from app.actor_preferences where actor_id=any(${actorIds}::uuid[])`;
       await sql`delete from app.actor_profiles where actor_id=any(${actorIds}::uuid[])`;
+      await sql`delete from app.evidence_packets where evidence_id=any(${mediaIds}::uuid[])`;
+      await sql`delete from app.evidence_challenges where challenge_id=any(${challengeIds}::uuid[])`;
       await sql`delete from app.refresh_acceptances where refresh_id=any(${refreshes}::uuid[])`;
       await sql`delete from app.refresh_requests where refresh_id=any(${refreshes}::uuid[])`;
       await sql`delete from app.wallet_bindings where actor_id=any(${actorIds}::uuid[])`;

@@ -333,7 +333,7 @@ export class PostgresExperienceService implements ExperienceApi {
     if (preview && method === "GET") {
       const id = idFromPath(preview[1]);
       const rows = await this
-        .sql`select ep.media_object_key,ep.video_metadata from app.evidence_packets ep join app.refresh_requests rr on rr.refresh_id=ep.refresh_id
+        .sql`select ep.evidence_id,ep.refresh_id,ep.status::text,ep.committed_at,ep.media_object_key,ep.video_metadata from app.evidence_packets ep join app.refresh_requests rr on rr.refresh_id=ep.refresh_id
         where ep.evidence_id=${id}::uuid and ep.media_object_key is not null and ep.status in ('COMMITTED','VERIFYING','VERIFIED','CONFLICT','REJECTED')
         and (ep.actor_id=${actor.actorId}::uuid or rr.requester_actor_id=${actor.actorId}::uuid or exists
           (select 1 from app.refresh_contributions c where c.refresh_id=ep.refresh_id and c.actor_id=${actor.actorId}::uuid and c.status in ('CONFIRMED','FINALIZED'))) limit 1`;
@@ -341,6 +341,11 @@ export class PostgresExperienceService implements ExperienceApi {
         throw new ApiFault(404, "EVIDENCE_UNAVAILABLE", "This proof is private or unavailable.");
       }
       return {
+        available: true,
+        evidence_id: rows[0].evidence_id,
+        refresh_id: rows[0].refresh_id,
+        status: rows[0].status,
+        committed_at: iso(rows[0].committed_at),
         url: await this.signedUrl(this.storage.evidenceBucket, rows[0].media_object_key),
         ...(rows[0].video_metadata
           ? {
@@ -430,7 +435,8 @@ export class PostgresExperienceService implements ExperienceApi {
     const refreshId = url.searchParams.get("refresh_id");
     if (refreshId != null) idFromPath(refreshId);
     const rows = await this
-      .sql`select rr.refresh_id,rr.state_id,sd.title,rr.status::text as status,rr.updated_at,
+      .sql`select rr.refresh_id,rr.state_id,sd.title,effective.status,rr.updated_at,
+        proof.evidence_id,proof.evidence_status,proof.committed_at,proof.has_video,
         rr.reward_mint,coalesce(rr.chain_locked_reward,rr.chain_total_funded)::text as pool_atomic,
         ra.acceptance_id,
         case when ra.status in ('CLAIMED','CAPTURE_ACTIVE')
@@ -446,9 +452,28 @@ export class PostgresExperienceService implements ExperienceApi {
       left join app.refresh_acceptances ra on ra.refresh_id=rr.refresh_id and ra.actor_id=${actorId}::uuid
       left join app.receipts r on r.refresh_id=rr.refresh_id and r.status='FINAL'
       left join app.settlement_operations so on so.refresh_id=rr.refresh_id
+      cross join lateral (select case
+        when rr.status in ('COMPLETED','CANCELLED','EXPIRED','FAILED') then rr.status::text
+        when ra.status in ('RELEASED','EXPIRED','FAILED') then 'EXPIRED'
+        when ra.status in ('CLAIMED','CAPTURE_ACTIVE')
+          and least(ra.claim_deadline,rr.evidence_deadline,rr.refresh_expires_at)<=now() then 'EXPIRED'
+        when rr.refresh_expires_at<=now() and not exists (
+          select 1 from app.evidence_packets ep where ep.refresh_id=rr.refresh_id
+          and ep.status in ('COMMITTED','VERIFYING','VERIFIED','CONFLICT')) then 'EXPIRED'
+        else rr.status::text end as status) effective
+      left join lateral (
+        select ep.evidence_id,ep.status::text as evidence_status,ep.committed_at,
+          ep.video_metadata is not null as has_video
+        from app.evidence_packets ep where ep.refresh_id=rr.refresh_id and ep.media_object_key is not null
+          and ep.status in ('COMMITTED','VERIFYING','VERIFIED','CONFLICT','REJECTED')
+          and (ep.actor_id=${actorId}::uuid or rr.requester_actor_id=${actorId}::uuid or exists
+            (select 1 from app.refresh_contributions c where c.refresh_id=rr.refresh_id
+              and c.actor_id=${actorId}::uuid and c.status in ('CONFIRMED','FINALIZED')))
+        order by (ep.status='VERIFIED') desc,ep.committed_at desc,ep.evidence_id desc limit 1
+      ) proof on true
       where (${refreshId}::uuid is null or rr.refresh_id=${refreshId}::uuid)
         and (not ${contributorOnly} or ra.actor_id=${actorId}::uuid)
-        and (not ${activeOnly} or (r.receipt_id is null and rr.status not in ('COMPLETED','CANCELLED','EXPIRED','FAILED')
+        and (not ${activeOnly} or (r.receipt_id is null and effective.status not in ('COMPLETED','CANCELLED','EXPIRED','FAILED')
           and (ra.acceptance_id is null or (
             ra.status not in ('RELEASED','EXPIRED','FAILED')
             and (ra.status not in ('CLAIMED','CAPTURE_ACTIVE')
@@ -480,6 +505,10 @@ export class PostgresExperienceService implements ExperienceApi {
           state_id: row.state_id,
           title: row.title,
           status: row.status,
+          evidence_id: row.evidence_id,
+          evidence_status: row.evidence_status,
+          evidence_committed_at: row.committed_at ? iso(row.committed_at) : null,
+          has_video: row.has_video ?? false,
           updated_at: iso(row.updated_at),
           reward_mint: row.reward_mint,
           pool_atomic: row.pool_atomic,

@@ -213,6 +213,10 @@ export class PostgresStateRepository implements StateRepository {
         select rr.status from app.refresh_requests rr
         where rr.state_id = sd.state_id and rr.state_version = sd.version
           and rr.status not in ('COMPLETED', 'CANCELLED', 'EXPIRED', 'FAILED')
+          and (rr.refresh_expires_at > now() or exists (
+            select 1 from app.evidence_packets ep where ep.refresh_id = rr.refresh_id
+              and ep.status in ('COMMITTED', 'VERIFYING', 'VERIFIED', 'CONFLICT')
+          ))
         order by rr.created_at desc, rr.refresh_id desc limit 1
       ) ar on true
       where sd.status = 'ACTIVE'
@@ -322,6 +326,10 @@ export class PostgresStateRepository implements StateRepository {
         where rr.state_id = sd.state_id
           and rr.state_version = sd.version
           and rr.status not in ('COMPLETED', 'CANCELLED', 'EXPIRED', 'FAILED')
+          and (rr.refresh_expires_at > now() or exists (
+            select 1 from app.evidence_packets ep where ep.refresh_id = rr.refresh_id
+              and ep.status in ('COMMITTED', 'VERIFYING', 'VERIFIED', 'CONFLICT')
+          ))
         order by rr.created_at desc, rr.refresh_id desc
         limit 1
       ) ar on true

@@ -34,6 +34,7 @@ class StatePhotoSource(private val fetch: suspend (String) -> String?) {
 }
 
 val LocalStatePhotoSource = staticCompositionLocalOf<StatePhotoSource?> { null }
+val LocalEvidencePhotoSource = staticCompositionLocalOf<StatePhotoSource?> { null }
 
 @Composable
 fun StatePhoto(stateId: String?, title: String, modifier: Modifier, fallback: @Composable () -> Unit) {
@@ -74,7 +75,7 @@ private fun downloadThumbnail(value: String): Bitmap? {
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
         check(bounds.outWidth in 1..16000 && bounds.outHeight in 1..16000)
         val options = BitmapFactory.Options().apply {
-            while (bounds.outWidth / inSampleSize > 384 || bounds.outHeight / inSampleSize > 384) inSampleSize *= 2
+            inSampleSize = proofImageSampleSize(bounds.outWidth, bounds.outHeight, 384)
         }
         return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
     } finally { connection.disconnect() }
