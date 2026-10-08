@@ -92,11 +92,19 @@ function nextStep(claim: ClaimWithRefresh["claim"]): string | null {
   }
 }
 
-function privatePayload(record: ClaimWithRefresh): Record<string, unknown> {
+function privatePayload(record: ClaimWithRefresh, observedAt: Date): Record<string, unknown> {
+  const captureExpired =
+    (record.claim.status === "CLAIMED" || record.claim.status === "CAPTURE_ACTIVE") &&
+    Math.min(
+        record.claim.claimDeadline?.getTime() ?? Infinity,
+        record.refresh.evidenceDeadline.getTime(),
+        record.refresh.refreshExpiresAt.getTime(),
+      ) <= observedAt.getTime();
+  const claim = captureExpired ? { ...record.claim, status: "EXPIRED" as const } : record.claim;
   return {
     acceptance_id: record.claim.acceptanceId,
     refresh_id: record.claim.refreshId,
-    status: record.claim.status,
+    status: claim.status,
     claim_slot: record.claim.claimSlot,
     claim_duration_seconds: record.claim.claimDurationSeconds,
     claim_deadline: record.claim.claimDeadline?.toISOString() ?? null,
@@ -106,7 +114,7 @@ function privatePayload(record: ClaimWithRefresh): Record<string, unknown> {
     refresh_expires_at: record.refresh.refreshExpiresAt.toISOString(),
     evidence_deadline: record.refresh.evidenceDeadline.toISOString(),
     revision: record.claim.revision,
-    next_step: nextStep(record.claim),
+    next_step: nextStep(claim),
   };
 }
 
@@ -257,7 +265,7 @@ export class ClaimCoordinator {
         return await this.observe({ actor, acceptanceId, signature });
       }
     }
-    return privatePayload(record);
+    return privatePayload(record, this.now());
   }
 
   async observe(input: {
@@ -272,7 +280,7 @@ export class ClaimCoordinator {
     if (record === null || record.claim.actorId !== input.actor.actorId) {
       throw new ApiFault(404, "CLAIM_NOT_FOUND", "Claim was not found.");
     }
-    if (record.claim.status === "CLAIMED") return privatePayload(record);
+    if (record.claim.status === "CLAIMED") return privatePayload(record, this.now());
     if (
       record.claim.claimDurationSeconds === null ||
       record.refresh.chainRefreshAddress === null ||
@@ -436,7 +444,7 @@ export class ClaimCoordinator {
       }),
     );
 
-    return privatePayload(confirmed);
+    return privatePayload(confirmed, this.now());
   }
 
   private async activeBinding(
@@ -478,7 +486,7 @@ export class ClaimCoordinator {
     }
 
     return {
-      ...privatePayload(record),
+      ...privatePayload(record, this.now()),
       cluster: this.config.cluster,
       program_id: this.programId,
       wallet_address: record.claim.walletAddress,

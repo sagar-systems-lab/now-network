@@ -278,28 +278,35 @@ export class PostgresOpportunityRepository implements OpportunityRepository {
       ) claims on true
       where rr.refresh_id = ${input.refreshId}::uuid
         and rr.requester_actor_id <> ${input.actorId}::uuid
-        and rr.status in ('AVAILABLE', 'ADDITIONAL_VERIFICATION')
         and rr.refresh_expires_at > now()
         and sd.status = 'ACTIVE'
         and coalesce(rr.chain_locked_reward, rr.chain_total_funded) > 0
         and rr.payout_rule in ('SINGLE_WINNER_ALL', 'EQUAL_SPLIT_REQUIRED_WITNESSES')
-        and coalesce(claims.active_claims, 0) < rr.max_witnesses
-        and not exists (
-          select 1
-          from app.refresh_acceptances mine
-          where mine.refresh_id = rr.refresh_id
-            and mine.actor_id = ${input.actorId}::uuid
-            and mine.status in (
-              'PREPARING',
-              'WALLET_PENDING',
-              'SUBMITTED',
-              'CONFIRMING',
-              'CLAIMED',
-              'CAPTURE_ACTIVE',
-              'EVIDENCE_COMMITTED',
-              'RELEASE_ELIGIBLE',
-              'UNKNOWN'
+        and (
+          (
+            rr.status in ('AVAILABLE', 'ADDITIONAL_VERIFICATION')
+            and coalesce(claims.active_claims, 0) < rr.max_witnesses
+            and not exists (
+              select 1
+              from app.refresh_acceptances mine
+              where mine.refresh_id = rr.refresh_id
+                and mine.actor_id = ${input.actorId}::uuid
+                and mine.status in (
+                  'PREPARING', 'WALLET_PENDING', 'SUBMITTED', 'CONFIRMING',
+                  'CLAIMED', 'CAPTURE_ACTIVE', 'EVIDENCE_COMMITTED', 'RELEASE_ELIGIBLE', 'UNKNOWN'
+                )
             )
+          )
+          or (
+            rr.status in ('CLAIMED', 'CAPTURE_IN_PROGRESS', 'ADDITIONAL_VERIFICATION')
+            and exists (
+              select 1
+              from app.refresh_acceptances mine
+              where mine.refresh_id = rr.refresh_id
+                and mine.actor_id = ${input.actorId}::uuid
+                and mine.status in ('CLAIMED', 'CAPTURE_ACTIVE')
+            )
+          )
         )
       limit 1
     `;

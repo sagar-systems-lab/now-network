@@ -144,6 +144,29 @@ Deno.test({
       const requester = (await request(1, "me/activity?active=true&role=contributor"))
         .items as unknown[];
       assert(requester.length === 0, "requester ownership must not masquerade as contributor work");
+      await sql`update app.refresh_acceptances set claim_deadline=now()-interval '1 second' where refresh_id=${
+        refreshes[0]
+      }::uuid`;
+      const afterDeadline = (await request(0, "me/activity?active=true&role=contributor"))
+        .items as unknown[];
+      assert(
+        afterDeadline.length === 0,
+        "elapsed capture remained in active proof and looped back to capture",
+      );
+      const history = (await request(0, "me/activity")).items as Record<string, unknown>[];
+      assert(
+        history.find((row) => row.refresh_id === refreshes[0])?.claim_status === "EXPIRED",
+        "elapsed capture history did not show expiry",
+      );
+      await sql`update app.refresh_acceptances set status='EVIDENCE_COMMITTED' where refresh_id=${
+        refreshes[0]
+      }::uuid`;
+      const committed = (await request(0, "me/activity?active=true&role=contributor"))
+        .items as Record<string, unknown>[];
+      assert(
+        committed.length === 1 && committed[0].claim_status === "EVIDENCE_COMMITTED",
+        "committed evidence disappeared while payout was pending",
+      );
       await sql`delete from app.refresh_acceptances where refresh_id=any(${refreshes}::uuid[])`;
       await sql`delete from app.refresh_requests where refresh_id=any(${refreshes}::uuid[])`;
       for (let i = 0; i < 2; i++) {

@@ -136,6 +136,63 @@ Deno.test({
           'TestWallet',0,${new Date(now.getTime() + 60_000)},'CLAIMED')`;
       const filled = await matcher.nearby(actor, { ...query, category: "SHOP" });
       assert(filled.total === 0, "filled capacity must disappear from filtered totals");
+      const claimant = { ...actor, actorId: actors[2] };
+      for (const status of ["CLAIMED", "CAPTURE_IN_PROGRESS", "ADDITIONAL_VERIFICATION"] as const) {
+        await sql`update app.refresh_requests set status=${status} where refresh_id=${
+          refreshes[2]
+        }::uuid`;
+        const task = await matcher.detail(claimant, refreshes[2]);
+        assert(
+          task.question === "Available spaces?" && task.state_type === "NUMERIC",
+          "claimant lost capture task context",
+        );
+        assert(
+          (task.availability as { claimable: boolean }).claimable === false,
+          "a full claimed task became claimable again",
+        );
+        for (const otherId of [actors[0], actors[1]]) {
+          try {
+            await matcher.detail({ ...actor, actorId: otherId }, refreshes[2]);
+            throw new Error("claimed task leaked to an outsider or requester");
+          } catch (error) {
+            assert(
+              error instanceof ApiFault && error.code === "OPPORTUNITY_NOT_FOUND",
+              "claimed-task ownership",
+            );
+          }
+        }
+      }
+      await sql`update app.refresh_acceptances set status='CAPTURE_ACTIVE' where refresh_id=${
+        refreshes[2]
+      }::uuid`;
+      assert(
+        (await matcher.detail(claimant, refreshes[2])).refresh_id === refreshes[2],
+        "capture-active claim lost task details",
+      );
+      await sql`update app.refresh_requests set status='CAPTURE_IN_PROGRESS' where refresh_id=${
+        refreshes[2]
+      }::uuid`;
+      for (const status of ["EXPIRED", "RELEASED", "FAILED"] as const) {
+        await sql`update app.refresh_acceptances set status=${status} where refresh_id=${
+          refreshes[2]
+        }::uuid`;
+        assert(
+          await opportunities.getOpportunity({ actorId: actors[2], refreshId: refreshes[2] }) ===
+            null,
+          "terminal claim regained task access",
+        );
+      }
+      await sql`update app.refresh_acceptances set status='CLAIMED' where refresh_id=${
+        refreshes[2]
+      }::uuid`;
+      await sql`update app.refresh_requests set refresh_expires_at=now()-interval '1 second',evidence_deadline=now()-interval '2 seconds' where refresh_id=${
+        refreshes[2]
+      }::uuid`;
+      assert(
+        await opportunities.getOpportunity({ actorId: actors[2], refreshId: refreshes[2] }) ===
+          null,
+        "expired refresh regained capture context",
+      );
     } finally {
       await opportunities.close();
       await states.close();
@@ -144,6 +201,9 @@ Deno.test({
       await sql`delete from app.live_states where state_id=any(${stateIds}::uuid[])`;
       await sql`delete from app.state_definitions where state_id=any(${stateIds}::uuid[])`;
       await sql`delete from app.locations where location_id=any(${locations}::uuid[])`;
+      await sql`delete from app.notification_deliveries where notification_id in
+        (select notification_id from app.notifications where actor_id=any(${actors}::uuid[]))`;
+      await sql`delete from app.notifications where actor_id=any(${actors}::uuid[])`;
       await sql`delete from app.actors where actor_id=any(${actors}::uuid[])`;
       await sql.end({ timeout: 1 });
     }
