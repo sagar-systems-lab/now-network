@@ -32,6 +32,7 @@ export type OpportunityRecord = {
   requiredWitnesses: number;
   maxWitnesses: number;
   activeClaims: number;
+  actorHasActiveClaim?: boolean;
   remainingSlots: number;
   proofPolicySnapshot: PolicyTemplateV1;
   distanceM: number | null;

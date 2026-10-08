@@ -432,7 +432,11 @@ export class PostgresExperienceService implements ExperienceApi {
     const rows = await this
       .sql`select rr.refresh_id,rr.state_id,sd.title,rr.status::text as status,rr.updated_at,
         rr.reward_mint,coalesce(rr.chain_locked_reward,rr.chain_total_funded)::text as pool_atomic,
-        ra.acceptance_id,ra.status as claim_status,r.receipt_id,r.status::text as receipt_status,
+        ra.acceptance_id,
+        case when ra.status in ('CLAIMED','CAPTURE_ACTIVE')
+          and least(ra.claim_deadline,rr.evidence_deadline,rr.refresh_expires_at)<=now()
+          then 'EXPIRED' else ra.status end as claim_status,
+        r.receipt_id,r.status::text as receipt_status,
         so.status::text as payment_status,so.recipient_mask,so.recipient_wallets,so.locked_reward_atomic::text,
         rr.requester_actor_id=${actorId}::uuid as requester,
         (select coalesce(jsonb_agg(jsonb_build_object('slot',p.claim_slot,'wallet',p.wallet_address,'actor_id',p.actor_id) order by p.claim_slot),'[]'::jsonb)
@@ -445,7 +449,11 @@ export class PostgresExperienceService implements ExperienceApi {
       where (${refreshId}::uuid is null or rr.refresh_id=${refreshId}::uuid)
         and (not ${contributorOnly} or ra.actor_id=${actorId}::uuid)
         and (not ${activeOnly} or (r.receipt_id is null and rr.status not in ('COMPLETED','CANCELLED','EXPIRED','FAILED')
-          and (ra.acceptance_id is null or ra.status not in ('RELEASED','EXPIRED','FAILED'))))
+          and (ra.acceptance_id is null or (
+            ra.status not in ('RELEASED','EXPIRED','FAILED')
+            and (ra.status not in ('CLAIMED','CAPTURE_ACTIVE')
+              or least(ra.claim_deadline,rr.evidence_deadline,rr.refresh_expires_at)>now())
+          ))))
         and (rr.requester_actor_id=${actorId}::uuid or ra.actor_id=${actorId}::uuid or exists
         (select 1 from app.refresh_contributions c where c.refresh_id=rr.refresh_id and c.actor_id=${actorId}::uuid))
       order by rr.updated_at desc,rr.refresh_id desc limit ${limit + 1} offset ${offset}`;

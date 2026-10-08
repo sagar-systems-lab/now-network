@@ -30,6 +30,7 @@ type OpportunityRow = {
   required_witnesses: number | string;
   max_witnesses: number | string;
   active_claims: number | string;
+  actor_has_active_claim?: boolean;
   remaining_slots: number | string;
   proof_policy_snapshot: OpportunityRecord["proofPolicySnapshot"];
   distance_m: number | string | null;
@@ -64,6 +65,7 @@ function fromRow(row: OpportunityRow): OpportunityRecord {
     requiredWitnesses: Number(row.required_witnesses),
     maxWitnesses: Number(row.max_witnesses),
     activeClaims: Number(row.active_claims),
+    actorHasActiveClaim: row.actor_has_active_claim === true,
     remainingSlots: Number(row.remaining_slots),
     proofPolicySnapshot: row.proof_policy_snapshot,
     distanceM: row.distance_m === null ? null : Number(row.distance_m),
@@ -248,6 +250,7 @@ export class PostgresOpportunityRepository implements OpportunityRepository {
         rr.required_witnesses,
         rr.max_witnesses,
         coalesce(claims.active_claims, 0)::integer as active_claims,
+        coalesce(claims.actor_has_active_claim, false) as actor_has_active_claim,
         (rr.max_witnesses - coalesce(claims.active_claims, 0))::integer as remaining_slots,
         rr.proof_policy_snapshot,
         null::double precision as distance_m,
@@ -260,7 +263,8 @@ export class PostgresOpportunityRepository implements OpportunityRepository {
       join app.locations l on l.location_id = sd.location_id
       left join app.live_states ls on ls.state_id = sd.state_id
       left join lateral (
-        select count(*)::integer as active_claims
+        select count(*)::integer as active_claims,
+          bool_or(ra.actor_id = ${input.actorId}::uuid) as actor_has_active_claim
         from app.refresh_acceptances ra
         where ra.refresh_id = rr.refresh_id
           and ra.claim_slot is not null
@@ -278,28 +282,36 @@ export class PostgresOpportunityRepository implements OpportunityRepository {
       ) claims on true
       where rr.refresh_id = ${input.refreshId}::uuid
         and rr.requester_actor_id <> ${input.actorId}::uuid
-        and rr.status in ('AVAILABLE', 'ADDITIONAL_VERIFICATION')
         and rr.refresh_expires_at > now()
         and sd.status = 'ACTIVE'
         and coalesce(rr.chain_locked_reward, rr.chain_total_funded) > 0
         and rr.payout_rule in ('SINGLE_WINNER_ALL', 'EQUAL_SPLIT_REQUIRED_WITNESSES')
-        and coalesce(claims.active_claims, 0) < rr.max_witnesses
-        and not exists (
-          select 1
-          from app.refresh_acceptances mine
-          where mine.refresh_id = rr.refresh_id
-            and mine.actor_id = ${input.actorId}::uuid
-            and mine.status in (
-              'PREPARING',
-              'WALLET_PENDING',
-              'SUBMITTED',
-              'CONFIRMING',
-              'CLAIMED',
-              'CAPTURE_ACTIVE',
-              'EVIDENCE_COMMITTED',
-              'RELEASE_ELIGIBLE',
-              'UNKNOWN'
+        and (
+          (
+            rr.status in ('AVAILABLE', 'ADDITIONAL_VERIFICATION')
+            and coalesce(claims.active_claims, 0) < rr.max_witnesses
+            and not exists (
+              select 1
+              from app.refresh_acceptances mine
+              where mine.refresh_id = rr.refresh_id
+                and mine.actor_id = ${input.actorId}::uuid
+                and mine.status in (
+                  'PREPARING', 'WALLET_PENDING', 'SUBMITTED', 'CONFIRMING',
+                  'CLAIMED', 'CAPTURE_ACTIVE', 'EVIDENCE_COMMITTED', 'RELEASE_ELIGIBLE', 'UNKNOWN'
+                )
             )
+          )
+          or (
+            rr.status in ('CLAIMED', 'CAPTURE_IN_PROGRESS', 'ADDITIONAL_VERIFICATION')
+            and exists (
+              select 1
+              from app.refresh_acceptances mine
+              where mine.refresh_id = rr.refresh_id
+                and mine.actor_id = ${input.actorId}::uuid
+                and mine.claim_slot is not null
+                and mine.status in ('CLAIMED', 'CAPTURE_ACTIVE')
+            )
+          )
         )
       limit 1
     `;

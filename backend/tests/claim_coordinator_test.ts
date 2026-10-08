@@ -398,3 +398,60 @@ Deno.test("execution hash matches the on-chain byte contract", async () => {
     throw new Error("execution hash drifted from the on-chain byte contract");
   }
 });
+
+Deno.test("claim reads stop capture at the authoritative deadline without changing chain evidence", async () => {
+  for (const status of ["CLAIMED", "CAPTURE_ACTIVE"] as const) {
+    for (const boundary of ["claim", "evidence", "refresh"] as const) {
+      const repository = new MemoryClaimRepository();
+      repository.record = await baseRecord();
+      const record = repository.record;
+      record.claim.status = status;
+      record.claim.claimDeadline = DEADLINE;
+      record.claim.chainSignature = SIGNATURE;
+      if (boundary === "claim") record.claim.claimDeadline = NOW;
+      if (boundary === "evidence") record.refresh.evidenceDeadline = NOW;
+      if (boundary === "refresh") record.refresh.refreshExpiresAt = NOW;
+      const coordinator = new ClaimCoordinator(
+        repository,
+        identity(),
+        new MemoryObserver({ kind: "pending" }),
+        {
+          cluster: "devnet",
+          claimDurationSeconds: 180,
+        },
+        () => NOW,
+      );
+      const result = await coordinator.get(actor(), ACCEPTANCE_ID);
+      if (
+        result.status !== "EXPIRED" || result.next_step !== null ||
+        result.chain_signature !== SIGNATURE
+      ) {
+        throw new Error(`${status}/${boundary} left an expired capture actionable`);
+      }
+      if (record.claim.status !== status || record.claim.chainSignature !== SIGNATURE) {
+        throw new Error("a read mutated authoritative chain recovery data");
+      }
+    }
+  }
+});
+
+Deno.test("claim reads preserve committed evidence after the capture deadline", async () => {
+  const repository = new MemoryClaimRepository();
+  repository.record = await baseRecord();
+  repository.record.claim.status = "EVIDENCE_COMMITTED";
+  repository.record.claim.claimDeadline = NOW;
+  const coordinator = new ClaimCoordinator(
+    repository,
+    identity(),
+    new MemoryObserver({ kind: "pending" }),
+    {
+      cluster: "devnet",
+      claimDurationSeconds: 180,
+    },
+    () => NOW,
+  );
+  const result = await coordinator.get(actor(), ACCEPTANCE_ID);
+  if (result.status !== "EVIDENCE_COMMITTED") {
+    throw new Error("committed proof was expired during settlement recovery");
+  }
+});
