@@ -177,9 +177,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Deno
-        uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
-        with:
-          deno-version: "2.9.7"
+        shell: bash
+        run: bash scripts/ci/setup-deno.sh
 
       - name: Checks
         shell: bash
@@ -277,9 +276,8 @@ jobs:
           done < <(find supabase/migrations -maxdepth 1 -type f -name '*.sql' | sort)
 
       - name: Deno for account integration tests
-        uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
-        with:
-          deno-version: "2.9.7"
+        shell: bash
+        run: bash scripts/ci/setup-deno.sh
 
       - name: Verify account isolation and notification delivery
         shell: bash
@@ -615,9 +613,8 @@ jobs:
           anchor --version | grep -F '1.2.0'
 
       - name: Deno
-        uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
-        with:
-          deno-version: "2.9.7"
+        shell: bash
+        run: bash scripts/ci/setup-deno.sh
 
       - name: Rust tests
         shell: bash
