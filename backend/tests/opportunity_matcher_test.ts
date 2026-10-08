@@ -271,3 +271,13 @@ Deno.test("opportunity cursors cannot cross filters, locations or actors", async
     if (faultCode(error) !== "INVALID_CURSOR") throw error;
   }
 });
+
+Deno.test("claimed task details retain capacity while preventing another claim by the same actor", async () => {
+  const repository = new MemoryOpportunityRepository();
+  repository.rows[1].actorHasActiveClaim = true;
+  const data = await new OpportunityMatcher(repository).detail(actor(), REFRESH_B);
+  const availability = data.availability as { claimable: boolean; remaining_slots: number };
+  if (availability.claimable || availability.remaining_slots !== 2) {
+    throw new Error("owned task confused remaining witness capacity with actor eligibility");
+  }
+});

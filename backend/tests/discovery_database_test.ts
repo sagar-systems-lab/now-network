@@ -162,6 +162,23 @@ Deno.test({
           }
         }
       }
+      await sql`update app.refresh_requests set max_witnesses=2 where refresh_id=${
+        refreshes[2]
+      }::uuid`;
+      const ownTask = await matcher.detail(claimant, refreshes[2]);
+      const ownAvailability = ownTask.availability as {
+        claimable: boolean;
+        remaining_slots: number;
+      };
+      assert(
+        !ownAvailability.claimable && ownAvailability.remaining_slots === 1,
+        "claimant was offered a second slot while other witnesses still had capacity",
+      );
+      const otherTask = await matcher.detail(actor, refreshes[2]);
+      assert(
+        (otherTask.availability as { claimable: boolean }).claimable,
+        "eligible additional witness lost discovery access",
+      );
       await sql`update app.refresh_acceptances set status='CAPTURE_ACTIVE' where refresh_id=${
         refreshes[2]
       }::uuid`;

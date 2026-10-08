@@ -115,7 +115,7 @@ function payload(record: OpportunityRecord): Record<string, unknown> {
       max_witnesses: record.maxWitnesses,
     },
     availability: {
-      claimable: record.remainingSlots > 0,
+      claimable: record.remainingSlots > 0 && record.actorHasActiveClaim !== true,
       active_claims: record.activeClaims,
       remaining_slots: record.remainingSlots,
     },
