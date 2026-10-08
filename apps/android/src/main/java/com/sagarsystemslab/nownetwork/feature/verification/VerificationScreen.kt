@@ -39,7 +39,7 @@ fun VerificationScreen(uiState: VerificationUiState, onBack: () -> Unit, onRetry
         if(checking) LinearProgressIndicator(Modifier.fillMaxWidth(),color=NowColors.Blue600)
         if(verified) NowGlassCard(emphasized=true) {
             Text(if(uiState.projectionSuperseded) "Accepted observation" else "Verified answer",style=NowType.LabelM,color=NowColors.Ink600)
-            Text(formatStateValue((if(uiState.projectionSuperseded) uiState.finalAnswer else uiState.projectedValue ?: uiState.finalAnswer)?.toString(),null),style=NowType.DataLarge,color=NowColors.Ink950)
+            Text(formatStateValue((if(uiState.projectionSuperseded) uiState.finalAnswer else uiState.projectedValue ?: uiState.finalAnswer)?.toString(),null),style=NowType.TitleM,maxLines=3,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis,color=NowColors.Ink950)
             if(uiState.projectionSuperseded) Text("A newer observation is already current. This contribution does not replace it.",style=NowType.BodyS,color=NowColors.Ink600)
             else uiState.projectedFreshness?.let { NowStatusChip(it,NowStatusTone.INFO) }
         }

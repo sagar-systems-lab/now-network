@@ -53,6 +53,13 @@ class StateUiFormatTest {
     }
 
     @Test
+    fun visualAnswersNeverExposeInternalIdentifiers() {
+        assertEquals("Visual proof received", formatStateValue("""{"kind":"visual","evidence_id":"73a8e1d5-1a3d-48ad-b960-c2efb2ff0e74"}""", null))
+        assertEquals("Verified observation", formatStateValue("""{"internal_id":"private"}""", null))
+        assertEquals("Observation unavailable", formatStateValue("{broken", null))
+    }
+
+    @Test
     fun relativeTimeUsesObservedTimestamp() {
         assertEquals(
             "verified 45s ago",

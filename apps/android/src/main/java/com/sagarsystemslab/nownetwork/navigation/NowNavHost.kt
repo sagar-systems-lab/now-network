@@ -108,7 +108,7 @@ fun NowNavHost(
     }
 
     experienceState?.privateProof?.let { proof ->
-        com.sagarsystemslab.nownetwork.experience.PrivateProofDialog(proof) { experience?.dismissProof() }
+        com.sagarsystemslab.nownetwork.experience.PrivateProofDialog(proof, onRetry = { experience?.retryProof() }) { experience?.dismissProof() }
     }
     val slideDistance = with(LocalDensity.current) { 16.dp.roundToPx() }
     val photoActor = experienceState?.me?.actorId
@@ -116,10 +116,14 @@ fun NowNavHost(
         if (experience == null || photoActor == null) null
         else StatePhotoSource { stateId -> experience.photoUrl(stateId, photoActor) }
     }
+    val evidencePhotos = remember(experience, photoActor) {
+        if (experience == null || photoActor == null) null
+        else StatePhotoSource { evidenceId -> experience.evidencePhotoUrl(evidenceId, photoActor) }
+    }
     CompositionLocalProvider(LocalHeaderIdentity provides HeaderIdentity(
         experienceState?.profile?.text("avatar_url").orEmpty(),
         experienceState?.profile?.text("display_name").orEmpty(),
-    ), LocalStatePhotoSource provides photos) {
+    ), LocalStatePhotoSource provides photos, LocalEvidencePhotoSource provides evidencePhotos) {
     NavHost(
         navController = appState.navController,
         startDestination = NowRoute,
@@ -400,14 +404,16 @@ fun NowNavHost(
             }
 
             val receiptContext = experienceState?.refreshDetails?.get(route.refreshId)
+            LaunchedEffect(experienceState?.me?.actorId, route.refreshId) { experience?.refreshContext(route.refreshId) }
             LaunchedEffect(uiState.receipt?.receiptId) { if (uiState.receipt != null) experience?.refreshContext(route.refreshId) }
             ReceiptScreen(
                 uiState = uiState,
                 context = receiptContext,
                 personalAmount = receiptContext?.text("payout_atomic")?.takeIf { it.isNotBlank() }?.let { experience?.amount(it, receiptContext.text("reward_mint")) },
                 poolAmount = uiState.receipt?.let { experience?.amount(it.rewardAmountAtomic, it.rewardMint) },
+                onViewProof = { evidenceId -> experience?.evidenceProof(evidenceId) },
                 onBack = appState::navigateBack,
-                onRetry = receiptViewModel::retry,
+                onRetry = { receiptViewModel.retry(); experience?.refreshContext(route.refreshId) },
                 onDone = {
                     appState.navigateTo(TopLevelDestination.ACTIVITY)
                 },

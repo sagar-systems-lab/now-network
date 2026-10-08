@@ -282,7 +282,7 @@ private fun StateHero(
             HorizontalDivider(color = NowColors.BorderSubtle)
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 com.sagarsystemslab.nownetwork.feature.common.CategoryArtwork(detail.title, Modifier.size(76.dp), detail.stateId)
-                Text(displayValue, style = NowType.DataHero, color = NowColors.Ink950, modifier = Modifier.weight(1f).nowPulseOnChange(
+                Text(displayValue, style = if (detail.stateType == "VISUAL") NowType.TitleM else NowType.DataHero, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, color = NowColors.Ink950, modifier = Modifier.weight(1f).nowPulseOnChange(
                     key = displayValue, durationMillis = com.sagarsystemslab.nownetwork.designsystem.NowMotion.StateMillis))
             }
 
@@ -614,7 +614,9 @@ private fun CachedStateDetail(
             )
             Text(
                 text = formatStateValue(state.valueJson, state.unitCode),
-                style = NowType.DataHero,
+                style = if (state.stateType == "VISUAL") NowType.TitleM else NowType.DataHero,
+                maxLines = 3,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 color = NowColors.Ink950,
             )
             Text(

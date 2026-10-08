@@ -34,18 +34,18 @@ fun AccountActivityScreen(
         (filter == "All" || (row.text("status") in finished) == (filter == "Completed")) }
     val serverIds = rows.map { it.text("refresh_id") }.toSet()
     val pending = (local.active + local.completed.filter { it.type == "CONTRIBUTOR_CLAIM" && it.remoteState in setOf("CLAIMED", "CAPTURE_ACTIVE", "EVIDENCE_COMMITTED") }).filter { it.entityId !in serverIds }.distinctBy { it.entityId }
-    val current = visible.firstOrNull { it.text("status") !in finished }
+    val current = visible.firstOrNull()
     val recent = visible.filter { it.text("refresh_id") != current?.text("refresh_id") }
     val motionDuration = nowMotionDuration(rememberNowMotionEnabled(), 180)
     LazyColumn(Modifier.testTag("screen-activity"), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { ExperienceHeader("ACTIVITY", "Your refreshes, proofs & earnings", area, onArea, onNotifications, onProfile, state.inbox.number("unread_count")) }
+        if (current != null) item(key = "current-${current.text("refresh_id")}") {
+            ActivityEntry(current, viewModel, { onOpen(current) }, featured = true)
+        }
         item { MetricStrip(listOf((if (state.activity.isEmpty()) "—" else rows.count { it.text("status") !in finished }.toString()) to "In progress shown", (if (state.activity.isEmpty()) "—" else rows.count { it.text("status") in finished }.toString()) to "Completed shown")) }
         if (rows.isNotEmpty()) {
             item { NowTextField(query, { query = it }, "Search your activity") }
             item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf("All", "In progress", "Completed").forEach { label -> FilterChip(filter == label, { filter = label }, label = { Text(label) }) } } }
-        }
-        if (current != null) item(key = "current-${current.text("refresh_id")}") {
-            ActivityEntry(current, viewModel, { onOpen(current) }, featured = true)
         }
         if (recent.isNotEmpty()) item { NowSectionTitle("Recent activity", "Your refreshes and proof history") }
         items(recent, key = { it.text("refresh_id") }) { row ->
@@ -69,7 +69,7 @@ fun AccountActivityScreen(
                 if (state.error == null) "Fund a refresh or capture fresh proof. Track every step and finalized receipt here." else "Your history couldn't load. Reconnect to see your proof, payments and finalized receipts.",
                 onArea, onHelp, activity = true)
         }
-        item {
+        if (rows.isEmpty()) item {
             NowGlassCard(spacing = 8.dp) {
                 Text("Activity types you'll see", style = NowType.TitleS, color = NowColors.Ink950)
                 val types = listOf(Icons.Outlined.Payments to "Funding", Icons.Outlined.WorkOutline to "Claim", Icons.Outlined.CameraAlt to "Evidence", Icons.Outlined.Verified to "Verification", Icons.Outlined.AccountBalanceWallet to "Settlement", Icons.Outlined.ReceiptLong to "Receipt")
@@ -99,16 +99,20 @@ private fun ActivityEntry(row: JsonObject, viewModel: ExperienceViewModel, onOpe
     val failed = row.text("status") in setOf("CANCELLED", "EXPIRED", "REJECTED", "FAILED")
     NowGlassCard(emphasized = featured, spacing = 8.dp) {
         if (featured) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            NowStatusChip("CURRENT", NowStatusTone.INFO)
+            NowStatusChip(if(final) "LATEST RESULT" else if(failed) "ENDED" else "CURRENT", if(final) NowStatusTone.LIVE else if(failed) NowStatusTone.STALE else NowStatusTone.INFO)
             Spacer(Modifier.weight(1f))
             Text("${row.text("role").lowercase().replaceFirstChar { it.uppercase() }} activity", style = NowType.BodyS, color = NowColors.Ink600)
         }
         ExperienceRow(row.text("title"), row.text("role").lowercase().replaceFirstChar { it.uppercase() },
             if (final) Icons.Outlined.ReceiptLong else Icons.Outlined.PendingActions, onOpen)
+        row.text("evidence_id").takeIf { it.isNotBlank() }?.let { evidenceId ->
+            ProofMediaCard(evidenceId, row.flag("has_video"), { viewModel.evidenceProof(evidenceId) }, compact = !featured)
+        }
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             NowStatusChip(row.text("status").replace('_', ' '), if (failed) NowStatusTone.STALE else if (final) NowStatusTone.LIVE else NowStatusTone.INFO)
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (paid != null) Text(viewModel.amount(paid, row.text("reward_mint")), Modifier.weight(1f), style = NowType.LabelL, color = NowColors.LiveText)
+                else if(final && row.text("role") == "REQUESTER") Text("Reward settled",Modifier.weight(1f),style=NowType.LabelL,color=NowColors.LiveText)
                 else Spacer(Modifier.weight(1f))
                 if (row.text("updated_at").isNotBlank()) Text(displayEventTime(row.text("updated_at")), style = NowType.BodyS, color = NowColors.Ink500)
             }
@@ -119,6 +123,6 @@ private fun ActivityEntry(row: JsonObject, viewModel: ExperienceViewModel, onOpe
             row.text("payment_status").isNotBlank() -> "Settlement is being tracked. Open to check its status."
             else -> "Open to see the latest progress and next action."
         }, style = NowType.BodyS, color = NowColors.Ink600)
-        if (featured) NowPrimaryButton("Open current activity", onOpen, Modifier.fillMaxWidth())
+        if (featured) NowPrimaryButton(if(final) "View receipt" else if(failed) "View latest state" else "Continue activity", onOpen, Modifier.fillMaxWidth())
     }
 }

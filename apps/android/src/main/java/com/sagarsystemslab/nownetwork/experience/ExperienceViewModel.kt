@@ -46,6 +46,9 @@ class ExperienceViewModel @Inject constructor(
     private var areaJob: Job? = null
     private var refreshJob: Job? = null
     private var mutationJob: Job? = null
+    private val contextJobs = mutableMapOf<String, Job>()
+    private var proofJob: Job? = null
+    private var proofPath: String? = null
     private var identityMutation = false
     internal var allowMutations: Boolean = true
     private var lastAreaQuery = ""
@@ -205,13 +208,43 @@ class ExperienceViewModel @Inject constructor(
             catch (_: Exception) { mutable.update { it.copy(historyErrors = it.historyErrors + (stateId to "History could not be loaded. Try again.")) } }
         }
     }
-    fun refreshContext(refreshId: String) = mutation(null) {
-        val result = repository.get("/v1/me/activity", mapOf("refresh_id" to refreshId))
-        result.rows().firstOrNull()?.let { row -> mutable.update { it.copy(refreshDetails = it.refreshDetails + (refreshId to row)) } }
+    fun refreshContext(refreshId: String) {
+        if (!allowMutations) return
+        val actor = mutable.value.me?.actorId ?: return
+        contextJobs[refreshId]?.cancel()
+        contextJobs[refreshId] = viewModelScope.launch {
+            try {
+                val result = withTimeout(30_000) { withContext(Dispatchers.IO) { repository.get("/v1/me/activity", mapOf("refresh_id" to refreshId)) } }
+                val row = result.rows().firstOrNull()
+                mutable.update { if (it.me?.actorId == actor && row != null) it.copy(refreshDetails = it.refreshDetails + (refreshId to row)) else it }
+            } catch (_: TimeoutCancellationException) {
+                mutable.update { if (it.me?.actorId == actor) it.copy(notice = "Payment details timed out. Retry to refresh them.") else it }
+            } catch (cancel: CancellationException) { throw cancel }
+            catch (error: Exception) { mutable.update { if (it.me?.actorId == actor) it.copy(notice = safeMessage(error)) else it } }
+        }
     }
-    fun proof(stateId: String) = mutation(null) {
-        val result = repository.get("/v1/me/states/$stateId/proof")
-        mutable.update { it.copy(privateProof = result) }
+    fun proof(stateId: String) = loadProof("/v1/me/states/$stateId/proof")
+    fun evidenceProof(evidenceId: String) = loadProof("/v1/evidence/$evidenceId/preview")
+    fun retryProof() { proofPath?.let(::loadProof) }
+    private fun loadProof(path: String) {
+        if (!allowMutations) return
+        val actor = mutable.value.me?.actorId ?: return
+        proofJob?.cancel(); proofPath = path
+        mutable.update { it.copy(privateProof = buildJsonObject { put("loading", true) }) }
+        proofJob = viewModelScope.launch {
+            try {
+                val result = withTimeout(30_000) { withContext(Dispatchers.IO) { repository.get(path) } }
+                mutable.update { if (it.me?.actorId == actor) it.copy(privateProof = result) else it }
+            } catch (_: TimeoutCancellationException) {
+                mutable.update { if (it.me?.actorId == actor) it.copy(privateProof = buildJsonObject { put("error", "Preview timed out. Retry to load your proof.") }) else it }
+            } catch (cancel: CancellationException) { throw cancel }
+            catch (error: Exception) { mutable.update { if (it.me?.actorId == actor) it.copy(privateProof = buildJsonObject { put("error", safeMessage(error)) }) else it } }
+        }
+    }
+    suspend fun evidencePhotoUrl(evidenceId: String, actorId: String): String? {
+        if (!allowMutations || mutable.value.me?.actorId != actorId) return null
+        val result = withTimeout(30_000) { withContext(Dispatchers.IO) { repository.get("/v1/evidence/$evidenceId/preview") } }
+        return result.text("url").takeIf { mutable.value.me?.actorId == actorId && it.isNotBlank() }
     }
     suspend fun photoUrl(stateId: String, actorId: String): String? {
         if (!allowMutations || mutable.value.me?.actorId != actorId) return null
@@ -220,7 +253,7 @@ class ExperienceViewModel @Inject constructor(
             result.flag("available") && mutable.value.me?.actorId == actorId && it.isNotBlank()
         }
     }
-    fun dismissProof() { mutable.update { it.copy(privateProof = null) } }
+    fun dismissProof() { proofJob?.cancel(); proofPath = null; mutable.update { it.copy(privateProof = null) } }
     fun dismissMessage() { mutable.update { it.copy(error = null, notice = null) } }
 
     private fun mutation(message: String?, changesIdentity: Boolean = false, block: suspend () -> Unit) {
